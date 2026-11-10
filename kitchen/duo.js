@@ -16,6 +16,8 @@ const COLORS = { host: '#D9483B', guest: '#2F9E8F' };
 let mode = 'solo'; // solo | waiting | connecting | on | lost | full
 let room = null, role = null, link = null, gen = 0;
 let last = 0, connectT = 0, manual = null, tries = 0;
+// 둘이 하는 방식 두 가지: 같이(한 과자를 함께 꾸밈, #r=) / 서로 선물(각자 구워 주고받음, #x=)
+let xmode = false, chosen = false, giftIn = null, giftSent = false;
 
 /* ───────── 상태를 링크에 담기 (이어 굽기) ───────── */
 const S_MAX = K.STICK.L * 0.8, U_MAX = K.STICK.R;
@@ -54,12 +56,17 @@ export function unpackState(txt) {
   return st;
 }
 const baseUrl = () => location.origin + location.pathname + location.search;
-const inviteUrl = () => baseUrl() + '#r=' + room;
+const inviteUrl = () => baseUrl() + (xmode ? '#x=' : '#r=') + room;
 const continueUrl = () => baseUrl() + '#s=' + packState(K.getState());
 
 /* ───────── 연결 ───────── */
 function setMode(m) { if (m !== mode) manual = null; mode = m; render(); }
 function send(m) { if (link && mode === 'on') link.send(m); }
+const INVITE = () => (xmode ? '각자 막대과자를 구워 서로 선물해요. 눌러서 주방으로 들어오세요.' : '같이 막대과자 구워요. 눌러서 주방으로 들어오세요.');
+// 서로 선물: 편지와 과자를 상대에게 바로 보낸다 (내용은 선물 링크와 같은 모양)
+export const canGive = () => xmode && mode === 'on';
+export function give(txt) { if (!canGive()) return false; send({ t: 'gift', g: txt }); giftSent = true; render(); return true; }
+export function takeGift() { const g = giftIn; giftIn = null; render(); return g; }
 
 async function start(id, again) {
   const my = ++gen;
@@ -77,7 +84,7 @@ async function start(id, again) {
       clearTimeout(connectT); last = performance.now(); tries = 0; setMode('on');
       K.toast('연결됐어요. 같이 구워요!');
       // 방 주인이 기준. 손님은 가진 것을 알리고, 주인이 합쳐서 통째로 돌려준다.
-      if (role === 'guest') link.send({ t: 'hello', state: K.getState() });
+      if (role === 'guest' && !xmode) link.send({ t: 'hello', state: K.getState() });
     },
     msg(m) { if (my === gen) onMsg(m); },
     close() { if (my === gen && mode !== 'full' && mode !== 'solo') lost(); },
@@ -99,22 +106,28 @@ function lost() {
 function leave() { // 혼자 굽기로 돌아가기
   gen++; clearTimeout(connectT);
   if (link) link.close();
-  link = null; room = null; role = null; manual = null;
+  link = null; room = null; role = null; manual = null; giftIn = null; giftSent = false; xmode = false;
   hideHand();
   history.replaceState(null, '', location.pathname + location.search);
   setMode('solo');
 }
-function createRoom() {
+function createRoom(exchange) {
+  xmode = exchange === true; chosen = true; giftIn = null; giftSent = false;
   const a = new Uint8Array(10); crypto.getRandomValues(a);
   const id = Array.from(a, (x) => 'abcdefghijkmnpqrstuvwxyz23456789'[x % 32]).join('');
-  history.replaceState(null, '', '#r=' + id);
+  history.replaceState(null, '', (xmode ? '#x=' : '#r=') + id);
   start(id);
-  shareBar(inviteUrl(), '같이 막대과자 구워요. 눌러서 주방으로 들어오세요.');
+  shareBar(inviteUrl(), INVITE());
 }
 
 function onMsg(m) {
   if (!m || typeof m !== 'object') return;
   last = performance.now();
+  if (xmode) { // 서로 선물: 과자는 각자 것이라 꾸미기 사건은 주고받지 않는다
+    if (m.t === 'gift' && typeof m.g === 'string' && /^[A-Za-z0-9_-]{8,12000}$/.test(m.g)) { giftIn = m.g; K.toast('상대의 선물이 도착했어요!'); render(); }
+    else if (m.t === 'emo' && EMOJI[m.i]) floatEmoji(m.i, false);
+    return;
+  }
   switch (m.t) {
     case 'hello': { // 주인: 손님이 가진 것을 합친 뒤 기준 상태를 통째로 보낸다
       if (role !== 'host') return;
@@ -134,12 +147,12 @@ function onMsg(m) {
   }
 }
 
-K.onLocal((a) => send({ t: 'ev', a }));
+K.onLocal((a) => { if (!xmode) send({ t: 'ev', a }); });
 
 // 손 위치: 80ms 에 한 번으로 줄여 보낸다. 손을 뗀 것은 바로 보낸다.
 let handT = 0, handNext = null, handAt = 0;
 K.onHand((m) => {
-  if (mode !== 'on') return;
+  if (mode !== 'on' || xmode) return;
   const flush = () => { handT = 0; if (handNext) { send(handNext); handNext = null; handAt = performance.now(); } };
   handNext = { t: 'hand', down: m.down, s: m.s, p: m.p, tip: m.tip };
   if (!m.down) { clearTimeout(handT); flush(); return; }
@@ -209,7 +222,7 @@ function render() {
   if (mode === 'waiting') {
     const r = row(); r.appendChild(hint('상대를 기다리는 중…', '기다리는 동안 먼저 구워도 돼요.'));
     const r2 = row();
-    r2.appendChild(btn('초대 링크 보내기', () => shareBar(inviteUrl(), '같이 막대과자 구워요. 눌러서 주방으로 들어오세요.'), 'invite', 'btn grow main'));
+    r2.appendChild(btn('초대 링크 보내기', () => shareBar(inviteUrl(), INVITE()), 'invite', 'btn grow main'));
     r2.appendChild(btn('혼자 굽기', leave, 'solo'));
   } else if (mode === 'connecting') {
     const r = row(); r.appendChild(hint(tries > 1 ? '다시 연결해 보는 중…' : '주방에 들어가는 중…', '잠시만 기다려 주세요.')); r.appendChild(btn('혼자 굽기', leave, 'solo'));
@@ -217,12 +230,18 @@ function render() {
     const r = row();
     const who = el('div', 'who');
     const a = el('i'); a.style.background = COLORS[role]; const b = el('i'); b.style.background = COLORS[role === 'host' ? 'guest' : 'host'];
-    who.appendChild(a); who.appendChild(b); who.appendChild(el('span', '', '둘이 굽는 중'));
+    who.appendChild(a); who.appendChild(b); who.appendChild(el('span', '', xmode ? '서로 선물 중' : '둘이 굽는 중'));
     r.appendChild(who);
     EMOJI.forEach((e, i) => {
       const x = btn(e, () => { floatEmoji(i, true); send({ t: 'emo', i }); }, null, 'btn emoji');
       x.setAttribute('aria-label', '이모지 보내기 ' + e); r.appendChild(x);
     });
+    if (xmode) {
+      const r2 = row();
+      r2.appendChild(hint(giftIn ? '상대의 선물이 도착했어요!' : '각자 구워서 포장하고 선물해요.',
+        giftSent ? '내 선물은 보냈어요.' : '포장 완료 → 편지 쓰기에서 상대에게 보낼 수 있어요.'));
+      if (giftIn) r2.appendChild(btn('열어 보기', () => window.dispatchEvent(new CustomEvent('kitchen:gift-open')), 'giftOpen', 'btn main'));
+    }
   } else if (mode === 'lost') {
     const r = row(); r.appendChild(hint('연결이 안 됐어요. 혼자 이어 굽는 중이에요.', '만든 과자는 그대로 있어요. 링크로 넘겨서 이어 구울 수 있어요.'));
     r.appendChild(btn('닫기', leave, 'solo'));
@@ -238,17 +257,39 @@ function render() {
     i.addEventListener('focus', () => i.select()); r.appendChild(i);
     d.appendChild(el('div', 'hint', '')).appendChild(el('small', '', '링크를 길게 눌러 복사해 보내 주세요.'));
   }
-  K.setHomeAction(mode === 'solo' ? { label: '같이 굽기', fn: createRoom } : null);
+  // 처음에는 혼자/둘이를 고르게 하고, 고른 뒤에는 "둘이 굽기" 버튼만 남긴다
+  K.setHomeAction(mode === 'solo' ? { label: '둘이 굽기', fn: () => { chosen = false; render(); } } : null, mode === 'solo' && !chosen ? choosePanel : null);
   K.refit();
+}
+
+function choosePanel(p, ui) {
+  const r = ui.el('div', 'row'); r.appendChild(ui.hintEl('어떻게 구울까요?', '혼자 만들어 링크로 선물하거나, 둘이 함께 할 수 있어요.')); p.appendChild(r);
+  const big = (id, title, sub, fn, main) => {
+    const b = ui.button('btn', '', fn); b.id = id;
+    b.style.cssText = 'flex:1;min-width:0;min-height:56px;padding:6px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.25';
+    if (main) { b.style.background = 'var(--choc)'; b.style.borderColor = 'var(--choc)'; b.style.color = '#FFF4E0'; }
+    const t = ui.el('span', '', title); t.style.fontWeight = '800';
+    const s2 = ui.el('span', '', sub); s2.style.cssText = 'font-size:11.5px;font-weight:500;opacity:.8';
+    b.appendChild(t); b.appendChild(s2); return b;
+  };
+  const r2 = ui.el('div', 'row');
+  r2.appendChild(big('chooseSolo', '혼자 굽기', '만들어서 링크로 선물', () => { chosen = true; render(); }, true));
+  p.appendChild(r2);
+  const r3 = ui.el('div', 'row');
+  r3.appendChild(big('homeAction', '둘이 같이 굽기', '한 과자를 함께 꾸미기', () => createRoom(false)));
+  r3.appendChild(big('chooseExchange', '둘이 서로 선물', '각자 구워 주고받기', () => createRoom(true)));
+  p.appendChild(r3);
 }
 
 /* ───────── 시작 ───────── */
 function boot() {
   const h = location.hash;
-  const r = /^#r=([a-z0-9]{6,20})$/.exec(h), s = /^#s=([A-Za-z0-9_-]{4,4000})$/.exec(h);
+  const r = /^#([rx])=([a-z0-9]{6,20})$/.exec(h), s = /^#s=([A-Za-z0-9_-]{4,4000})$/.exec(h);
+  if (r || s || /^#g=/.test(h)) chosen = true; // 링크로 들어왔으면 고르기를 건너뛴다
+  if (r) xmode = r[1] === 'x';
   render();
   if (/^#g=/.test(h)) return;
-  if (r) start(r[1]);
+  if (r) start(r[2]);
   else if (s) {
     try { K.setState(unpackState(s[1])); K.toast('받은 과자예요. 마저 꾸며 보세요'); }
     catch (_) { K.toast('링크를 읽지 못했어요'); }
@@ -260,5 +301,5 @@ boot();
 // 자동 검사에서 쓰는 창구
 window.__duo = {
   get mode() { return mode; }, get role() { return role; }, get room() { return room; }, get tries() { return tries; },
-  inviteUrl, continueUrl, packState, unpackState, createRoom, leave,
+  inviteUrl, continueUrl, packState, unpackState, createRoom, leave, get xmode() { return xmode; }, get giftIn() { return !!giftIn; },
 };

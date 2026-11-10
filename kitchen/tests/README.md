@@ -18,6 +18,16 @@ node duo.test.js --peer     # 위에 더해 로컬 PeerJS 브로커로 실제 We
 node duo.test.js --public   # 위에 더해 PeerJS 공개 브로커(0.peerjs.com)까지. 인터넷이 열려 있어야 합니다
 ```
 
+자리별 검사도 같은 방식으로 따로 돌립니다.
+
+```bash
+node dough.test.js    # 반죽
+node cut.test.js      # 자르기
+node oven.test.js     # 굽기
+node pack.test.js     # 포장 · 편지 · 선물 링크 · 받는 화면
+node xmode.test.js    # 혼자/둘이 고르기 · 둘이 서로 선물
+```
+
 결과는 줄마다 `통과` / `실패` 로 나오고, 화면 사진은 `out/` 에 남습니다(커밋하지 않음).
 
 ## 검사용 주소 옵션

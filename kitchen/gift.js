@@ -2,7 +2,7 @@
 // 선물은 링크의 # 뒤에만 담긴다(#g=…). 서버에도 브라우저 저장소에도 남기지 않는다.
 // 사용자 글자는 value / textContent 로만 다룬다.
 import { kitchen as K } from './app.js';
-import { packState, unpackState, share } from './duo.js';
+import { packState, unpackState, share, canGive, give, takeGift } from './duo.js';
 
 const $ = (id) => document.getElementById(id);
 const LIM = { to: 12, fr: 12, m: 200 };
@@ -12,11 +12,12 @@ const b64 = {
   dec(txt) { const s = atob(txt.replace(/-/g, '+').replace(/_/g, '/')); return new TextDecoder().decode(Uint8Array.from(s, (c) => c.charCodeAt(0))); },
 };
 
-function giftUrl() {
+function giftText() {
   const st = K.getState();
   const o = { v: 1, s: packState(st), b: (st.x.pack && st.x.pack.box) | 0, to: clip($('ltTo').value.trim(), LIM.to), fr: clip($('ltFrom').value.trim(), LIM.fr), m: clip($('ltMsg').value.trim(), LIM.m) };
-  return location.origin + location.pathname + '#g=' + b64.enc(JSON.stringify(o));
+  return b64.enc(JSON.stringify(o));
 }
+const giftUrl = () => location.origin + location.pathname + '#g=' + giftText();
 function readGift(txt) {
   const o = JSON.parse(b64.dec(txt));
   if (!o || o.v !== 1 || typeof o.s !== 'string') throw new Error('gift');
@@ -26,7 +27,7 @@ function readGift(txt) {
 }
 
 /* ───────── 편지 쓰기 ───────── */
-function openLetter() { $('letter').hidden = false; $('ltCount').textContent = Array.from($('ltMsg').value).length + ' / ' + LIM.m; }
+function openLetter() { $('letter').hidden = false; $('ltGive').hidden = !canGive(); $('ltShare').classList.toggle('main', !canGive()); $('ltCount').textContent = Array.from($('ltMsg').value).length + ' / ' + LIM.m; }
 function closeLetter() { $('letter').hidden = true; if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); }
 window.addEventListener('kitchen:letter', openLetter);
 $('ltClose').addEventListener('click', closeLetter);
@@ -38,9 +39,22 @@ $('ltShare').addEventListener('click', async () => {
   if (how === 'manual') { const i = $('ltUrl'); i.value = url; i.hidden = false; $('ltUrlHint').hidden = false; }
 });
 $('ltUrl').addEventListener('focus', () => $('ltUrl').select());
+$('ltGive').addEventListener('click', () => { // 서로 선물: 연결된 상대에게 바로 보낸다
+  if (!$('ltMsg').value.trim()) { K.toast('편지를 한 줄이라도 적어 주세요'); $('ltMsg').focus(); return; }
+  if (give(giftText())) { K.toast('상대에게 선물을 보냈어요'); closeLetter(); } else K.toast('지금은 연결되어 있지 않아요. 링크로 보내 주세요');
+});
 
 /* ───────── 받은 선물 ───────── */
-function receive(g) {
+let back = null; // 서로 선물에서 받은 선물을 보고 내 주방으로 돌아갈 때 쓰는 내 상태
+function setBar(opened) {
+  $('rcOpen').hidden = opened; $('rcOpen').disabled = false; $('rcToggle').hidden = !opened; $('rcMake').hidden = !opened;
+  $('rcHint').textContent = opened ? '직접 구운 막대과자와 편지예요.' : '선물이 도착했어요.';
+  $('rcMake').textContent = back ? '내 주방으로' : '나도 만들기';
+  K.refit();
+}
+function receive(g, mine) {
+  back = mine || null;
+  closeLetter();
   document.body.classList.add('recv');
   K.setLocked(true);
   K.setState(g.st);
@@ -48,20 +62,30 @@ function receive(g) {
   $('rcMsg').textContent = g.m;
   $('rcFrom').textContent = g.fr ? g.fr + ' 드림' : '';
   $('rcTo').hidden = !g.to; $('rcFrom').hidden = !g.fr;
-  const bar = $('recv'); bar.hidden = false;
-  const setBar = (opened) => { $('rcOpen').hidden = opened; $('rcToggle').hidden = !opened; $('rcMake').hidden = !opened; $('rcHint').textContent = opened ? '직접 구운 막대과자와 편지예요.' : '선물이 도착했어요.'; K.refit(); };
+  $('rcard').hidden = true; $('recv').hidden = false;
   setBar(false);
-  $('rcOpen').addEventListener('click', () => {
-    $('rcOpen').disabled = true;
-    K.dispatch({ t: 'st', s: 'pack', d: { open: 1 } });
-    setTimeout(() => { K.dispatch({ t: 'go', s: 'top' }); setBar(true); }, 1300);
-    setTimeout(() => { $('rcard').hidden = false; $('rcToggle').textContent = '과자 보기'; }, 2300);
-  });
-  $('rcToggle').addEventListener('click', () => {
-    const show = $('rcard').hidden; $('rcard').hidden = !show; $('rcToggle').textContent = show ? '과자 보기' : '편지 보기';
-  });
-  $('rcMake').addEventListener('click', () => { location.href = location.pathname + location.search; });
 }
+$('rcOpen').addEventListener('click', () => {
+  $('rcOpen').disabled = true;
+  K.dispatch({ t: 'st', s: 'pack', d: { open: 1 } }, true);
+  setTimeout(() => { K.dispatch({ t: 'go', s: 'top' }, true); setBar(true); }, 1300);
+  setTimeout(() => { if (document.body.classList.contains('recv')) { $('rcard').hidden = false; $('rcToggle').textContent = '과자 보기'; } }, 2300);
+});
+$('rcToggle').addEventListener('click', () => {
+  const show = $('rcard').hidden; $('rcard').hidden = !show; $('rcToggle').textContent = show ? '과자 보기' : '편지 보기';
+});
+$('rcMake').addEventListener('click', () => {
+  if (!back) { location.href = location.pathname + location.search; return; }
+  const st = back; back = null;
+  document.body.classList.remove('recv'); $('recv').hidden = true; $('rcard').hidden = true;
+  K.setLocked(false); K.setState(st); K.refit();
+});
+// 서로 선물: 상대가 보낸 선물을 연다. 내 과자는 따로 두었다가 돌아오면 되돌린다.
+window.addEventListener('kitchen:gift-open', () => {
+  const txt = takeGift(); if (!txt) return;
+  try { const g = readGift(txt); receive(g, K.getState()); }
+  catch (_) { K.toast('선물을 읽지 못했어요'); }
+});
 
 const m = /^#g=([A-Za-z0-9_-]{8,12000})$/.exec(location.hash);
 if (m) {
@@ -69,4 +93,4 @@ if (m) {
   catch (_) { K.toast('선물 링크를 읽지 못했어요'); }
 }
 
-window.__gift = { giftUrl, readGift, openLetter };
+window.__gift = { giftUrl, giftText, readGift, openLetter };

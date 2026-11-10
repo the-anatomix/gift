@@ -484,14 +484,16 @@ function hintEl(main, sub) {
   if (sub) h.appendChild(el('small', '', sub));
   return h;
 }
-let panelKey = '', homeAction = null;
+let panelKey = '', homeAction = null, homePanel = null;
 function renderPanel() {
   const p = $('panel'), s = S.station;
   // 높이가 달라지지 않는 갱신은 버튼 상태만 바꾼다
   if (panelKey === s && (s === 'choco' || s === 'top')) { syncPanel(); return; }
   panelKey = s;
   p.textContent = '';
-  if (s === 'home') {
+  if (s === 'home' && homePanel) {
+    homePanel(p, { el, button, hintEl });
+  } else if (s === 'home') {
     const r = el('div', 'row'); r.appendChild(hintEl('자리를 눌러 가까이 가 보세요.', '반죽부터 토핑까지 차례로 해 볼 수 있어요.'));
     if (homeAction) { const b = button('btn', homeAction.label, homeAction.fn); b.id = 'homeAction'; r.appendChild(b); }
     p.appendChild(r);
@@ -802,7 +804,7 @@ requestAnimationFrame(() => { $('loading').classList.add('done'); setTimeout(() 
 export const kitchen = {
   S, CHOCO, KINDS, STICK, cleanText, dispatch, onLocal: (f) => listeners.push(f), onHand: (f) => handFns.push(f), toast, poke,
   remoteTip, getState, setState, setLocked(v) { locked = !!v; },
-  setHomeAction(a) { homeAction = a; panelKey = ''; renderPanel(); refit(); },
+  setHomeAction(a, panel) { homeAction = a; homePanel = panel || null; panelKey = ''; renderPanel(); refit(); },
   refit, // 아래 패널 높이가 바뀌었을 때 카메라를 다시 맞춘다
   project(x, y, z) { _v.set(x, y, z).project(camera); return { x: (_v.x * 0.5 + 0.5) * W, y: (-_v.y * 0.5 + 0.5) * H }; },
   get frames() { return frames; }, get me() { return ME; }, get quality() { return quality; }, lowerQuality, theme: THEME.name,

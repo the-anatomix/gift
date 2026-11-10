@@ -40,7 +40,7 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 #labels{position:absolute;inset:0;pointer-events:none;transition:opacity .25s}
 #labels.off{opacity:0}
 #labels.off .lab{pointer-events:none}
-.lab{position:absolute;left:0;top:0;min-width:44px;min-height:44px;padding:0;border:0;background:none;
+.lab{position:absolute;left:0;top:0;min-width:46px;min-height:46px;padding:0;border:0;background:none;
   pointer-events:auto;cursor:pointer;display:flex;align-items:center;justify-content:center;will-change:transform}
 .lab span{display:block;padding:6px 11px;border-radius:999px;background:#FFFCF5;color:var(--choc);
   font-size:13px;font-weight:800;box-shadow:0 2px 8px rgba(90,56,36,.22);white-space:nowrap}
@@ -115,7 +115,8 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 .sheet textarea{min-height:104px;resize:none;line-height:1.5}
 .sheet input:focus,.sheet textarea:focus{border-color:var(--choc)}
 .sheet .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.sheet .main{background:var(--choc);border-color:var(--choc);color:#FFF4E0;flex:1}
+.sheet .main{background:var(--choc);border-color:var(--choc);color:#FFF4E0}
+.sheet #ltGive{flex:1}
 .paper{background:#fff;border-radius:14px;border:1.5px dashed var(--choc);padding:16px;font-size:17px;line-height:1.6;display:flex;flex-direction:column;gap:8px}
 .paper .body{white-space:pre-wrap;word-break:break-word;min-height:60px;user-select:text;-webkit-user-select:text}
 .paper .to{font-weight:800}.paper .from{font-weight:800;text-align:right}
@@ -178,7 +179,8 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels{display:none}
       <textarea id="ltMsg" maxlength="200" placeholder="직접 구운 과자와 함께 전할 말을 적어 주세요."></textarea></label>
     <input id="ltUrl" type="text" readonly hidden aria-label="보낼 링크">
     <div class="hint" id="ltUrlHint" hidden><small>링크를 길게 눌러 복사해 보내 주세요.</small></div>
-    <div class="row"><button type="button" class="btn main" id="ltShare">선물 링크 보내기</button></div>
+    <div class="row"><button type="button" class="btn main" id="ltGive" hidden>상대에게 바로 선물하기</button></div>
+    <div class="row"><button type="button" class="btn main" id="ltShare" style="flex:1">선물 링크 보내기</button></div>
   </div>
 </div>
 <div id="loading">주방을 차리는 중…</div>
