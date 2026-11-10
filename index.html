@@ -102,15 +102,9 @@ textarea{resize:none;height:120px;font-family:"Gaegu",cursive;font-size:20px;lin
 .result{font-weight:700;text-align:center;min-height:24px;margin:0}
 .btn[disabled]{opacity:.35;cursor:default}
 .btn.kakao{background:#FEE500;color:#191600}.btn.insta{background:linear-gradient(90deg,#F58529,#DD2A7B 55%,#8134AF);color:#fff}
-:root.ax{--bg:#0B1426;--ink:#EAF6FF;--sub:#8FA6C0;--line:#22344F;--card:#111E36;--yellow:#FFB020;--green:#19E3E3;--red:#FF5A6E;--box:#16294A;--boxdark:#2A4470}
-.ax .btn{color:#0B1426}.ax .btn.ghost{background:transparent;color:var(--ink)}.ax .btn.kakao{color:#191600}.ax .btn.insta{color:#fff}
-.ax input,.ax textarea,.ax .chip{background:#0F1B31;color:var(--ink)}.ax .chip.on{background:var(--green);color:#0B1426;border-color:var(--green)}
-.ax .steps span{background:#16294A}.ax .steps span.on{background:var(--green);color:#0B1426}.ax .steps span.done{background:var(--yellow);color:#0B1426}
-.ax .badge{color:#0B1426}.ax .stick.sel{background:#22344F;box-shadow:0 0 0 2px var(--green)}
-.ax .zone,.ax .board{background:#16294A;border-color:#2A4470}.ax .bar{background:#16294A}
-.ax .lid{background:#19E3E3;border-color:#EAF6FF}.ax .lid::before,.ax .lid::after{background:#FFB020;border-color:#0B1426}.ax .lid span{color:#0B1426;border-color:#0B1426}
-.ax .letter{background:#F7FBFF;color:#0B1426;border-color:#19E3E3}.ax .toast{background:#19E3E3;color:#0B1426}.ax .foot a{color:var(--green)}
-.ax .lights i:nth-child(1){background:#19E3E3}.ax .lights i:nth-child(2){background:#FFB020}.ax .lights i:nth-child(3){background:#FF5A6E}
+/* 아나토믹스 판: 배경·면·글자색은 기본판과 같게 두고, 밝은 바탕에서 읽히는 포인트 색만 바꾼다 */
+:root.ax{--yellow:#FFB020;--green:#0B8F9C}
+.ax .lights i:nth-child(1){background:#0B8F9C}.ax .lights i:nth-child(2){background:#FFB020}.ax .lights i:nth-child(3){background:#FF5A6E}
 /* 받는 화면: 오븐 문 · 식힘망 · 레시피 쪽지 (참고 릴스의 리본 상자·줄 편지지와 다르게) */
 .giftbox{width:270px;height:300px}
 .base{height:300px;background:repeating-linear-gradient(90deg,#D8D0C2 0 3px,transparent 3px 22px),#F4EFE6;border-radius:18px;padding:0 0 18px;gap:4px}
@@ -125,8 +119,6 @@ textarea{resize:none;height:120px;font-family:"Gaegu",cursive;font-size:20px;lin
 .letter .rhead{font-family:"Noto Sans KR",sans-serif;font-weight:900;font-size:15px;display:flex;justify-content:space-between;gap:8px;border-bottom:2px solid currentColor;padding-bottom:8px}
 .letter .spec{font-family:"Noto Sans KR",sans-serif;font-size:12.5px;font-weight:500;color:#7A7266;display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;padding:8px 0;border-bottom:1px dashed #B9AF9F}
 .letter .body{min-height:100px;white-space:pre-wrap;word-break:break-word;margin-top:10px}
-.ax .lid{background:#16294A;border-color:#19E3E3}.ax .lid .owin{border-color:#19E3E3}.ax .lid .ohandle{background:#19E3E3;border-color:#0B1426}
-.ax .base{background:repeating-linear-gradient(90deg,#2A4470 0 3px,transparent 3px 22px),#0F1B31;border-color:#19E3E3}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){.lid,.fade,.giftbox.shake .lid{animation:none;transition:none}}
 </style>
@@ -142,6 +134,14 @@ var TOOLS=["스프링클","하트","별","견과","초코펜","화이트펜"];
 var STEP=[7,15,15,9,4,4], MAXP=100;
 var BAKE=["#F3E2B8","#E3B877","#8A5A30"];
 var FONTS=["Gaegu","Nanum Pen Script","Nanum Myeongjo","Noto Sans KR"],FNAMES=["손글씨","펜글씨","명조","고딕"];
+/* 누구에게: 0 은 고르지 않음. [이름, 조사, 새길 글자 예시, 쪽지 예시]. 순서는 링크에 담기므로 바꾸지 말고 뒤에만 덧붙인다(7 까지) */
+var WHO=[["","에게","사랑해","하고 싶은 말을 적어 보세요"],
+  ["연인","에게","사랑해","예: 같이 있으면 매일이 달콤해. 사랑해"],
+  ["친구","에게","고마워","예: 늘 옆에 있어 줘서 고마워"],
+  ["부모님","께","고마워요","예: 늘 챙겨 주셔서 고마워요. 건강하세요"],
+  ["선생님","께","감사해요","예: 잘 가르쳐 주셔서 감사해요"],
+  ["동료","에게","수고했어","예: 요즘 고생 많았어. 수고했어"]];
+function josa(g){return (WHO[g.who||0]||WHO[0])[1]}
 var INSTA="https://www.instagram.com/donsignal.kr/";
 /* 주소에 ?b=ax 가 붙으면 아나토믹스 판(이름·색·문구)으로 바뀐다 */
 var AX=/[?&]b=ax(&|$)/.test(location.search);
@@ -182,8 +182,8 @@ function stickEl(st,g,tag){var b=document.createElement(tag||"span");b.className
 function scatter(n,types){var p=[];for(var i=0;i<n;i++)p.push([types[Math.floor(Math.random()*types.length)],2+Math.floor(Math.random()*28),10+Math.floor(Math.random()*236)]);return p}
 function fresh(){return [{c:0,l:10,e:"",p:scatter(14,[0]),u:[]},{c:3,l:10,e:"",p:scatter(6,[1]),u:[]},{c:2,l:10,e:"",p:scatter(9,[3]),u:[]},{c:1,l:10,e:"",p:scatter(8,[2]),u:[]},{c:4,l:10,e:"",p:scatter(12,[0,5]),u:[]}]}
 
-/* 주소에 담기, 꺼내기 (서버에 저장하지 않는다). 형식: 버전 1바이트, 글자열은 길이 2바이트 + UTF-8 */
-function enc(d){var te=new TextEncoder(),a=[3,d.g.bake|((d.g.font||0)<<2)];
+/* 주소에 담기, 꺼내기 (서버에 저장하지 않는다). 형식: 버전 1바이트, 머리 1바이트(굽기 2비트 + 글씨체 2비트 + 누구에게 3비트), 글자열은 길이 2바이트 + UTF-8 */
+function enc(d){var te=new TextEncoder(),a=[3,d.g.bake|((d.g.font||0)<<2)|((d.g.who||0)<<4)];
   function str(s){var b=te.encode(s);a.push(b.length>>8,b.length&255);for(var i=0;i<b.length;i++)a.push(b[i])}
   str(d.to);str(d.from);str(d.msg);
   d.sticks.forEach(function(st){a.push(st.c,st.l);str(st.e);a.push(st.p.length);st.p.forEach(function(q){var v=(q[0]<<13)|(q[1]<<8)|q[2];a.push(v>>8,v&255)})});
@@ -193,7 +193,7 @@ function dec(str){try{var s=atob(str.replace(/-/g,"+").replace(/_/g,"/")),b=new 
   function byte(){if(k>=b.length)throw 0;return b[k++]}
   function rs(max){var n=(byte()<<8)|byte();if(k+n>b.length)throw 0;var t=td.decode(b.subarray(k,k+n));k+=n;return Array.from(t).slice(0,max).join("")}
   if(byte()!==3)return null;
-  var hb=byte(),d={g:{bake:Math.min(hb&3,2),font:(hb>>2)&3},to:rs(12),from:rs(12),msg:rs(150),sticks:[]};
+  var hb=byte(),d={g:{bake:Math.min(hb&3,2),font:(hb>>2)&3,who:((hb>>4)&7)<WHO.length?(hb>>4)&7:0},to:rs(12),from:rs(12),msg:rs(150),sticks:[]};
   for(i=0;i<5;i++){var st={c:Math.min(byte(),4),l:Math.min(byte(),15),e:rs(6),p:[],u:[]},n=Math.min(byte(),MAXP);for(var j=0;j<n;j++){var v=(byte()<<8)|byte();st.p.push([Math.min(v>>13,5),(v>>8)&31,v&255])}d.sticks.push(st)}
   return d}catch(e){return null}}
 function readGift(){var m=(location.hash||"").match(/g=([A-Za-z0-9_-]+)/)||(location.search||"").match(/[?&]g=([A-Za-z0-9_-]+)/);return m?dec(m[1]):null}
@@ -309,6 +309,11 @@ function maker(d0){
   function drawFonts(){fontChips.innerHTML="";FNAMES.forEach(function(t,i){fontChips.appendChild(el("button",{type:"button",class:"chip"+((d.g.font||0)===i?" on":""),text:t,style:"font-family:'"+FONTS[i]+"',sans-serif",on:{click:function(){d.g.font=i;drawFonts()}}}))});
     msg.style.fontFamily="'"+FONTS[d.g.font||0]+"',cursive"}
   drawFonts();
+  /* 누구에게: 고르면 예시 문구만 바뀐다(적어 둔 내용은 건드리지 않는다). 한 번 더 누르면 풀린다 */
+  var whoChips=el("div",{class:"chips",style:"margin-bottom:10px",role:"group","aria-label":"누구에게 보내나요"});
+  function drawWho(){var w=d.g.who||0;whoChips.innerHTML="";WHO.forEach(function(t,i){if(!i)return;whoChips.appendChild(el("button",{type:"button",class:"chip"+(w===i?" on":""),text:t[0],"aria-pressed":w===i,on:{click:function(){d.g.who=w===i?0:i;drawWho()}}}))});
+    carve.placeholder="예: "+WHO[w][2];msg.placeholder=WHO[w][3]}
+  drawWho();
   function collect(){d.to=to.value.trim();d.from=from.value.trim();d.msg=msg.value.trim();
     if(!d.msg){toast("편지를 한 줄이라도 적어 주세요");msg.focus();return null}return baseUrl()+"#g="+enc(d)}
   function sbtn(t,fn){return el("button",{type:"button",class:"btn ghost small",text:t,on:{click:fn}})}
@@ -326,11 +331,11 @@ function maker(d0){
           sbtn("싹 지우기",function(){cur().p=[];cur().u=[];drawStick()})])
       ])])]));
   app.appendChild(el("section",{class:"card"},[
-    el("p",{class:"label",text:"편지 쓰기"}),el("div",{class:"row",style:"margin-bottom:8px"},[to,from]),fontChips,msg,
+    el("p",{class:"label",text:"편지 쓰기"}),el("p",{class:"label"},[el("span",{text:"누구에게"}),el("small",{text:"골라도 되고 안 골라도 돼요"})]),whoChips,el("div",{class:"row",style:"margin-bottom:8px"},[to,from]),fontChips,msg,
     el("p",{class:"label",style:"margin:6px 0 0;justify-content:flex-end"},[count])]));
   /* 카카오톡: 폰의 공유 창을 연다(카카오톡을 고르면 된다). 공유 창이 없는 기기는 링크를 복사한다 */
   app.appendChild(el("button",{type:"button",class:"btn kakao",text:"카카오톡으로 공유하기",on:{click:function(){var u=collect();if(!u)return;
-    if(navigator.share){navigator.share({title:"선물 상자가 도착했어요",text:(d.to?d.to+"에게 ":"")+"선물 상자가 도착했어요",url:u}).catch(function(){})}
+    if(navigator.share){navigator.share({title:"선물 상자가 도착했어요",text:(d.to?d.to+josa(d.g)+" ":"")+"선물 상자가 도착했어요",url:u}).catch(function(){})}
     else copy(u,"링크를 복사했어요. 카카오톡 대화방에 붙여넣으세요")}}}));
   /* 인스타 DM: 링크를 복사한 뒤 DM 함을 연다 */
   app.appendChild(el("button",{type:"button",class:"btn insta",text:"인스타 DM으로 공유하기",on:{click:function(){var u=collect();if(!u)return;
@@ -356,7 +361,7 @@ function viewer(d,preview){
   var owin=el("div",{class:"owin"});
   d.sticks.forEach(function(st){owin.appendChild(el("b",{style:"height:"+Math.round(geo(st.l).H*.5)+"px"}))});
   box.appendChild(base);box.appendChild(el("div",{class:"lid"},[owin,el("div",{class:"ohandle"}),el("span",{text:d.to?"To. "+d.to:"갓 구운 선물"})]));
-  var title=el("h1",{text:(d.to?d.to+"에게 ":"")+"갓 구운 선물이 왔어요"}),sub=el("p",{class:"lead",text:(d.from?d.from+" 님이 ":"")+"직접 반죽해서 구웠어요."});
+  var title=el("h1",{text:(d.to?d.to+josa(d.g)+" ":"")+"갓 구운 선물이 왔어요"}),sub=el("p",{class:"lead",text:(d.from?d.from+" 님이 ":"")+"직접 반죽해서 구웠어요."});
   var btn=el("button",{type:"button",class:"btn",text:"오븐 열기"}),stage=el("div",{class:"stage"},[el("div",null,[title,sub]),box,btn]);
   var step=0;
   btn.addEventListener("click",function(){
