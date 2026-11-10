@@ -76,9 +76,9 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 .carve::placeholder{font-weight:500;color:#B5A594}
 .chip[aria-pressed=true]{background:var(--choc);border-color:var(--choc);color:#FFF4E0}
 
-#tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:2px;background:rgba(255,252,245,.96);
+#tabs{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;background:rgba(255,252,245,.96);
   border:1.5px solid var(--line);border-radius:18px;padding:4px;box-shadow:0 6px 20px rgba(90,56,36,.12)}
-#tabs button{min-height:46px;min-width:0;padding:0;border:0;border-radius:14px;background:none;font-size:13px;
+#tabs button{min-height:46px;min-width:0;padding:0;border:0;border-radius:14px;background:none;font-size:12.5px;
   font-weight:700;color:var(--sub);cursor:pointer;letter-spacing:-.03em;white-space:nowrap}
 #tabs button[aria-selected=true]{background:var(--choc);color:#FFF4E0}
 
@@ -100,6 +100,28 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 .emo{position:absolute;bottom:38%;font-size:40px;animation:emo 1.6s ease-out forwards}
 @keyframes emo{0%{transform:translateY(0) scale(.4);opacity:0}15%{transform:translateY(-30px) scale(1.1);opacity:1}
   100%{transform:translateY(-240px) scale(1);opacity:0}}
+
+/* 편지 쓰기 · 받은 선물 */
+#letter,#rcard{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;background:rgba(43,29,20,.35);
+  padding:12px 10px calc(10px + env(safe-area-inset-bottom))}
+#letter[hidden],#rcard[hidden],#recv[hidden]{display:none}
+#rcard{background:none;pointer-events:none;align-items:center;padding-bottom:calc(150px + env(safe-area-inset-bottom))}
+.sheet{width:100%;max-width:460px;max-height:100%;overflow:auto;background:#FFFCF5;border:1.5px solid var(--line);border-radius:20px;
+  padding:14px 14px 12px;box-shadow:0 10px 30px rgba(43,29,20,.25);display:flex;flex-direction:column;gap:8px;pointer-events:auto}
+.sheet h2{margin:0;font-size:16px;font-weight:900;display:flex;justify-content:space-between;align-items:center}
+.sheet label{font-size:12.5px;font-weight:700;color:var(--sub);display:flex;flex-direction:column;gap:4px}
+.sheet input,.sheet textarea{font:inherit;font-size:16px;color:var(--ink);background:#fff;border:1.5px solid var(--line);border-radius:12px;
+  padding:10px 12px;min-height:44px;outline:none;user-select:text;-webkit-user-select:text;width:100%}
+.sheet textarea{min-height:104px;resize:none;line-height:1.5}
+.sheet input:focus,.sheet textarea:focus{border-color:var(--choc)}
+.sheet .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sheet .main{background:var(--choc);border-color:var(--choc);color:#FFF4E0;flex:1}
+.paper{background:#fff;border-radius:14px;border:1.5px dashed var(--choc);padding:16px;font-size:17px;line-height:1.6;display:flex;flex-direction:column;gap:8px}
+.paper .body{white-space:pre-wrap;word-break:break-word;min-height:60px;user-select:text;-webkit-user-select:text}
+.paper .to{font-weight:800}.paper .from{font-weight:800;text-align:right}
+#recv{background:rgba(255,252,245,.96);border:1.5px solid var(--line);border-radius:18px;padding:10px 12px;box-shadow:0 6px 20px rgba(90,56,36,.12)}
+#recv .main{background:var(--choc);border-color:var(--choc);color:#FFF4E0}
+body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels{display:none}
 
 #toast{position:absolute;left:50%;top:calc(64px + env(safe-area-inset-top));transform:translate(-50%,-8px);
   background:rgba(43,29,20,.88);color:#FFF4E0;font-size:13px;font-weight:600;padding:8px 14px;border-radius:999px;
@@ -132,9 +154,32 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="bottom">
+  <div id="recv" hidden>
+    <div class="row"><div class="hint" id="rcHint">선물이 도착했어요.</div>
+      <button type="button" class="btn main" id="rcOpen">열어 보기</button>
+      <button type="button" class="btn" id="rcToggle" hidden>과자 보기</button>
+      <button type="button" class="btn main" id="rcMake" hidden>나도 만들기</button></div>
+  </div>
   <div id="duo" hidden></div>
   <div id="panel"></div>
   <nav id="tabs" role="tablist" aria-label="자리 이동"></nav>
+</div>
+<div id="rcard" hidden>
+  <div class="sheet"><div class="paper"><div class="to" id="rcTo"></div><div class="body" id="rcMsg"></div><div class="from" id="rcFrom"></div></div></div>
+</div>
+<div id="letter" hidden>
+  <div class="sheet">
+    <h2>편지 쓰기 <button type="button" class="btn" id="ltClose">닫기</button></h2>
+    <div class="two">
+      <label>받는 사람<input id="ltTo" type="text" maxlength="12" autocomplete="off" placeholder="예: 지우"></label>
+      <label>보내는 사람<input id="ltFrom" type="text" maxlength="12" autocomplete="off" placeholder="예: 민서"></label>
+    </div>
+    <label>편지 <span id="ltCount" style="align-self:flex-end;margin-top:-18px;font-weight:500">0 / 200</span>
+      <textarea id="ltMsg" maxlength="200" placeholder="직접 구운 과자와 함께 전할 말을 적어 주세요."></textarea></label>
+    <input id="ltUrl" type="text" readonly hidden aria-label="보낼 링크">
+    <div class="hint" id="ltUrlHint" hidden><small>링크를 길게 눌러 복사해 보내 주세요.</small></div>
+    <div class="row"><button type="button" class="btn main" id="ltShare">선물 링크 보내기</button></div>
+  </div>
 </div>
 <div id="loading">주방을 차리는 중…</div>
 <div id="fallback" hidden>
@@ -174,5 +219,6 @@ window.__fallback = function () {
 <script nomodule>window.__fallback();</script>
 <script type="module" src="./app.js" onerror="window.__fallback()"></script>
 <script type="module" src="./duo.js"></script>
+<script type="module" src="./gift.js"></script>
 </body>
 </html>

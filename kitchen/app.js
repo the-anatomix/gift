@@ -329,6 +329,7 @@ const VIEWS = {
   oven: { tgt: V3(-0.85, 1.2, -1.7), dir: V3(0.1, 0.55, 1), w: 2.1, h: 1.1 },
   choco: { tgt: V3(POT.x, 1.62, POT.z), dir: V3(0.28, 0.5, 1), w: 0.95, h: 1.55 },
   top: { tgt: V3(TRAY.x, TOP_Y + 0.09, TRAY.z), dir: V3(0, 2.6, 1), w: 0.42, h: 0.92 },
+  pack: { tgt: V3(0.5, 1.7, -1.7), dir: V3(0.12, 0.42, 1), w: 1.0, h: 1.95 },
 };
 const cam = { pos: V3(0, 5, 8), tgt: V3(0, 1, 0), off: 0 };
 let W = 1, H = 1;
@@ -368,6 +369,7 @@ const STN = {
   oven: { tab: '굽기', title: '굽기', soon: '오븐에 넣고 알맞게 구워 식히는 자리예요.' },
   choco: { tab: '초콜릿', title: '초콜릿 담그기' },
   top: { tab: '토핑', title: '토핑 뿌리기' },
+  pack: { tab: '포장', title: '포장하기', soon: '상자에 담아 포장하는 자리예요.' },
 };
 const ANCHOR = {
   dough: { at: V3(1.15, 1.5, -1.72), box: [1.3, 0.8, 0.85, 1.25, 1.3, -1.72] },
@@ -375,6 +377,7 @@ const ANCHOR = {
   oven: { at: V3(-1.3, 1.75, -1.72), box: [1.9, 0.9, 0.85, -0.85, 1.3, -1.72] },
   choco: { at: V3(POT.x, 1.72, POT.z), box: [0.75, 0.7, 0.75, POT.x, 1.25, POT.z] },
   top: { at: V3(TRAY.x + 0.15, 1.28, TRAY.z), box: [0.95, 0.5, 1.15, TRAY.x + 0.15, 1.1, TRAY.z] },
+  pack: { at: V3(0.6, 2.05, -1.82), box: [0.5, 1.0, 0.5, 0.6, 1.4, -1.82] },
 };
 // 자리 모듈(반죽·자르기·굽기). 각 파일이 자기 소품과 조작을 맡는다.
 const mods = {};
@@ -386,6 +389,7 @@ for (const id in STATION_MODS) {
     send: (d) => dispatch({ t: 'st', s: id, d }),       // 상태를 바꾸는 유일한 길. apply(d) 로 돌아온다(상대에게도 간다)
     repaint: () => { if (S.station === id) { panelKey = ''; renderPanel(); refit(); } },
     setBiscuit: (hex) => { biscuitMat.color.setHex(hex); poke(); },
+    stick, restick,
     go: (s) => dispatch({ t: 'go', s }),
   };
   const m = STATION_MODS[id](kit) || {};
@@ -416,13 +420,31 @@ for (const id in STN) {
 const QV = new THREE.Quaternion(); // 세워 든 자세
 const QL = new THREE.Quaternion().setFromAxisAngle(V3(1, 0, 0), Math.PI / 2); // 판에 눕힌 자세
 function stickPose(name) {
+  const pk = mods.pack;
+  if (pk && pk.slot) { // 포장했으면 상자 안, 포장 자리에서는 상자 위
+    const sl = pk.slot();
+    if (pk.packed()) return { p: V3(sl.x, sl.inY, sl.z), q: QV };
+    if (name === 'pack') return { p: V3(sl.x, sl.overY, sl.z), q: QV };
+  }
   return name === 'choco'
     ? { p: V3(POT.x, REST_TIP, POT.z), q: QV }
     : { p: V3(TRAY.x, TOP_Y + 0.036 + STICK.R + 0.012, TRAY.z - STICK.L / 2 + 0.02), q: QL };
 }
-let travel = null;
+// 과자를 지금 자리에 맞는 곳으로 옮긴다 (포장·풀기에서 씀)
+let stickTween = null;
+function restick(ms, done) {
+  if (stickTween) { tweens.delete(stickTween); stickTween = null; }
+  const pose = stickPose(S.station), p0 = stick.position.clone(), q0 = stick.quaternion.clone();
+  if (!ms) { stick.position.copy(pose.p); stick.quaternion.copy(pose.q); poke(); if (done) done(); return; }
+  stickTween = tween(ms, (k) => { const e = ease(k); stick.position.lerpVectors(p0, pose.p, e); stick.quaternion.slerpQuaternions(q0, pose.q, e); },
+    () => { stickTween = null; if (done) done(); });
+}
+let travel = null, locked = false;
 function go(name, instant) {
   if (!STN[name]) return;
+  // 포장한 채로 꾸미는 자리에 가면 상자를 다시 연다
+  if ((name === 'choco' || name === 'top') && mods.pack && mods.pack.packed && mods.pack.packed()) mods.pack.apply({ open: 1 });
+  if (stickTween) { tweens.delete(stickTween); stickTween = null; }
   const changed = S.station !== name;
   if (changed && mods[S.station] && mods[S.station].leave) mods[S.station].leave();
   S.station = name;
@@ -642,7 +664,7 @@ function drips() {
 }
 
 canvas.addEventListener('pointerdown', (e) => {
-  if (drag || !e.isPrimary) return;
+  if (drag || !e.isPrimary || locked) return;
   try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* 가상 포인터 */ }
   drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, moved: 0, mode: 'tap' };
   if (travel) return;
@@ -779,7 +801,7 @@ requestAnimationFrame(() => { $('loading').classList.add('done'); setTimeout(() 
 // 둘이 굽기·자동 검사에서 쓰는 창구
 export const kitchen = {
   S, CHOCO, KINDS, STICK, cleanText, dispatch, onLocal: (f) => listeners.push(f), onHand: (f) => handFns.push(f), toast, poke,
-  remoteTip, getState, setState,
+  remoteTip, getState, setState, setLocked(v) { locked = !!v; },
   setHomeAction(a) { homeAction = a; panelKey = ''; renderPanel(); refit(); },
   refit, // 아래 패널 높이가 바뀌었을 때 카메라를 다시 맞춘다
   project(x, y, z) { _v.set(x, y, z).project(camera); return { x: (_v.x * 0.5 + 0.5) * W, y: (-_v.y * 0.5 + 0.5) * H }; },

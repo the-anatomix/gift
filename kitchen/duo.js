@@ -20,7 +20,7 @@ let last = 0, connectT = 0, manual = null, tries = 0;
 /* ───────── 상태를 링크에 담기 (이어 굽기) ───────── */
 const S_MAX = K.STICK.L * 0.8, U_MAX = K.STICK.R;
 const clamp255 = (v) => Math.max(0, Math.min(255, Math.round(v)));
-function packState(st) {
+export function packState(st) {
   const bake = st.x && st.x.oven && st.x.oven.done ? st.x.oven.lv & 3 : 0; // 굽기 정도는 색 바이트의 윗자리에
   const b = [1, (st.color & 7) | (bake << 3), (st.layers.length & 7) | (((st.tc | 0) + 1) << 3)]; // 글자색은 겹 수 바이트의 윗자리에
   for (const l of st.layers) b.push(l.c & 7, clamp255((l.len / K.STICK.L) * 255));
@@ -33,7 +33,7 @@ function packState(st) {
   let s = ''; for (const x of b) s += String.fromCharCode(x);
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-function unpackState(txt) {
+export function unpackState(txt) {
   const s = atob(txt.replace(/-/g, '+').replace(/_/g, '/'));
   const b = Array.from(s, (c) => c.charCodeAt(0));
   if (b[0] !== 1) throw new Error('version');
@@ -109,7 +109,7 @@ function createRoom() {
   const id = Array.from(a, (x) => 'abcdefghijkmnpqrstuvwxyz23456789'[x % 32]).join('');
   history.replaceState(null, '', '#r=' + id);
   start(id);
-  share(inviteUrl(), '같이 막대과자 구워요. 눌러서 주방으로 들어오세요.');
+  shareBar(inviteUrl(), '같이 막대과자 구워요. 눌러서 주방으로 들어오세요.');
 }
 
 function onMsg(m) {
@@ -184,14 +184,17 @@ function floatEmoji(i, mine) {
 }
 
 /* ───────── 공유 ───────── */
-async function share(url, text) {
+export async function share(url, text) {
   manual = null;
   if (navigator.share) {
-    try { await navigator.share({ title: '갓 구운 선물', text, url }); return; }
-    catch (e) { if (e && e.name === 'AbortError') return; }
+    try { await navigator.share({ title: '갓 구운 선물', text, url }); return 'shared'; }
+    catch (e) { if (e && e.name === 'AbortError') return 'cancel'; }
   }
-  try { await navigator.clipboard.writeText(url); K.toast('링크를 복사했어요. 상대에게 붙여 보내세요'); return; } catch (_) { /* 아래로 */ }
-  manual = url; render(); // 복사도 안 되는 브라우저: 링크를 보여 주고 직접 복사하게 한다
+  try { await navigator.clipboard.writeText(url); K.toast('링크를 복사했어요. 상대에게 붙여 보내세요'); return 'copied'; } catch (_) { /* 아래로 */ }
+  return 'manual'; // 복사도 안 되는 브라우저: 부른 쪽이 링크를 보여 주고 직접 복사하게 한다
+}
+async function shareBar(url, text) {
+  if ((await share(url, text)) === 'manual') { manual = url; render(); }
 }
 
 /* ───────── 아래 막대 ───────── */
@@ -206,7 +209,7 @@ function render() {
   if (mode === 'waiting') {
     const r = row(); r.appendChild(hint('상대를 기다리는 중…', '기다리는 동안 먼저 구워도 돼요.'));
     const r2 = row();
-    r2.appendChild(btn('초대 링크 보내기', () => share(inviteUrl(), '같이 막대과자 구워요. 눌러서 주방으로 들어오세요.'), 'invite', 'btn grow main'));
+    r2.appendChild(btn('초대 링크 보내기', () => shareBar(inviteUrl(), '같이 막대과자 구워요. 눌러서 주방으로 들어오세요.'), 'invite', 'btn grow main'));
     r2.appendChild(btn('혼자 굽기', leave, 'solo'));
   } else if (mode === 'connecting') {
     const r = row(); r.appendChild(hint(tries > 1 ? '다시 연결해 보는 중…' : '주방에 들어가는 중…', '잠시만 기다려 주세요.')); r.appendChild(btn('혼자 굽기', leave, 'solo'));
@@ -225,7 +228,7 @@ function render() {
     r.appendChild(btn('닫기', leave, 'solo'));
     const r2 = row();
     r2.appendChild(btn('다시 연결', () => start(room), 'retry', 'btn grow'));
-    r2.appendChild(btn('이어 굽기 링크 보내기', () => share(continueUrl(), '굽던 막대과자예요. 눌러서 마저 꾸며 주세요.'), 'continue', 'btn grow main'));
+    r2.appendChild(btn('이어 굽기 링크 보내기', () => shareBar(continueUrl(), '굽던 막대과자예요. 눌러서 마저 꾸며 주세요.'), 'continue', 'btn grow main'));
   } else if (mode === 'full') {
     const r = row(); r.appendChild(hint('방이 찼어요', '이 주방에는 이미 두 사람이 있어요.'));
     r.appendChild(btn('혼자 굽기', leave, 'solo', 'btn main'));
@@ -244,6 +247,7 @@ function boot() {
   const h = location.hash;
   const r = /^#r=([a-z0-9]{6,20})$/.exec(h), s = /^#s=([A-Za-z0-9_-]{4,4000})$/.exec(h);
   render();
+  if (/^#g=/.test(h)) return;
   if (r) start(r[1]);
   else if (s) {
     try { K.setState(unpackState(s[1])); K.toast('받은 과자예요. 마저 꾸며 보세요'); }
