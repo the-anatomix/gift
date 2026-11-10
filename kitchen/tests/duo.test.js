@@ -83,6 +83,8 @@ async function duoSuite(browser, label, query) {
   await A.evaluate(() => window.__kitchen.dispatch({ t: 'text', v: '<b>일곱글자넘는글</b>' }));
   check('글자는 6자로 잘리고 글자 그대로만 다뤄짐', (await text(A)) === '<b>일곱글' && (await A.evaluate(() => !document.querySelector('#panel b'))), await text(A));
   await A.fill('#carve', '사랑해요');
+  await A.click('#tcolor'); await A.click('#tcolor'); await A.click('#tcolor'); // 자동 → 크림 → 초콜릿 → 빨강
+  check('글자색 선택 반영 (A → B)', await until(() => B.evaluate(() => window.__kitchen.S.tc === 2)) && (await A.evaluate(() => window.__kitchen.S.tc)) === 2);
 
   // 둘이 동시에
   const scA = await A.evaluate(() => window.__kitchen.stickScreen());
@@ -139,7 +141,7 @@ async function duoSuite(browser, label, query) {
   const cmp = await D.evaluate(() => window.__kitchen.S.grains.map((g) => [g.k, g.s, g.u])), src = await A.evaluate(() => window.__kitchen.S.grains.map((g) => [g.k, g.s, g.u]));
   const close = cmp.length === src.length && cmp.every((g, i) => g[0] === src[i][0] && Math.abs(g[1] - src[i][1]) < 0.004 && Math.abs(g[2] - src[i][2]) < 0.001);
   check('이어 굽기 링크를 연 쪽에 같은 과자가 나타남', close && (await D.evaluate(() => window.__duo.mode)) === 'solo', [cmp.length, src.length]);
-  check('이어 굽기 링크에 새긴 글자도 담김', (await text(D)) === '사랑해요', await text(D));
+  check('이어 굽기 링크에 새긴 글자와 글자색이 담김', (await text(D)) === '사랑해요' && (await D.evaluate(() => window.__kitchen.S.tc)) === 2, await text(D));
   await sleep(1200);
   await D.screenshot({ path: path.join(__dirname, 'out', `continue-${label}.png`) }).catch(() => {});
   await rub(D, 0.3, 0.5);

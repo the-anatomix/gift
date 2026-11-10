@@ -22,7 +22,7 @@ const S_MAX = K.STICK.L * 0.8, U_MAX = K.STICK.R;
 const clamp255 = (v) => Math.max(0, Math.min(255, Math.round(v)));
 function packState(st) {
   const bake = st.x && st.x.oven && st.x.oven.done ? st.x.oven.lv & 3 : 0; // 굽기 정도는 색 바이트의 윗자리에
-  const b = [1, (st.color & 7) | (bake << 3), st.layers.length];
+  const b = [1, (st.color & 7) | (bake << 3), (st.layers.length & 7) | (((st.tc | 0) + 1) << 3)]; // 글자색은 겹 수 바이트의 윗자리에
   for (const l of st.layers) b.push(l.c & 7, clamp255((l.len / K.STICK.L) * 255));
   const tx = Array.from(new TextEncoder().encode(K.cleanText(st.text))).slice(0, 40);
   b.push(tx.length, ...tx);
@@ -41,7 +41,8 @@ function unpackState(txt) {
   const bake = (b[1] >> 3) & 3;
   const st = { station: 'top', color: Math.min(b[1] & 7, nC - 1), layers: [], grains: [], x: { oven: { lv: bake, done: bake ? 1 : 0 } } };
   let i = 3;
-  for (let n = 0; n < Math.min(b[2], 4); n++, i += 2) st.layers.push({ c: Math.min(b[i], nC - 1), len: (b[i + 1] / 255) * K.STICK.L });
+  st.tc = ((b[2] >> 3) & 7) - 1;
+  for (let n = 0; n < Math.min(b[2] & 7, 4); n++, i += 2) st.layers.push({ c: Math.min(b[i], nC - 1), len: (b[i + 1] / 255) * K.STICK.L });
   const tn = b[i] || 0;
   try { st.text = K.cleanText(new TextDecoder().decode(new Uint8Array(b.slice(i + 1, i + 1 + tn)))); } catch (_) { st.text = ''; }
   i += 1 + tn;
@@ -121,7 +122,7 @@ function onMsg(m) {
       const have = new Set(mine.grains.map((g) => g.id));
       for (const g of (theirs.grains || [])) if (g && !have.has(String(g.id))) mine.grains.push(g);
       if (!mine.layers.length && Array.isArray(theirs.layers)) mine.layers = theirs.layers;
-      if (!mine.text && theirs.text) mine.text = theirs.text;
+      if (!mine.text && theirs.text) { mine.text = theirs.text; mine.tc = theirs.tc; }
       K.setState(mine, true);
       link.send({ t: 'state', state: K.getState() });
       break;

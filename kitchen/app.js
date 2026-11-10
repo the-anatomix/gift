@@ -39,6 +39,10 @@ const CHOCO = [
   { name: '딸기', hex: 0xF2A0AE },
   { name: '말차', hex: 0x9DB86A },
 ];
+const TEXT_COLORS = [
+  { name: '크림', css: '#FFF6E2' }, { name: '초콜릿', css: '#5A3824' }, { name: '빨강', css: '#D9483B' },
+  { name: '분홍', css: '#F28B9B' }, { name: '노랑', css: '#F6C85F' },
+];
 const KINDS = [
   { id: 'sprinkle', name: '스프링클', dot: '#F28B9B', step: 9, colors: [0xFFFFFF, 0xF28B9B, 0xF6C85F, 0x9AD0C2, 0xD9483B] },
   { id: 'heart', name: '하트', dot: '#E8505B', step: 15, colors: [0xE8505B, 0xF7A1B0] },
@@ -193,6 +197,7 @@ const S = {
   grains: [],        // 토핑 [{k, s, u, sp, sc, c, st(획 id), born}]
   backup: null,      // 지우기 직전 토핑 (되돌리기용)
   text: '',          // 새긴 글자 (6자까지)
+  tc: -1,            // 글자색 번호 (-1 은 바탕에 맞춰 자동)
 };
 const cleanText = (v) => Array.from(String(v == null ? '' : v).replace(/\s+/g, ' ')).slice(0, 6).join('');
 let kind = 0;
@@ -224,6 +229,11 @@ const txtMesh = new THREE.Mesh(
   new THREE.MeshLambertMaterial({ map: txtTex, transparent: true, depthWrite: false }));
 txtMesh.position.y = TXT.s0 + TXT.len / 2; txtMesh.visible = false; txtMesh.renderOrder = 1;
 stick.add(txtMesh);
+// 고른 글자색. 고르지 않았으면 밝은 바탕에는 갈색, 초콜릿 위에는 크림색
+function textCss(top) {
+  if (top === undefined) { const mid = TXT.s0 + TXT.len / 2; top = null; S.layers.forEach((l) => { if (mid <= l.len) top = l.c; }); }
+  return TEXT_COLORS[S.tc] ? TEXT_COLORS[S.tc].css : (top === 2 || top == null ? '#5A3824' : '#FFF6E2');
+}
 function drawText() {
   const chars = Array.from(S.text);
   txtMesh.visible = chars.length > 0;
@@ -232,7 +242,7 @@ function drawText() {
   g.clearRect(0, 0, 128, 768);
   const mid = TXT.s0 + TXT.len / 2;
   let top = null; S.layers.forEach((l) => { if (mid <= l.len) top = l.c; });
-  g.fillStyle = top === 2 || top == null ? '#5A3824' : '#FFF6E2'; // 밝은 바탕에는 갈색, 초콜릿 위에는 크림색
+  g.fillStyle = textCss(top);
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.font = '900 96px "Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif';
   const y0 = (768 - chars.length * cell) / 2;
@@ -290,6 +300,7 @@ function apply(a) {
     }
     case 'uncoat': S.layers = []; drawCoat(); drawText(); break;
     case 'text': S.text = cleanText(a.v); drawText(); break;
+    case 'tcolor': S.tc = TEXT_COLORS[a.c] ? a.c | 0 : -1; drawText(); break;
     case 'grain':
       if (S.grains.length < MAX_GRAINS && !S.grains.some((g) => g.id === a.id)) {
         S.grains.push({ k: a.k, s: a.s, u: a.u, sp: a.sp, sc: a.sc, c: a.c, st: a.st, id: a.id, born: performance.now() });
@@ -497,7 +508,13 @@ function renderPanel() {
     inp.placeholder = '글자 새기기 (6자까지)'; inp.setAttribute('aria-label', '막대과자에 새길 글자 (6자까지)'); inp.enterKeyHint = 'done';
     inp.addEventListener('input', () => dispatch({ t: 'text', v: cleanText(inp.value) }));
     inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') inp.blur(); });
-    r3.appendChild(inp); p.appendChild(r3);
+    r3.appendChild(inp);
+    // 글자색: 누를 때마다 다음 색으로
+    const tcb = button('btn', '', () => dispatch({ t: 'tcolor', c: (S.tc + 1) % TEXT_COLORS.length }), '글자색 바꾸기'); tcb.id = 'tcolor';
+    tcb.style.cssText = 'display:flex;align-items:center;gap:6px;padding:0 10px';
+    const dot = el('i'); dot.style.cssText = 'width:20px;height:20px;border-radius:50%;display:block;border:2px solid rgba(43,29,20,.18)';
+    tcb.appendChild(dot); tcb.appendChild(el('span', '', '글자색'));
+    r3.appendChild(tcb); p.appendChild(r3);
   }
   syncPanel();
 }
@@ -511,6 +528,8 @@ function syncPanel() {
     $('undo').disabled = !S.backup && !S.grains.some((g) => String(g.st).startsWith(ME));
     $('clear').disabled = !S.grains.length;
     const inp = $('carve'); if (document.activeElement !== inp && inp.value !== S.text) inp.value = S.text;
+    const tcb = $('tcolor'); tcb.firstChild.style.background = textCss();
+    tcb.setAttribute('aria-label', '글자색 바꾸기 (지금: ' + (TEXT_COLORS[S.tc] ? TEXT_COLORS[S.tc].name : '자동') + ')');
   }
 }
 let toastT = 0;
@@ -554,14 +573,14 @@ function remoteTip(y) { // 상대가 과자를 담그는 모습
 function getState() {
   const x = {};
   for (const id in mods) if (mods[id].get) x[id] = mods[id].get();
-  return { station: S.station, color: S.color, text: S.text, x, layers: S.layers.map((l) => ({ c: l.c, len: l.len })),
+  return { station: S.station, color: S.color, text: S.text, tc: S.tc, x, layers: S.layers.map((l) => ({ c: l.c, len: l.len })),
     grains: S.grains.map((g) => ({ k: g.k, s: g.s, u: g.u, sp: g.sp, sc: g.sc, c: g.c, st: g.st, id: g.id })) };
 }
 function setState(st, keepStation) {
   S.color = st.color | 0; chocoMat.color.setHex(CHOCO[S.color].hex);
   S.layers = (st.layers || []).slice(0, 4).map((l) => ({ c: l.c | 0, len: +l.len }));
   S.grains = (st.grains || []).slice(0, MAX_GRAINS).map((g) => ({ k: g.k | 0, s: +g.s, u: +g.u, sp: +g.sp, sc: +g.sc, c: g.c | 0, st: String(g.st), id: String(g.id), born: 0 }));
-  S.backup = null; S.text = cleanText(st.text);
+  S.backup = null; S.text = cleanText(st.text); S.tc = TEXT_COLORS[st.tc] ? st.tc | 0 : -1;
   for (const id in mods) if (mods[id].set) mods[id].set(st.x ? st.x[id] : undefined);
   drawCoat(); drawText();
   if (!keepStation && STN[st.station] && st.station !== S.station) go(st.station); else renderPanel();
