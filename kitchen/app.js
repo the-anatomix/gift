@@ -3,6 +3,7 @@
 import * as THREE from './vendor/three.module.min.js';
 import { RoundedBoxGeometry } from './vendor/RoundedBoxGeometry.js';
 import { pickTheme, SITE } from './theme.js';
+import { stations as STATION_MODS } from './stations/index.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('c');
@@ -113,54 +114,6 @@ function buildCounters() {
   for (const x of [-1, 0, 1]) put(rbox(0.3, 0.035, 0.04, 0.015), C.top, x, 0.68, 1.39, scene, false);
 }
 
-function buildOven() {
-  const g = new THREE.Group(); g.position.set(-1.3, TOP_Y, -1.72); scene.add(g);
-  put(rbox(1.0, 0.62, 0.62, 0.07), C.accent, 0, 0.36, 0, g);
-  put(rbox(0.62, 0.42, 0.04, 0.03), C.dark, -0.14, 0.36, 0.3, g, false);
-  put(new THREE.BoxGeometry(0.5, 0.3, 0.02), new THREE.MeshBasicMaterial({ color: C.ovenGlow }), -0.14, 0.35, 0.318, g, false);
-  put(rbox(0.5, 0.035, 0.045, 0.015), C.cream, -0.14, 0.6, 0.34, g);
-  for (const y of [0.5, 0.36, 0.22]) {
-    const k = put(cyl(0.045, 0.045, 0.04, 14), C.cream, 0.33, y, 0.32, g, false);
-    k.rotation.x = Math.PI / 2;
-  }
-  for (const [x, z] of [[-0.4, -0.22], [0.4, -0.22], [-0.4, 0.22], [0.4, 0.22]]) put(cyl(0.04, 0.04, 0.05, 10), C.dark, x, 0.025, z, g, false);
-  // 식힘망
-  const r = new THREE.Group(); r.position.set(-0.15, TOP_Y, -1.72); scene.add(r);
-  for (const z of [-0.26, 0.26]) put(new THREE.BoxGeometry(0.72, 0.02, 0.02), C.metal, 0, 0.08, z, r);
-  for (let i = 0; i < 7; i++) put(new THREE.BoxGeometry(0.014, 0.014, 0.54), C.metal, -0.33 + i * 0.11, 0.08, 0, r);
-  for (const [x, z] of [[-0.34, -0.26], [0.34, -0.26], [-0.34, 0.26], [0.34, 0.26]]) put(new THREE.BoxGeometry(0.02, 0.08, 0.02), C.metal, x, 0.04, z, r, false);
-  for (let i = 0; i < 4; i++) {
-    const s = put(cyl(0.032, 0.032, 0.5, 10), C.biscuit, -0.22 + i * 0.15, 0.125, (i % 2) * 0.03, r);
-    s.rotation.x = Math.PI / 2; s.rotation.z = (i - 1.5) * 0.04;
-  }
-}
-
-function buildDough() {
-  const g = new THREE.Group(); g.position.set(1.2, TOP_Y, -1.72); scene.add(g);
-  const bowl = new THREE.MeshLambertMaterial({ color: C.white, side: THREE.DoubleSide });
-  put(new THREE.CylinderGeometry(0.33, 0.2, 0.24, 22, 1, true), bowl, -0.1, 0.12, 0, g);
-  put(cyl(0.2, 0.2, 0.02, 22), C.white, -0.1, 0.01, 0, g, false);
-  const d = put(new THREE.SphereGeometry(0.2, 16, 12), C.dough, -0.1, 0.17, 0, g);
-  d.scale.set(1.15, 0.7, 1.1);
-  // 밀가루 봉지
-  put(rbox(0.26, 0.36, 0.18, 0.04), C.cream, 0.42, 0.18, -0.12, g);
-  put(new THREE.BoxGeometry(0.2, 0.12, 0.01), C.top, 0.42, 0.18, -0.027, g, false);
-  // 밀대
-  const pin = new THREE.Group(); pin.position.set(0.3, 0.05, 0.26); pin.rotation.set(0, 0.25, Math.PI / 2); g.add(pin);
-  put(cyl(0.045, 0.045, 0.42, 14), C.wood, 0, 0, 0, pin);
-  put(cyl(0.02, 0.02, 0.62, 10), C.top, 0, 0, 0, pin);
-}
-
-function buildCut() {
-  const g = new THREE.Group(); g.position.set(-0.95, TOP_Y, 0.75); scene.add(g);
-  put(rbox(0.86, 0.05, 0.6, 0.02), C.wood, 0, 0.025, 0, g);
-  put(rbox(0.36, 0.022, 0.42, 0.01), C.dough, -0.2, 0.061, 0, g);
-  for (let i = 0; i < 3; i++) put(rbox(0.045, 0.024, 0.42, 0.01), C.dough, 0.06 + i * 0.075, 0.062, 0, g);
-  const k = new THREE.Group(); k.position.set(0.34, 0.06, 0.02); k.rotation.y = -0.15; g.add(k);
-  put(new THREE.BoxGeometry(0.05, 0.008, 0.26), C.metal, 0, 0, -0.08, k);
-  put(rbox(0.04, 0.024, 0.14, 0.01), C.dark, 0, 0.004, 0.12, k);
-}
-
 let chocoSurf, chocoMat;
 const POT_H = 0.34;
 const SURF_Y = TOP_Y + POT_H + 0.012;
@@ -199,9 +152,10 @@ const coatCap = new THREE.SphereGeometry(1, 16, 8);
 const coatMats = new Map();
 const inst = {};
 const MAX_GRAINS = 480;
+const biscuitMat = new THREE.MeshLambertMaterial({ color: C.biscuit });
 
 function buildStick() {
-  put(cyl(STICK.R, STICK.R, STICK.L, 16).translate(0, STICK.L / 2, 0), C.biscuit, 0, 0, 0, stick);
+  put(cyl(STICK.R, STICK.R, STICK.L, 16).translate(0, STICK.L / 2, 0), biscuitMat, 0, 0, 0, stick);
   stick.add(coatGroup);
   const heart = new THREE.Shape();
   heart.moveTo(0, -0.9); heart.bezierCurveTo(-1.5, 0.1, -0.9, 1.1, 0, 0.45); heart.bezierCurveTo(0.9, 1.1, 1.5, 0.1, 0, -0.9);
@@ -227,7 +181,7 @@ function buildStick() {
   scene.add(stick);
 }
 
-buildRoom(); buildCounters(); buildOven(); buildDough(); buildCut(); buildChoco(); buildTopping(); buildStick();
+buildRoom(); buildCounters(); buildChoco(); buildTopping(); buildStick();
 THEME.props({ THREE, scene, put, rbox, cyl, C, TOP_Y });
 
 /* ───────── 상태 ─────────
@@ -349,6 +303,7 @@ function apply(a) {
       break;
     }
     case 'clear': if (S.grains.length) { S.backup = S.grains; S.grains = []; } break;
+    case 'st': if (mods[a.s] && mods[a.s].apply) mods[a.s].apply(a.d || {}); return;
     case 'go': go(a.s); return;
   }
   if (S.station === 'choco' || S.station === 'top') renderPanel();
@@ -410,6 +365,22 @@ const ANCHOR = {
   choco: { at: V3(POT.x, 1.72, POT.z), box: [0.75, 0.7, 0.75, POT.x, 1.25, POT.z] },
   top: { at: V3(TRAY.x + 0.15, 1.28, TRAY.z), box: [0.95, 0.5, 1.15, TRAY.x + 0.15, 1.1, TRAY.z] },
 };
+// 자리 모듈(반죽·자르기·굽기). 각 파일이 자기 소품과 조작을 맡는다.
+const mods = {};
+for (const id in STATION_MODS) {
+  const kit = {
+    THREE, scene, C, M, put, rbox, cyl, TOP_Y, tween, poke, toast, ease, easeBack, reduceMotion,
+    station: id,
+    active: () => S.station === id,
+    send: (d) => dispatch({ t: 'st', s: id, d }),       // 상태를 바꾸는 유일한 길. apply(d) 로 돌아온다(상대에게도 간다)
+    repaint: () => { if (S.station === id) { panelKey = ''; renderPanel(); refit(); } },
+    setBiscuit: (hex) => { biscuitMat.color.setHex(hex); poke(); },
+    go: (s) => dispatch({ t: 'go', s }),
+  };
+  const m = STATION_MODS[id](kit) || {};
+  mods[id] = m;
+  if (m.view) Object.assign(VIEWS[id], { tgt: V3(...m.view.tgt), dir: V3(...m.view.dir), w: m.view.w, h: m.view.h });
+}
 const hits = new THREE.Group();
 const labelEls = {};
 for (const id in ANCHOR) {
@@ -442,7 +413,9 @@ let travel = null;
 function go(name, instant) {
   if (!STN[name]) return;
   const changed = S.station !== name;
+  if (changed && mods[S.station] && mods[S.station].leave) mods[S.station].leave();
   S.station = name;
+  if (changed && mods[name] && mods[name].enter) mods[name].enter();
   for (const id in tabEls) tabEls[id].setAttribute('aria-selected', id === name ? 'true' : 'false');
   $('labels').classList.toggle('off', name !== 'home');
   renderPanel();
@@ -489,6 +462,8 @@ function renderPanel() {
     const r = el('div', 'row'); r.appendChild(hintEl('자리를 눌러 가까이 가 보세요.', '초콜릿과 토핑 자리는 지금 해 볼 수 있어요.'));
     if (homeAction) { const b = button('btn', homeAction.label, homeAction.fn); b.id = 'homeAction'; r.appendChild(b); }
     p.appendChild(r);
+  } else if (mods[s] && mods[s].panel) {
+    mods[s].panel(p, { el, button, hintEl });
   } else if (STN[s].soon) {
     const r = el('div', 'row'); r.appendChild(hintEl(STN[s].title, STN[s].soon)); r.appendChild(el('span', 'soon', '준비 중')); p.appendChild(r);
   } else if (s === 'choco') {
@@ -577,7 +552,9 @@ function remoteTip(y) { // 상대가 과자를 담그는 모습
   } else { tipY = y; stick.position.y = y; poke(); }
 }
 function getState() {
-  return { station: S.station, color: S.color, text: S.text, layers: S.layers.map((l) => ({ c: l.c, len: l.len })),
+  const x = {};
+  for (const id in mods) if (mods[id].get) x[id] = mods[id].get();
+  return { station: S.station, color: S.color, text: S.text, x, layers: S.layers.map((l) => ({ c: l.c, len: l.len })),
     grains: S.grains.map((g) => ({ k: g.k, s: g.s, u: g.u, sp: g.sp, sc: g.sc, c: g.c, st: g.st, id: g.id })) };
 }
 function setState(st, keepStation) {
@@ -585,11 +562,17 @@ function setState(st, keepStation) {
   S.layers = (st.layers || []).slice(0, 4).map((l) => ({ c: l.c | 0, len: +l.len }));
   S.grains = (st.grains || []).slice(0, MAX_GRAINS).map((g) => ({ k: g.k | 0, s: +g.s, u: +g.u, sp: +g.sp, sc: +g.sc, c: g.c | 0, st: String(g.st), id: String(g.id), born: 0 }));
   S.backup = null; S.text = cleanText(st.text);
+  for (const id in mods) if (mods[id].set) mods[id].set(st.x ? st.x[id] : undefined);
   drawCoat(); drawText();
   if (!keepStation && STN[st.station] && st.station !== S.station) go(st.station); else renderPanel();
   poke(400);
 }
 
+// 자리 모듈에 넘기는 손가락 정보: 화면 좌표, 직전 대비 이동량, 주방 안으로 쏜 광선
+function info(e, dx, dy) {
+  setRay(e);
+  return { x: e.clientX, y: e.clientY, dx, dy, ray: ray.ray, w: W, h: H };
+}
 function setRay(e) {
   const r = canvas.getBoundingClientRect();
   ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
@@ -651,6 +634,9 @@ canvas.addEventListener('pointerdown', (e) => {
   } else if (S.station === 'top') {
     drag.mode = 'rub'; drag.st = ME + (++strokeN); drag.acc = 0; drag.n = 0;
     sprinkleAt(e, true);
+  } else if (mods[S.station] && mods[S.station].down) {
+    drag.mode = 'mod'; drag.mod = mods[S.station];
+    drag.mod.down(info(e, 0, 0));
   }
   emitHand(e, true);
 });
@@ -672,6 +658,8 @@ canvas.addEventListener('pointermove', (e) => {
     const step = KINDS[kind].step;
     let n = 0;
     while (drag.acc >= step && n < 4) { drag.acc -= step; n++; sprinkleAt(e, false); }
+  } else if (drag.mode === 'mod' && drag.mod.move) {
+    drag.mod.move(info(e, dx, dy));
   }
   drag.x = e.clientX; drag.y = e.clientY;
   emitHand(e, true);
@@ -684,6 +672,7 @@ function onUp(e) {
     const h = ray.intersectObjects(hits.children, false)[0];
     if (h) { drag = null; dispatch({ t: 'go', s: h.object.userData.station }); return; }
   }
+  if (d.mode === 'mod' && d.mod.up) d.mod.up(info(e, 0, 0));
   endDrag(); drag = null;
   emitHand(e, false);
 }
