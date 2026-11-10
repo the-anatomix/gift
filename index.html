@@ -55,7 +55,7 @@ textarea{resize:none;height:120px;font-family:"Gaegu",cursive;font-size:20px;lin
 .btn.small{padding:10px 14px;font-size:13px;min-height:40px;width:auto;border-radius:999px}
 .btn:active{transform:scale(.98)}
 .hint{font-size:12px;color:var(--sub);margin:0;line-height:1.5}
-.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;white-space:nowrap}
+.toast{max-width:92vw;position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;white-space:nowrap}
 .toast.show{opacity:1}
 /* 받는 화면 */
 .stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center;min-height:70dvh}
@@ -101,6 +101,7 @@ textarea{resize:none;height:120px;font-family:"Gaegu",cursive;font-size:20px;lin
 .gauge i{position:absolute;top:-7px;width:8px;height:28px;margin-left:-4px;background:#fff;border:2px solid var(--ink);border-radius:4px;left:0}
 .result{font-weight:700;text-align:center;min-height:24px;margin:0}
 .btn[disabled]{opacity:.35;cursor:default}
+.btn.kakao{background:#FEE500;color:#191600}.btn.insta{background:linear-gradient(90deg,#F58529,#DD2A7B 55%,#8134AF);color:#fff}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){.lid,.fade,.giftbox.shake .lid{animation:none;transition:none}}
 </style>
@@ -292,8 +293,14 @@ function maker(d0){
   app.appendChild(el("section",{class:"card"},[
     el("p",{class:"label",text:"편지 쓰기"}),el("div",{class:"row",style:"margin-bottom:8px"},[to,from]),msg,
     el("p",{class:"label",style:"margin:6px 0 0;justify-content:flex-end"},[count])]));
-  app.appendChild(el("button",{type:"button",class:"btn",text:"링크로 보내기",on:{click:function(){var u=collect();if(!u)return;
-    if(navigator.share){navigator.share({title:"선물 상자가 도착했어요",text:(d.to?d.to+"에게 ":"")+"선물 상자가 도착했어요",url:u}).catch(function(){})}else copy(u)}}}));
+  /* 카카오톡: 폰의 공유 창을 연다(카카오톡을 고르면 된다). 공유 창이 없는 기기는 링크를 복사한다 */
+  app.appendChild(el("button",{type:"button",class:"btn kakao",text:"카카오톡으로 공유하기",on:{click:function(){var u=collect();if(!u)return;
+    if(navigator.share){navigator.share({title:"선물 상자가 도착했어요",text:(d.to?d.to+"에게 ":"")+"선물 상자가 도착했어요",url:u}).catch(function(){})}
+    else copy(u,"링크를 복사했어요. 카카오톡 대화방에 붙여넣으세요")}}}));
+  /* 인스타 DM: 링크를 복사한 뒤 DM 함을 연다 */
+  app.appendChild(el("button",{type:"button",class:"btn insta",text:"인스타 DM으로 공유하기",on:{click:function(){var u=collect();if(!u)return;
+    copy(u,"링크 복사 완료! DM 대화방에 붙여넣으세요");
+    setTimeout(function(){if(/Android|iPhone|iPad/i.test(navigator.userAgent))location.href="instagram://direct-inbox";else window.open("https://www.instagram.com/direct/inbox/","_blank","noopener")},900)}}}));
   app.appendChild(el("div",{class:"row"},[
     el("button",{type:"button",class:"btn ghost",text:"링크 복사",on:{click:function(){var u=collect();if(u)copy(u)}}}),
     el("button",{type:"button",class:"btn ghost",text:"미리 보기",on:{click:function(){var u=collect();if(u){viewer(d,true);window.scrollTo(0,0)}}}})]));
@@ -302,7 +309,7 @@ function maker(d0){
   draw();
   }
 }
-function copy(u){function ok(){toast("링크를 복사했어요. 붙여넣어 보내세요")}
+function copy(u,m){function ok(){toast(m||"링크를 복사했어요. 붙여넣어 보내세요")}
   function fallback(){var t=el("textarea");t.value=u;document.body.appendChild(t);t.select();try{document.execCommand("copy");ok()}catch(e){toast("복사하지 못했어요")}t.remove()}
   if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(ok,fallback)}else fallback()}
 
