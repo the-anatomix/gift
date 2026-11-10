@@ -21,7 +21,8 @@ let last = 0, connectT = 0, manual = null, tries = 0;
 const S_MAX = K.STICK.L * 0.8, U_MAX = K.STICK.R;
 const clamp255 = (v) => Math.max(0, Math.min(255, Math.round(v)));
 function packState(st) {
-  const b = [1, st.color & 7, st.layers.length];
+  const bake = st.x && st.x.oven && st.x.oven.done ? st.x.oven.lv & 3 : 0; // 굽기 정도는 색 바이트의 윗자리에
+  const b = [1, (st.color & 7) | (bake << 3), st.layers.length];
   for (const l of st.layers) b.push(l.c & 7, clamp255((l.len / K.STICK.L) * 255));
   const tx = Array.from(new TextEncoder().encode(K.cleanText(st.text))).slice(0, 40);
   b.push(tx.length, ...tx);
@@ -37,7 +38,8 @@ function unpackState(txt) {
   const b = Array.from(s, (c) => c.charCodeAt(0));
   if (b[0] !== 1) throw new Error('version');
   const nC = K.CHOCO.length;
-  const st = { station: 'top', color: Math.min(b[1], nC - 1), layers: [], grains: [] };
+  const bake = (b[1] >> 3) & 3;
+  const st = { station: 'top', color: Math.min(b[1] & 7, nC - 1), layers: [], grains: [], x: { oven: { lv: bake, done: bake ? 1 : 0 } } };
   let i = 3;
   for (let n = 0; n < Math.min(b[2], 4); n++, i += 2) st.layers.push({ c: Math.min(b[i], nC - 1), len: (b[i + 1] / 255) * K.STICK.L });
   const tn = b[i] || 0;

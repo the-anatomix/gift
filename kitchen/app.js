@@ -387,7 +387,7 @@ for (const id in ANCHOR) {
   const b = ANCHOR[id].box;
   const m = new THREE.Mesh(new THREE.BoxGeometry(b[0], b[1], b[2])); m.position.set(b[3], b[4], b[5]); m.userData.station = id;
   hits.add(m);
-  const el = document.createElement('button'); el.className = 'lab' + (STN[id].soon ? '' : ' live'); el.type = 'button';
+  const el = document.createElement('button'); el.className = 'lab' + (STN[id].soon && !(mods[id] && mods[id].panel) ? '' : ' live'); el.type = 'button';
   const sp = document.createElement('span'); sp.textContent = STN[id].tab; el.appendChild(sp);
   el.setAttribute('aria-label', STN[id].title + ' 자리로 가기');
   el.addEventListener('click', () => dispatch({ t: 'go', s: id }));
@@ -459,7 +459,7 @@ function renderPanel() {
   panelKey = s;
   p.textContent = '';
   if (s === 'home') {
-    const r = el('div', 'row'); r.appendChild(hintEl('자리를 눌러 가까이 가 보세요.', '초콜릿과 토핑 자리는 지금 해 볼 수 있어요.'));
+    const r = el('div', 'row'); r.appendChild(hintEl('자리를 눌러 가까이 가 보세요.', '반죽부터 토핑까지 차례로 해 볼 수 있어요.'));
     if (homeAction) { const b = button('btn', homeAction.label, homeAction.fn); b.id = 'homeAction'; r.appendChild(b); }
     p.appendChild(r);
   } else if (mods[s] && mods[s].panel) {
