@@ -28,6 +28,15 @@ button{font:inherit;color:inherit;touch-action:manipulation}
   font-size:13px;font-weight:700;color:var(--choc);text-decoration:none;background:rgba(255,252,245,.85);
   border:1.5px solid var(--line);border-radius:999px}
 
+#account{font-size:12px;font-weight:600;color:var(--sub)}
+#inapp{position:absolute;left:10px;right:10px;top:calc(60px + env(safe-area-inset-top));margin:0 auto;max-width:460px;
+  background:#FFFCF5;border:1.5px solid var(--choc);border-radius:16px;padding:10px 12px;box-shadow:0 6px 20px rgba(90,56,36,.18)}
+#inapp[hidden]{display:none}
+#inapp p{margin:0 0 8px;font-size:13px;font-weight:600;line-height:1.45}
+#inapp p small{display:block;font-weight:500;color:var(--sub);font-size:12.5px}
+.copyurl.main{background:var(--choc);border-color:var(--choc);color:#FFF4E0}
+#fallback .btn{min-height:48px;padding:0 18px;font-size:14px}
+
 #labels{position:absolute;inset:0;pointer-events:none;transition:opacity .25s}
 #labels.off{opacity:0}
 #labels.off .lab{pointer-events:none}
@@ -114,8 +123,12 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 <div id="hand" aria-hidden="true"></div>
 <div id="emos" aria-hidden="true"></div>
 <div id="top">
-  <div class="brand">갓 구운 선물 <span class="tag">미니 주방 시안</span></div>
+  <div class="brand">갓 구운 선물 <span class="tag">미니 주방 시안</span><span id="account" hidden></span></div>
   <a href="../">2D 판</a>
+</div>
+<div id="inapp" hidden>
+  <p>앱 안 브라우저로 열렸어요.<small>여기서는 3D 화면이나 "같이 굽기" 연결이 안 될 수 있어요. 주소를 복사해 기본 브라우저(사파리·크롬)에 붙여 열어 주세요.</small></p>
+  <div class="row"><button type="button" class="btn copyurl main" style="flex:1">주소 복사</button><button type="button" class="btn" id="inappClose">닫기</button></div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="bottom">
@@ -127,14 +140,36 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 <div id="fallback" hidden>
   <h2>3D 주방을 열 수 없어요</h2>
   <p>이 기기나 브라우저에서는 3D 화면을 쓸 수 없어요. 같은 선물을 2D 판에서 만들 수 있어요.</p>
+  <p id="fbInapp" hidden>앱 안 브라우저라면 주소를 복사해 기본 브라우저(사파리·크롬)에서 열면 될 수도 있어요.</p>
   <a href="../">2D 판으로 가기</a>
+  <button type="button" class="btn copyurl">주소 복사</button>
 </div>
 <script>
 // 모듈을 못 읽거나 WebGL 이 없을 때 보여 주는 안내
 window.__fallback = function () {
   document.getElementById('fallback').hidden = false;
+  document.getElementById('inapp').hidden = true;
   var l = document.getElementById('loading'); if (l) l.remove();
 };
+// 인스타·카카오톡 같은 앱 안 브라우저 알아보기 (3D 가 안 떠도 돌아야 해서 모듈 밖에 둔다)
+(function () {
+  var inapp = /KAKAOTALK|Instagram|FBAN|FBAV|FB_IAB|NAVER\(inapp|Line\/|DaumApps|everytimeApp|; wv\)/i.test(navigator.userAgent);
+  window.__inapp = inapp;
+  if (inapp) { document.getElementById('inapp').hidden = false; document.getElementById('fbInapp').hidden = false; }
+  document.getElementById('inappClose').addEventListener('click', function () { document.getElementById('inapp').hidden = true; });
+  function done(b, ok) { var t = b.textContent; b.textContent = ok ? '복사했어요' : '주소창에서 직접 복사해 주세요'; setTimeout(function () { b.textContent = t; }, 1800); }
+  function copy(b) {
+    var url = location.href;
+    function old() {
+      var ta = document.createElement('textarea'); ta.value = url; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, url.length);
+      var ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      ta.remove(); done(b, ok);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function () { done(b, true); }, old); else old();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.copyurl'), function (b) { b.addEventListener('click', function () { copy(b); }); });
+})();
 </script>
 <script nomodule>window.__fallback();</script>
 <script type="module" src="./app.js" onerror="window.__fallback()"></script>

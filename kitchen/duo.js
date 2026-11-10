@@ -15,7 +15,7 @@ const COLORS = { host: '#D9483B', guest: '#2F9E8F' };
 
 let mode = 'solo'; // solo | waiting | connecting | on | lost | full
 let room = null, role = null, link = null, gen = 0;
-let last = 0, connectT = 0, manual = null;
+let last = 0, connectT = 0, manual = null, tries = 0;
 
 /* ───────── 상태를 링크에 담기 (이어 굽기) ───────── */
 const S_MAX = K.STICK.L * 0.8, U_MAX = K.STICK.R;
@@ -58,8 +58,9 @@ const continueUrl = () => baseUrl() + '#s=' + packState(K.getState());
 function setMode(m) { if (m !== mode) manual = null; mode = m; render(); }
 function send(m) { if (link && mode === 'on') link.send(m); }
 
-async function start(id) {
+async function start(id, again) {
   const my = ++gen;
+  tries = again ? tries + 1 : 1;
   if (link) link.close();
   link = null; room = id; role = null; manual = null;
   setMode('connecting');
@@ -70,7 +71,7 @@ async function start(id) {
     role(r) { if (my !== gen) return; role = r; if (r === 'host') { clearTimeout(connectT); setMode('waiting'); } },
     open() {
       if (my !== gen) return;
-      clearTimeout(connectT); last = performance.now(); setMode('on');
+      clearTimeout(connectT); last = performance.now(); tries = 0; setMode('on');
       K.toast('연결됐어요. 같이 구워요!');
       // 방 주인이 기준. 손님은 가진 것을 알리고, 주인이 합쳐서 통째로 돌려준다.
       if (role === 'guest') link.send({ t: 'hello', state: K.getState() });
@@ -85,6 +86,8 @@ async function start(id) {
 }
 function lost() {
   clearTimeout(connectT);
+  // 처음 들어가다 실패하면 한 번은 자동으로 다시 시도한다
+  if (mode === 'connecting' && tries === 1 && room) { K.toast('다시 연결해 보는 중…'); start(room, true); return; }
   hideHand(); K.remoteTip(null);
   if (link) { if (role === 'host') link.drop(); else { link.close(); link = null; gen++; } }
   if (mode === 'on') K.toast('연결이 끊겼어요. 혼자 이어 구워요');
@@ -203,7 +206,7 @@ function render() {
     r2.appendChild(btn('초대 링크 보내기', () => share(inviteUrl(), '같이 막대과자 구워요. 눌러서 주방으로 들어오세요.'), 'invite', 'btn grow main'));
     r2.appendChild(btn('혼자 굽기', leave, 'solo'));
   } else if (mode === 'connecting') {
-    const r = row(); r.appendChild(hint('주방에 들어가는 중…')); r.appendChild(btn('혼자 굽기', leave, 'solo'));
+    const r = row(); r.appendChild(hint(tries > 1 ? '다시 연결해 보는 중…' : '주방에 들어가는 중…', '잠시만 기다려 주세요.')); r.appendChild(btn('혼자 굽기', leave, 'solo'));
   } else if (mode === 'on') {
     const r = row();
     const who = el('div', 'who');
@@ -215,7 +218,7 @@ function render() {
       x.setAttribute('aria-label', '이모지 보내기 ' + e); r.appendChild(x);
     });
   } else if (mode === 'lost') {
-    const r = row(); r.appendChild(hint('혼자 이어 굽는 중이에요.', '상대와 연결되지 않았어요. 만든 과자는 그대로 있어요.'));
+    const r = row(); r.appendChild(hint('연결이 안 됐어요. 혼자 이어 굽는 중이에요.', '만든 과자는 그대로 있어요. 링크로 넘겨서 이어 구울 수 있어요.'));
     r.appendChild(btn('닫기', leave, 'solo'));
     const r2 = row();
     r2.appendChild(btn('다시 연결', () => start(room), 'retry', 'btn grow'));
@@ -249,6 +252,6 @@ boot();
 
 // 자동 검사에서 쓰는 창구
 window.__duo = {
-  get mode() { return mode; }, get role() { return role; }, get room() { return room; },
+  get mode() { return mode; }, get role() { return role; }, get room() { return room; }, get tries() { return tries; },
   inviteUrl, continueUrl, packState, unpackState, createRoom, leave,
 };

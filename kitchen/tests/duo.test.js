@@ -158,12 +158,77 @@ async function failSuite(browser) {
   console.log('\n── 연결 실패 처리 ──');
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const p = await open(ctx, `${BASE}?broker=localhost:1&ct=3000#r=nobroker1`);
-  check('브로커에 닿지 못하면 정해진 시간 뒤 솔로로 전환', await until(async () => (await mode(p)) === 'lost', 9000), await mode(p));
+  check('링크로 들어오면 누를 것 없이 바로 연결 시도 ("주방에 들어가는 중…" 표시)', ['connecting', 'lost'].includes(await mode(p)) && (await p.isVisible('#duo')));
+  check('브로커에 닿지 못하면 솔로로 전환 ("연결이 안 됐어요" 표시)', await until(async () => (await mode(p)) === 'lost', 15000) && (await p.textContent('#duo')).includes('연결이 안 됐어요'), await mode(p));
+  check('넘어가기 전에 한 번 자동으로 다시 시도함', (await p.evaluate(() => window.__duo.tries)) === 2, await p.evaluate(() => window.__duo.tries));
+  check('이어 굽기 링크 버튼이 보임', await p.isVisible('#continue'));
   await tab(p, '토핑'); await rub(p);
   check('연결 실패 뒤에도 혼자 꾸밀 수 있음', (await p.evaluate(() => window.__kitchen.S.grains.length)) > 0);
   await p.click('#solo');
   check('닫기를 누르면 일반 솔로 화면으로', (await mode(p)) === 'solo');
   await ctx.close();
+}
+
+async function extraSuite(browser) {
+  console.log('\n── 앱 안 브라우저 · WebGL 없음 · 저사양 · 개인정보 ──');
+  const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 KAKAOTALK 10.4.5';
+  const ctx = await browser.newContext({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true, userAgent: UA });
+  const p = await open(ctx, `${BASE}?net=bc`);
+  const box = async (sel) => { const b = await p.locator(sel).boundingBox(); return b && b.width >= 44 && b.height >= 44 && b.x >= 0 && b.x + b.width <= 375; };
+  check('앱 안 브라우저(카카오톡 UA)에서 "기본 브라우저로 열기" 안내가 뜸', (await p.isVisible('#inapp')) && (await p.textContent('#inapp')).includes('기본 브라우저'));
+  check('안내의 주소 복사·닫기 버튼이 44px 이상', (await box('#inapp .copyurl')) && (await box('#inappClose')));
+  await p.tap('#inappClose');
+  check('안내를 닫을 수 있음', !(await p.isVisible('#inapp')));
+  const ctxN = await browser.newContext({ viewport: { width: 375, height: 812 } });
+  const n = await open(ctxN, BASE);
+  check('일반 브라우저에서는 안내가 뜨지 않음', !(await n.isVisible('#inapp')));
+
+  // 저사양 단계
+  await n.evaluate(() => window.__kitchen.lowerQuality());
+  await tab(n, '토핑'); await rub(n);
+  check('품질을 낮춘 뒤에도 그대로 동작', (await n.evaluate(() => window.__kitchen.quality)) === 'low' && (await n.evaluate(() => window.__kitchen.S.grains.length)) > 0);
+  check('계절 판 설정이 한 곳(theme.js)에서 읽힘', (await n.evaluate(() => window.__kitchen.theme)) === '기본');
+
+  // 개인정보: 저장소에 아무것도 남기지 않는다
+  await n.evaluate(() => window.__duo.createRoom());
+  await until(async () => (await mode(n)) === 'waiting');
+  await n.click('#solo');
+  const kept = await n.evaluate(() => ({ ls: localStorage.length, ss: sessionStorage.length, ck: document.cookie.length, hash: location.hash }));
+  check('방을 나간 뒤 브라우저 저장소·쿠키·주소에 남는 것이 없음', kept.ls === 0 && kept.ss === 0 && kept.ck === 0 && !kept.hash, kept);
+  await ctx.close(); await ctxN.close();
+
+  // 브로커로 나가는 요청에는 방 id 말고는 담기지 않는다 (로컬 브로커로 확인)
+  if (args.includes('--peer') || args.includes('--public')) {
+    const ctxP = await browser.newContext({ viewport: { width: 375, height: 812 } });
+    const pp = await ctxP.newPage();
+    const seen = [];
+    pp.on('request', (r) => { if (r.url().includes(String(BROKER_PORT))) seen.push(r.url()); });
+    pp.on('websocket', (w) => seen.push(w.url()));
+    await pp.goto(`${BASE}?broker=127.0.0.1:${BROKER_PORT}#r=privacy${Math.random().toString(36).slice(2, 7)}`);
+    await until(async () => (await mode(pp)) === 'waiting', 10000);
+    await pp.evaluate(() => { const K = window.__kitchen; K.dispatch({ t: 'text', v: '비밀글자' }); K.dispatch({ t: 'coat', c: 3, len: 0.4 }); });
+    await sleep(800);
+    const leak = seen.filter((u) => /%EB%B9%84|비밀|text=|state=/.test(u));
+    check('브로커로 가는 주소에 방 id 외의 내용(글자·과자 상태)이 없음', seen.length > 0 && leak.length === 0, seen.slice(0, 3));
+    await ctxP.close();
+  }
+
+  // WebGL 을 끈 브라우저
+  const b2 = await chromium.launch({ args: ['--disable-3d-apis'] });
+  const c2 = await b2.newContext({ viewport: { width: 375, height: 812 }, userAgent: UA });
+  const f = await c2.newPage();
+  await f.goto(BASE); await sleep(1500);
+  check('WebGL 이 꺼져 있으면 안내가 뜸', (await f.isVisible('#fallback')) && (await f.textContent('#fallback')).includes('3D 주방을 열 수 없어요'));
+  check('2D 판으로 가는 버튼이 있음 (../)', (await f.getAttribute('#fallback a', 'href')) === '../' && (await f.isVisible('#fallback a')));
+  check('안내 화면에 주소 복사 버튼과 기본 브라우저 안내가 있음', (await f.isVisible('#fallback .copyurl')) && (await f.isVisible('#fbInapp')));
+  await b2.close();
+
+  // 화면 문구 검사
+  const banned = ['빼' + '빼로', '무' + '료', '0' + '원', '돈 안 드는', '돈신' + '호등', 'kcal', '칼로리'];
+  const files = ['index.html', 'app.js', 'duo.js', 'net.js', 'theme.js'].map((x) => fs.readFileSync(path.join(__dirname, '..', x), 'utf8')).join('\n');
+  const hit = banned.filter((w) => files.includes(w));
+  check('쓰지 않기로 한 문구가 kitchen/ 화면 코드에 없음', hit.length === 0, hit);
+  check('사용자 글자를 innerHTML 로 넣는 곳이 없음', !/innerHTML|insertAdjacentHTML|document\.write/.test(files));
 }
 
 async function mobileSuite(browser) {
@@ -251,6 +316,7 @@ async function mobileSuite(browser) {
     }
     if (args.includes('--public')) await duoSuite(browser, 'WebRTC·공개 브로커', 'pub=1');
     await failSuite(browser);
+    await extraSuite(browser);
     await mobileSuite(browser);
   } catch (e) {
     check('검사 도중 오류 없음', false, String(e && e.message));

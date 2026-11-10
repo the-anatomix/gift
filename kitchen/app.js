@@ -2,6 +2,7 @@
 // 정적 파일만 사용한다. three.js 는 ./vendor 에 함께 들어 있다(MIT).
 import * as THREE from './vendor/three.module.min.js';
 import { RoundedBoxGeometry } from './vendor/RoundedBoxGeometry.js';
+import { pickTheme, SITE } from './theme.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('c');
@@ -26,11 +27,10 @@ const FOV = 32;
 const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 60);
 
 /* ───────── 색 ───────── */
-const C = {
-  cream: 0xFBF3E4, wall: 0xF4E4CA, floor: 0xE6CDAA, slab: 0xD3B48C, top: 0x7A5137, wood: 0xC99A6B,
-  choc: 0x5A3824, dark: 0x3B2619, accent: 0xD9483B, dough: 0xF1D9A8, biscuit: 0xDDAA66,
-  metal: 0xD9D0C3, white: 0xFFFAF0,
-};
+const THEME = pickTheme();
+const C = THEME.colors; // 색과 계절 소품은 theme.js 한 곳에서 바꾼다
+for (const k in THEME.ui) document.documentElement.style.setProperty(k, THEME.ui[k]);
+if (SITE.account) { const a = $('account'); a.textContent = SITE.account; a.hidden = false; }
 const CHOCO = [
   { name: '밀크', hex: 0x7B4A2D },
   { name: '다크', hex: 0x3E2418 },
@@ -86,12 +86,9 @@ function buildRoom() {
   put(new THREE.BoxGeometry(4.5, 0.02, 4.5), C.floor, 0.1, 0, 0.1, scene, false);
   put(rbox(4.75, 2.7, 0.16, 0.05), C.wall, 0.05, 1.35, -2.24);
   put(rbox(0.16, 2.7, 4.6, 0.05), C.wall, -2.24, 1.35, 0.12);
-  // 러그 (포인트 색)
-  put(rbox(1.9, 0.025, 0.6, 0.012), C.accent, 0.1, 0.02, 1.9, scene, false);
-  put(rbox(1.6, 0.027, 0.36, 0.012), 0xE8776A, 0.1, 0.021, 1.9, scene, false);
   // 창
   put(rbox(1.1, 0.9, 0.08, 0.03), C.white, -0.95, 1.95, -2.14);
-  put(new THREE.BoxGeometry(0.92, 0.72, 0.02), new THREE.MeshBasicMaterial({ color: 0xFFF1CC }), -0.95, 1.95, -2.095, scene, false);
+  put(new THREE.BoxGeometry(0.92, 0.72, 0.02), new THREE.MeshBasicMaterial({ color: C.window }), -0.95, 1.95, -2.095, scene, false);
   put(new THREE.BoxGeometry(0.04, 0.72, 0.03), C.white, -0.95, 1.95, -2.09, scene, false);
   put(new THREE.BoxGeometry(0.92, 0.04, 0.03), C.white, -0.95, 1.95, -2.09, scene, false);
   // 선반
@@ -120,7 +117,7 @@ function buildOven() {
   const g = new THREE.Group(); g.position.set(-1.3, TOP_Y, -1.72); scene.add(g);
   put(rbox(1.0, 0.62, 0.62, 0.07), C.accent, 0, 0.36, 0, g);
   put(rbox(0.62, 0.42, 0.04, 0.03), C.dark, -0.14, 0.36, 0.3, g, false);
-  put(new THREE.BoxGeometry(0.5, 0.3, 0.02), new THREE.MeshBasicMaterial({ color: 0xF7B25A }), -0.14, 0.35, 0.318, g, false);
+  put(new THREE.BoxGeometry(0.5, 0.3, 0.02), new THREE.MeshBasicMaterial({ color: C.ovenGlow }), -0.14, 0.35, 0.318, g, false);
   put(rbox(0.5, 0.035, 0.045, 0.015), C.cream, -0.14, 0.6, 0.34, g);
   for (const y of [0.5, 0.36, 0.22]) {
     const k = put(cyl(0.045, 0.045, 0.04, 14), C.cream, 0.33, y, 0.32, g, false);
@@ -231,6 +228,7 @@ function buildStick() {
 }
 
 buildRoom(); buildCounters(); buildOven(); buildDough(); buildCut(); buildChoco(); buildTopping(); buildStick();
+THEME.props({ THREE, scene, put, rbox, cyl, C, TOP_Y });
 
 /* ───────── 상태 ─────────
    화면에 보이는 것은 모두 S 에서 나온다. 바꿀 때는 dispatch(사건) 한 곳으로만 바꾼다. */
@@ -723,6 +721,22 @@ function placeLabels() {
   }
 }
 let raf = 0, frames = 0;
+// 저사양 폰: 이어서 그린 45장의 평균이 30fps 에 못 미치면 한 번만 품질을 낮춘다(픽셀 비율 1, 그림자 절반)
+let quality = 'high', lastDraw = 0, slowSum = 0, slowN = 0;
+function lowerQuality() {
+  if (quality === 'low') return;
+  quality = 'low';
+  renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+  sun.shadow.mapSize.set(512, 512);
+  if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+  poke(300);
+}
+function watchSpeed(now) {
+  const dt = now - lastDraw; lastDraw = now;
+  if (quality === 'low' || dt > 250) { slowSum = 0; slowN = 0; return; }
+  slowSum += dt;
+  if (++slowN >= 45) { if (slowSum / slowN > 36) lowerQuality(); slowSum = 0; slowN = 0; }
+}
 function frame(now) {
   raf = requestAnimationFrame(frame);
   for (const t of tweens) {
@@ -738,7 +752,7 @@ function frame(now) {
   if (S.station === 'home' || travel) placeLabels();
   renderer.shadowMap.needsUpdate = true;
   renderer.render(scene, camera);
-  frames++;
+  frames++; watchSpeed(now);
 }
 document.addEventListener('visibilitychange', () => {
   cancelAnimationFrame(raf);
@@ -761,7 +775,7 @@ export const kitchen = {
   setHomeAction(a) { homeAction = a; panelKey = ''; renderPanel(); refit(); },
   refit, // 아래 패널 높이가 바뀌었을 때 카메라를 다시 맞춘다
   project(x, y, z) { _v.set(x, y, z).project(camera); return { x: (_v.x * 0.5 + 0.5) * W, y: (-_v.y * 0.5 + 0.5) * H }; },
-  get frames() { return frames; }, get me() { return ME; },
+  get frames() { return frames; }, get me() { return ME; }, get quality() { return quality; }, lowerQuality, theme: THEME.name,
   stickScreen() { // 과자 가운데의 화면 좌표 (검사용)
     const a = stick.localToWorld(V3(0, 0, 0)).project(camera), b = stick.localToWorld(V3(0, STICK.L * 0.8, 0)).project(camera);
     const f = (v) => ({ x: (v.x * 0.5 + 0.5) * W, y: (-v.y * 0.5 + 0.5) * H });
