@@ -1,0 +1,679 @@
+// 갓 구운 선물 · 미니 주방 시안
+// 정적 파일만 사용한다. three.js 는 ./vendor 에 함께 들어 있다(MIT).
+import * as THREE from './vendor/three.module.min.js';
+import { RoundedBoxGeometry } from './vendor/RoundedBoxGeometry.js';
+
+const $ = (id) => document.getElementById(id);
+const canvas = $('c');
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ───────── 렌더러 ───────── */
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'low-power' });
+} catch (e) {
+  window.__fallback();
+  throw e;
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false;
+
+const scene = new THREE.Scene();
+const FOV = 32;
+const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 60);
+
+/* ───────── 색 ───────── */
+const C = {
+  cream: 0xFBF3E4, wall: 0xF4E4CA, floor: 0xE6CDAA, slab: 0xD3B48C, top: 0x7A5137, wood: 0xC99A6B,
+  choc: 0x5A3824, dark: 0x3B2619, accent: 0xD9483B, dough: 0xF1D9A8, biscuit: 0xDDAA66,
+  metal: 0xD9D0C3, white: 0xFFFAF0,
+};
+const CHOCO = [
+  { name: '밀크', hex: 0x7B4A2D },
+  { name: '다크', hex: 0x3E2418 },
+  { name: '화이트', hex: 0xF6E9D2 },
+  { name: '딸기', hex: 0xF2A0AE },
+  { name: '말차', hex: 0x9DB86A },
+];
+const KINDS = [
+  { id: 'sprinkle', name: '스프링클', dot: '#F28B9B', step: 9, colors: [0xFFFFFF, 0xF28B9B, 0xF6C85F, 0x9AD0C2, 0xD9483B] },
+  { id: 'heart', name: '하트', dot: '#E8505B', step: 15, colors: [0xE8505B, 0xF7A1B0] },
+  { id: 'star', name: '별', dot: '#F6C85F', step: 15, colors: [0xF6C85F, 0xFFF3C4] },
+  { id: 'nut', name: '견과', dot: '#C8935A', step: 11, colors: [0xC8935A, 0xA9713F, 0xE0B982] },
+];
+
+/* ───────── 도형 도우미 ───────── */
+const mats = new Map();
+function M(hex) {
+  let m = mats.get(hex);
+  if (!m) { m = new THREE.MeshLambertMaterial({ color: hex }); mats.set(hex, m); }
+  return m;
+}
+function put(geo, mat, x, y, z, parent = scene, cast = true) {
+  const m = new THREE.Mesh(geo, typeof mat === 'number' ? M(mat) : mat);
+  m.position.set(x, y, z);
+  m.castShadow = cast; m.receiveShadow = true;
+  parent.add(m);
+  return m;
+}
+function rbox(w, h, d, r = 0.03) {
+  return new RoundedBoxGeometry(w, h, d, 2, Math.min(r, w / 2 - 1e-3, h / 2 - 1e-3, d / 2 - 1e-3));
+}
+const cyl = (rt, rb, h, seg = 18) => new THREE.CylinderGeometry(rt, rb, h, seg);
+
+/* ───────── 조명 (그림자는 한 조명만) ───────── */
+scene.add(new THREE.HemisphereLight(0xFFF3DF, 0xD8B48A, 1.55));
+const sun = new THREE.DirectionalLight(0xFFE3BC, 2.1);
+sun.position.set(3.2, 6.5, 4.2);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -3.6; sun.shadow.camera.right = 3.6;
+sun.shadow.camera.top = 3.6; sun.shadow.camera.bottom = -3.6;
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 16;
+sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02; sun.shadow.radius = 5;
+scene.add(sun);
+
+/* ───────── 주방 ───────── */
+const TOP_Y = 0.91; // 조리대 윗면 높이
+const POT = { x: 0, z: 0.75 };
+const TRAY = { x: 0.95, z: 0.75 };
+
+function buildRoom() {
+  put(rbox(4.8, 0.24, 4.8, 0.08), C.slab, 0.05, -0.13, 0.05);
+  put(new THREE.BoxGeometry(4.5, 0.02, 4.5), C.floor, 0.1, 0, 0.1, scene, false);
+  put(rbox(4.75, 2.7, 0.16, 0.05), C.wall, 0.05, 1.35, -2.24);
+  put(rbox(0.16, 2.7, 4.6, 0.05), C.wall, -2.24, 1.35, 0.12);
+  // 러그 (포인트 색)
+  put(rbox(1.9, 0.025, 0.6, 0.012), C.accent, 0.1, 0.02, 1.9, scene, false);
+  put(rbox(1.6, 0.027, 0.36, 0.012), 0xE8776A, 0.1, 0.021, 1.9, scene, false);
+  // 창
+  put(rbox(1.1, 0.9, 0.08, 0.03), C.white, -0.95, 1.95, -2.14);
+  put(new THREE.BoxGeometry(0.92, 0.72, 0.02), new THREE.MeshBasicMaterial({ color: 0xFFF1CC }), -0.95, 1.95, -2.095, scene, false);
+  put(new THREE.BoxGeometry(0.04, 0.72, 0.03), C.white, -0.95, 1.95, -2.09, scene, false);
+  put(new THREE.BoxGeometry(0.92, 0.04, 0.03), C.white, -0.95, 1.95, -2.09, scene, false);
+  // 선반
+  put(rbox(1.3, 0.05, 0.3, 0.02), C.top, 1.1, 1.8, -2.02);
+  put(cyl(0.1, 0.1, 0.22), C.cream, 0.65, 1.94, -2.02);
+  put(cyl(0.105, 0.105, 0.04), C.choc, 0.65, 2.07, -2.02);
+  put(cyl(0.08, 0.08, 0.16), C.cream, 0.92, 1.91, -2.02);
+  put(cyl(0.085, 0.085, 0.04), C.accent, 0.92, 2.01, -2.02);
+  put(cyl(0.15, 0.09, 0.09, 20), C.white, 1.35, 1.87, -2.02);
+  put(cyl(0.15, 0.09, 0.09, 20), C.white, 1.35, 1.92, -2.02);
+}
+
+function buildCounters() {
+  // 뒤 조리대
+  put(rbox(4.1, 0.78, 0.82, 0.03), C.cream, -0.1, 0.45, -1.74);
+  put(new THREE.BoxGeometry(4.0, 0.08, 0.7), C.choc, -0.1, 0.04, -1.76, scene, false);
+  put(rbox(4.16, 0.07, 0.9, 0.025), C.top, -0.1, 0.875, -1.72);
+  // 앞 조리대(섬)
+  put(rbox(3.0, 0.78, 1.25, 0.03), C.cream, 0, 0.45, 0.75);
+  put(new THREE.BoxGeometry(2.9, 0.08, 1.15), C.choc, 0, 0.04, 0.75, scene, false);
+  put(rbox(3.2, 0.07, 1.45, 0.025), C.top, 0, 0.875, 0.75);
+  for (const x of [-1, 0, 1]) put(rbox(0.3, 0.035, 0.04, 0.015), C.top, x, 0.68, 1.39, scene, false);
+}
+
+function buildOven() {
+  const g = new THREE.Group(); g.position.set(-1.3, TOP_Y, -1.72); scene.add(g);
+  put(rbox(1.0, 0.62, 0.62, 0.07), C.accent, 0, 0.36, 0, g);
+  put(rbox(0.62, 0.42, 0.04, 0.03), C.dark, -0.14, 0.36, 0.3, g, false);
+  put(new THREE.BoxGeometry(0.5, 0.3, 0.02), new THREE.MeshBasicMaterial({ color: 0xF7B25A }), -0.14, 0.35, 0.318, g, false);
+  put(rbox(0.5, 0.035, 0.045, 0.015), C.cream, -0.14, 0.6, 0.34, g);
+  for (const y of [0.5, 0.36, 0.22]) {
+    const k = put(cyl(0.045, 0.045, 0.04, 14), C.cream, 0.33, y, 0.32, g, false);
+    k.rotation.x = Math.PI / 2;
+  }
+  for (const [x, z] of [[-0.4, -0.22], [0.4, -0.22], [-0.4, 0.22], [0.4, 0.22]]) put(cyl(0.04, 0.04, 0.05, 10), C.dark, x, 0.025, z, g, false);
+  // 식힘망
+  const r = new THREE.Group(); r.position.set(-0.15, TOP_Y, -1.72); scene.add(r);
+  for (const z of [-0.26, 0.26]) put(new THREE.BoxGeometry(0.72, 0.02, 0.02), C.metal, 0, 0.08, z, r);
+  for (let i = 0; i < 7; i++) put(new THREE.BoxGeometry(0.014, 0.014, 0.54), C.metal, -0.33 + i * 0.11, 0.08, 0, r);
+  for (const [x, z] of [[-0.34, -0.26], [0.34, -0.26], [-0.34, 0.26], [0.34, 0.26]]) put(new THREE.BoxGeometry(0.02, 0.08, 0.02), C.metal, x, 0.04, z, r, false);
+  for (let i = 0; i < 4; i++) {
+    const s = put(cyl(0.032, 0.032, 0.5, 10), C.biscuit, -0.22 + i * 0.15, 0.125, (i % 2) * 0.03, r);
+    s.rotation.x = Math.PI / 2; s.rotation.z = (i - 1.5) * 0.04;
+  }
+}
+
+function buildDough() {
+  const g = new THREE.Group(); g.position.set(1.2, TOP_Y, -1.72); scene.add(g);
+  const bowl = new THREE.MeshLambertMaterial({ color: C.white, side: THREE.DoubleSide });
+  put(new THREE.CylinderGeometry(0.33, 0.2, 0.24, 22, 1, true), bowl, -0.1, 0.12, 0, g);
+  put(cyl(0.2, 0.2, 0.02, 22), C.white, -0.1, 0.01, 0, g, false);
+  const d = put(new THREE.SphereGeometry(0.2, 16, 12), C.dough, -0.1, 0.17, 0, g);
+  d.scale.set(1.15, 0.7, 1.1);
+  // 밀가루 봉지
+  put(rbox(0.26, 0.36, 0.18, 0.04), C.cream, 0.42, 0.18, -0.12, g);
+  put(new THREE.BoxGeometry(0.2, 0.12, 0.01), C.top, 0.42, 0.18, -0.027, g, false);
+  // 밀대
+  const pin = new THREE.Group(); pin.position.set(0.3, 0.05, 0.26); pin.rotation.set(0, 0.25, Math.PI / 2); g.add(pin);
+  put(cyl(0.045, 0.045, 0.42, 14), C.wood, 0, 0, 0, pin);
+  put(cyl(0.02, 0.02, 0.62, 10), C.top, 0, 0, 0, pin);
+}
+
+function buildCut() {
+  const g = new THREE.Group(); g.position.set(-0.95, TOP_Y, 0.75); scene.add(g);
+  put(rbox(0.86, 0.05, 0.6, 0.02), C.wood, 0, 0.025, 0, g);
+  put(rbox(0.36, 0.022, 0.42, 0.01), C.dough, -0.2, 0.061, 0, g);
+  for (let i = 0; i < 3; i++) put(rbox(0.045, 0.024, 0.42, 0.01), C.dough, 0.06 + i * 0.075, 0.062, 0, g);
+  const k = new THREE.Group(); k.position.set(0.34, 0.06, 0.02); k.rotation.y = -0.15; g.add(k);
+  put(new THREE.BoxGeometry(0.05, 0.008, 0.26), C.metal, 0, 0, -0.08, k);
+  put(rbox(0.04, 0.024, 0.14, 0.01), C.dark, 0, 0.004, 0.12, k);
+}
+
+let chocoSurf, chocoMat;
+const POT_H = 0.34;
+const SURF_Y = TOP_Y + POT_H + 0.012;
+function buildChoco() {
+  const g = new THREE.Group(); g.position.set(POT.x, TOP_Y, POT.z); scene.add(g);
+  put(cyl(0.27, 0.23, POT_H, 24), C.white, 0, POT_H / 2, 0, g);
+  put(cyl(0.285, 0.285, 0.03, 24), C.white, 0, POT_H - 0.015, 0, g, false);
+  for (const sx of [-1, 1]) put(rbox(0.1, 0.035, 0.14, 0.015), C.accent, sx * 0.32, POT_H - 0.05, 0, g);
+  chocoMat = new THREE.MeshPhongMaterial({ color: CHOCO[0].hex, shininess: 70, specular: 0x554433 });
+  chocoSurf = put(cyl(0.245, 0.245, 0.02, 24), chocoMat, 0, POT_H + 0.003, 0, g, false);
+  // 초콜릿 조각
+  const b1 = put(rbox(0.16, 0.035, 0.1, 0.01), C.choc, -0.42, 0.018, 0.34, g); b1.rotation.y = 0.4;
+  const b2 = put(rbox(0.1, 0.035, 0.1, 0.01), C.choc, -0.3, 0.018, 0.46, g); b2.rotation.y = -0.3;
+}
+
+function buildTopping() {
+  const g = new THREE.Group(); g.position.set(TRAY.x, TOP_Y, TRAY.z); scene.add(g);
+  put(rbox(0.52, 0.03, 1.06, 0.015), C.metal, 0, 0.015, 0, g);
+  put(new THREE.BoxGeometry(0.46, 0.006, 1.0), C.white, 0, 0.033, 0, g, false);
+  const glass = new THREE.MeshLambertMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.38, depthWrite: false });
+  const fill = [0xF28B9B, 0xE8505B, 0xF6C85F, 0xC8935A];
+  for (let i = 0; i < 4; i++) {
+    const z = -0.4 + i * 0.27;
+    put(cyl(0.075, 0.075, 0.13, 14), fill[i], 0.42, 0.065, z, g);
+    put(cyl(0.09, 0.09, 0.2, 14), glass, 0.42, 0.1, z, g, false).renderOrder = 2;
+    put(cyl(0.095, 0.095, 0.035, 14), C.accent, 0.42, 0.215, z, g);
+  }
+}
+
+/* ───────── 막대과자 ───────── */
+const STICK = { L: 0.8, R: 0.05, handle: 0.2 };
+const stick = new THREE.Group();
+const coatGroup = new THREE.Group();
+const coatCyl = cyl(1, 1, 1, 16).translate(0, 0.5, 0);
+const coatCap = new THREE.SphereGeometry(1, 16, 8);
+const coatMats = new Map();
+const inst = {};
+const MAX_GRAINS = 480;
+
+function buildStick() {
+  put(cyl(STICK.R, STICK.R, STICK.L, 16).translate(0, STICK.L / 2, 0), C.biscuit, 0, 0, 0, stick);
+  stick.add(coatGroup);
+  const heart = new THREE.Shape();
+  heart.moveTo(0, -0.9); heart.bezierCurveTo(-1.5, 0.1, -0.9, 1.1, 0, 0.45); heart.bezierCurveTo(0.9, 1.1, 1.5, 0.1, 0, -0.9);
+  const star = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 ? 0.45 : 1, a = (i / 10) * Math.PI * 2 + Math.PI / 2;
+    star[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r);
+  }
+  const flat = (shape, size) => new THREE.ExtrudeGeometry(shape, { depth: 0.35, bevelEnabled: false, curveSegments: 5 })
+    .rotateX(-Math.PI / 2).scale(size, size, size);
+  const geos = {
+    sprinkle: new THREE.CapsuleGeometry(0.0075, 0.026, 2, 6).rotateZ(Math.PI / 2).translate(0, 0.006, 0),
+    heart: flat(heart, 0.019),
+    star: flat(star, 0.02),
+    nut: new THREE.IcosahedronGeometry(0.016, 0).scale(1.15, 0.65, 0.85).translate(0, 0.006, 0),
+  };
+  const white = new THREE.Color(0xffffff);
+  for (const k of KINDS) {
+    const im = new THREE.InstancedMesh(geos[k.id], new THREE.MeshLambertMaterial({ color: 0xffffff }), MAX_GRAINS);
+    im.setColorAt(0, white); im.count = 0; im.frustumCulled = false;
+    stick.add(im); inst[k.id] = im;
+  }
+  scene.add(stick);
+}
+
+buildRoom(); buildCounters(); buildOven(); buildDough(); buildCut(); buildChoco(); buildTopping(); buildStick();
+
+/* ───────── 상태 ─────────
+   화면에 보이는 것은 모두 S 에서 나온다. 바꿀 때는 dispatch(사건) 한 곳으로만 바꾼다. */
+const S = {
+  station: 'home',
+  color: 0,          // 그릇에 담긴 초콜릿 색
+  layers: [],        // 코팅 [{c: 색 번호, len: 끝에서부터 길이}]
+  grains: [],        // 토핑 [{k, s, u, sp, sc, c, st(획 id), born}]
+  backup: null,      // 지우기 직전 토핑 (되돌리기용)
+};
+let kind = 0;
+
+const REST_TIP = SURF_Y + 0.2;
+const MAX_DIP = STICK.L * (1 - STICK.handle) - 0.02;
+let tipY = REST_TIP;
+
+function coatMat(i) {
+  let m = coatMats.get(i);
+  if (!m) { m = new THREE.MeshPhongMaterial({ color: CHOCO[i].hex, shininess: 55, specular: 0x443322 }); coatMats.set(i, m); }
+  return m;
+}
+function drawCoat() {
+  coatGroup.clear();
+  S.layers.forEach((l, i) => {
+    const r = STICK.R + 0.007 + i * 0.003;
+    const c = put(coatCyl, coatMat(l.c), 0, 0, 0, coatGroup); c.scale.set(r, Math.max(l.len, 0.001), r);
+    const cap = put(coatCap, coatMat(l.c), 0, 0, 0, coatGroup, false); cap.scale.set(r, r * 0.45, r);
+  });
+}
+function surfR(s) {
+  let r = STICK.R;
+  S.layers.forEach((l, i) => { if (s <= l.len) r = STICK.R + 0.007 + i * 0.003; });
+  return r;
+}
+
+const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(),
+  _s = new THREE.Vector3(), _n = new THREE.Vector3(), _col = new THREE.Color(), Y = new THREE.Vector3(0, 1, 0);
+const FALL_MS = 240, FALL_H = 0.3;
+function drawGrains(now) {
+  const n = { sprinkle: 0, heart: 0, star: 0, nut: 0 };
+  let anim = false;
+  for (const g of S.grains) {
+    const k = reduceMotion ? 1 : Math.min(1, (now - g.born) / FALL_MS);
+    if (k < 1) anim = true;
+    const R = surfR(g.s), th = Math.asin(Math.max(-0.95, Math.min(0.95, g.u / STICK.R)));
+    _n.set(Math.sin(th), 0, -Math.cos(th));
+    _p.set(R * _n.x, g.s, R * _n.z - FALL_H * (1 - k * k));
+    _q.setFromUnitVectors(Y, _n); _q2.setFromAxisAngle(Y, g.sp); _q.multiply(_q2);
+    _s.setScalar(g.sc);
+    const id = KINDS[g.k].id, im = inst[id];
+    im.setMatrixAt(n[id], _m.compose(_p, _q, _s));
+    im.setColorAt(n[id], _col.setHex(KINDS[g.k].colors[g.c]));
+    n[id]++;
+  }
+  for (const id in n) {
+    const im = inst[id];
+    im.count = n[id]; im.instanceMatrix.needsUpdate = true; im.instanceColor.needsUpdate = true;
+  }
+  return anim;
+}
+
+/* 사건 적용. 나중에 둘이 굽기에서 같은 사건을 상대에게도 보낸다. */
+const listeners = [];
+function dispatch(a, remote = false) {
+  apply(a);
+  if (!remote) for (const f of listeners) f(a);
+  poke(400);
+}
+function apply(a) {
+  switch (a.t) {
+    case 'color': S.color = a.c; chocoMat.color.setHex(CHOCO[a.c].hex); break;
+    case 'coat': {
+      S.layers = S.layers.filter((l) => l.len > a.len + 0.01);
+      S.layers.push({ c: a.c, len: a.len });
+      if (S.layers.length > 4) S.layers.shift();
+      drawCoat(); break;
+    }
+    case 'uncoat': S.layers = []; drawCoat(); break;
+    case 'grain':
+      if (S.grains.length < MAX_GRAINS) S.grains.push({ k: a.k, s: a.s, u: a.u, sp: a.sp, sc: a.sc, c: a.c, st: a.st, born: performance.now() });
+      S.backup = null; break;
+    case 'undo': {
+      if (S.backup) { S.grains = S.backup; S.backup = null; break; }
+      let st = null;
+      for (let i = S.grains.length - 1; i >= 0; i--) if (a.by == null || String(S.grains[i].st).startsWith(a.by)) { st = S.grains[i].st; break; }
+      if (st != null) S.grains = S.grains.filter((g) => g.st !== st);
+      break;
+    }
+    case 'clear': if (S.grains.length) { S.backup = S.grains; S.grains = []; } break;
+    case 'go': go(a.s); return;
+  }
+  if (S.station === 'choco' || S.station === 'top') renderPanel();
+}
+
+/* ───────── 카메라 ───────── */
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+const VIEWS = {
+  home: { tgt: V3(0.05, 1.0, -0.35), dir: V3(0.38, 0.8, 1), w: 5.15, h: 4.6 },
+  dough: { tgt: V3(1.25, 1.1, -1.7), dir: V3(0.15, 0.75, 1), w: 1.5, h: 1.0 },
+  cut: { tgt: V3(-0.95, 1.0, 0.75), dir: V3(-0.1, 0.9, 1), w: 1.2, h: 0.9 },
+  oven: { tgt: V3(-0.85, 1.2, -1.7), dir: V3(0.1, 0.55, 1), w: 2.1, h: 1.1 },
+  choco: { tgt: V3(POT.x, 1.62, POT.z), dir: V3(0.28, 0.5, 1), w: 0.95, h: 1.55 },
+  top: { tgt: V3(TRAY.x, TOP_Y + 0.09, TRAY.z), dir: V3(0, 2.6, 1), w: 0.42, h: 0.92 },
+};
+const cam = { pos: V3(0, 5, 8), tgt: V3(0, 1, 0), off: 0 };
+let W = 1, H = 1;
+const tanHalf = Math.tan((FOV * Math.PI) / 360);
+
+function viewFor(name) {
+  const v = VIEWS[name];
+  const bottomH = H - $('bottom').getBoundingClientRect().top;
+  const topH = $('top').getBoundingClientRect().bottom;
+  const usable = Math.max(120, H - bottomH - topH);
+  const dist = Math.max((v.h / (2 * tanHalf)) * (H / usable), v.w / (2 * tanHalf * (W / H)));
+  return { pos: v.dir.clone().normalize().multiplyScalar(dist).add(v.tgt), tgt: v.tgt.clone(), off: (bottomH - topH) / 2 };
+}
+function applyCam() {
+  camera.position.copy(cam.pos);
+  camera.lookAt(cam.tgt);
+  camera.setViewOffset(W, H, 0, cam.off, W, H);
+}
+
+/* ───────── 움직임 ───────── */
+const tweens = new Set();
+const ease = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const easeBack = (k) => 1 + 2.2 * Math.pow(k - 1, 3) + 1.2 * Math.pow(k - 1, 2);
+function tween(dur, fn, done) {
+  const t = { t0: performance.now(), dur: reduceMotion ? 0 : dur, fn, done };
+  tweens.add(t); poke(dur + 100);
+  return t;
+}
+let wake = 0;
+function poke(ms = 300) { wake = Math.max(wake, performance.now() + ms); }
+
+/* ───────── 자리 이동 ───────── */
+const STN = {
+  home: { tab: '전체' },
+  dough: { tab: '반죽', title: '반죽하기', soon: '가루를 섞고 반죽을 치대는 자리예요.' },
+  cut: { tab: '자르기', title: '자르기', soon: '반죽을 밀어 막대 모양으로 자르는 자리예요.' },
+  oven: { tab: '굽기', title: '굽기', soon: '오븐에 넣고 알맞게 구워 식히는 자리예요.' },
+  choco: { tab: '초콜릿', title: '초콜릿 담그기' },
+  top: { tab: '토핑', title: '토핑 뿌리기' },
+};
+const ANCHOR = {
+  dough: { at: V3(1.15, 1.5, -1.72), box: [1.3, 0.8, 0.85, 1.25, 1.3, -1.72] },
+  cut: { at: V3(-0.95, 1.2, 0.75), box: [1.0, 0.5, 0.9, -0.95, 1.1, 0.75] },
+  oven: { at: V3(-1.3, 1.75, -1.72), box: [1.9, 0.9, 0.85, -0.85, 1.3, -1.72] },
+  choco: { at: V3(POT.x, 1.72, POT.z), box: [0.75, 0.7, 0.75, POT.x, 1.25, POT.z] },
+  top: { at: V3(TRAY.x + 0.15, 1.28, TRAY.z), box: [0.95, 0.5, 1.15, TRAY.x + 0.15, 1.1, TRAY.z] },
+};
+const hits = new THREE.Group();
+const labelEls = {};
+for (const id in ANCHOR) {
+  const b = ANCHOR[id].box;
+  const m = new THREE.Mesh(new THREE.BoxGeometry(b[0], b[1], b[2])); m.position.set(b[3], b[4], b[5]); m.userData.station = id;
+  hits.add(m);
+  const el = document.createElement('button'); el.className = 'lab' + (STN[id].soon ? '' : ' live'); el.type = 'button';
+  const sp = document.createElement('span'); sp.textContent = STN[id].tab; el.appendChild(sp);
+  el.setAttribute('aria-label', STN[id].title + ' 자리로 가기');
+  el.addEventListener('click', () => dispatch({ t: 'go', s: id }));
+  $('labels').appendChild(el); labelEls[id] = el;
+}
+hits.updateMatrixWorld(true);
+
+const tabEls = {};
+for (const id in STN) {
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = STN[id].tab; b.setAttribute('role', 'tab');
+  b.addEventListener('click', () => dispatch({ t: 'go', s: id }));
+  $('tabs').appendChild(b); tabEls[id] = b;
+}
+
+const QV = new THREE.Quaternion(); // 세워 든 자세
+const QL = new THREE.Quaternion().setFromAxisAngle(V3(1, 0, 0), Math.PI / 2); // 판에 눕힌 자세
+function stickPose(name) {
+  return name === 'choco'
+    ? { p: V3(POT.x, REST_TIP, POT.z), q: QV }
+    : { p: V3(TRAY.x, TOP_Y + 0.036 + STICK.R + 0.012, TRAY.z - STICK.L / 2 + 0.02), q: QL };
+}
+let travel = null;
+function go(name, instant) {
+  if (!STN[name]) return;
+  const changed = S.station !== name;
+  S.station = name;
+  for (const id in tabEls) tabEls[id].setAttribute('aria-selected', id === name ? 'true' : 'false');
+  $('labels').classList.toggle('off', name !== 'home');
+  renderPanel();
+  endDrag();
+  const to = viewFor(name), from = { pos: cam.pos.clone(), tgt: cam.tgt.clone(), off: cam.off };
+  const pose = stickPose(name), p0 = stick.position.clone(), q0 = stick.quaternion.clone();
+  tipY = REST_TIP;
+  if (travel) tweens.delete(travel);
+  const set = (k) => {
+    cam.pos.lerpVectors(from.pos, to.pos, k); cam.tgt.lerpVectors(from.tgt, to.tgt, k); cam.off = from.off + (to.off - from.off) * k;
+    stick.position.lerpVectors(p0, pose.p, k); stick.quaternion.slerpQuaternions(q0, pose.q, k);
+    if (k > 0 && k < 1) stick.position.y += Math.sin(k * Math.PI) * 0.25 * (p0.distanceTo(pose.p) > 0.1 ? 1 : 0);
+  };
+  if (instant || !changed) { set(1); travel = null; poke(); return; }
+  travel = tween(900, (k) => set(ease(k)), () => { travel = null; });
+}
+
+/* ───────── 아래 패널 ───────── */
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+function button(cls, text, onClick, label) {
+  const b = el('button', cls, text); b.type = 'button';
+  if (label) b.setAttribute('aria-label', label);
+  b.addEventListener('click', onClick);
+  return b;
+}
+function hintEl(main, sub) {
+  const h = el('div', 'hint', main);
+  if (sub) h.appendChild(el('small', '', sub));
+  return h;
+}
+let panelKey = '';
+function renderPanel() {
+  const p = $('panel'), s = S.station;
+  // 높이가 달라지지 않는 갱신은 버튼 상태만 바꾼다
+  if (panelKey === s && (s === 'choco' || s === 'top')) { syncPanel(); return; }
+  panelKey = s;
+  p.textContent = '';
+  if (s === 'home') {
+    const r = el('div', 'row'); r.appendChild(hintEl('자리를 눌러 가까이 가 보세요.', '초콜릿과 토핑 자리는 지금 해 볼 수 있어요.')); p.appendChild(r);
+  } else if (STN[s].soon) {
+    const r = el('div', 'row'); r.appendChild(hintEl(STN[s].title, STN[s].soon)); r.appendChild(el('span', 'soon', '준비 중')); p.appendChild(r);
+  } else if (s === 'choco') {
+    const r = el('div', 'row');
+    r.appendChild(hintEl('과자를 아래로 끌어 담갔다가 놓으세요.', '깊이 담글수록 길게 입혀져요.'));
+    const b = button('btn', '코팅 지우기', () => dispatch({ t: 'uncoat' })); b.id = 'uncoat'; r.appendChild(b);
+    p.appendChild(r);
+    const r2 = el('div', 'row');
+    CHOCO.forEach((c, i) => {
+      const b2 = button('sw', '', () => dispatch({ t: 'color', c: i }), c.name + ' 초콜릿');
+      const dot = el('i'); dot.style.background = '#' + c.hex.toString(16).padStart(6, '0');
+      b2.appendChild(dot); b2.appendChild(el('span', '', c.name)); b2.dataset.i = i;
+      r2.appendChild(b2);
+    });
+    p.appendChild(r2);
+  } else if (s === 'top') {
+    const r = el('div', 'row');
+    r.appendChild(hintEl('과자 위를 문질러 뿌려 보세요.'));
+    const u = button('btn', '되돌리기', () => dispatch({ t: 'undo', by: ME })); u.id = 'undo'; r.appendChild(u);
+    const c = button('btn', '지우기', () => dispatch({ t: 'clear' })); c.id = 'clear'; r.appendChild(c);
+    p.appendChild(r);
+    const r2 = el('div', 'row');
+    KINDS.forEach((k, i) => {
+      const b = button('chip', '', () => { kind = i; syncPanel(); });
+      const dot = el('i'); dot.style.background = k.dot; b.appendChild(dot); b.appendChild(el('span', '', k.name)); b.dataset.i = i;
+      r2.appendChild(b);
+    });
+    p.appendChild(r2);
+  }
+  syncPanel();
+}
+function syncPanel() {
+  const p = $('panel');
+  if (S.station === 'choco') {
+    p.querySelectorAll('.sw').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.i === S.color)));
+    $('uncoat').disabled = !S.layers.length;
+  } else if (S.station === 'top') {
+    p.querySelectorAll('.chip').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.i === kind)));
+    $('undo').disabled = !S.backup && !S.grains.some((g) => String(g.st).startsWith(ME));
+    $('clear').disabled = !S.grains.length;
+  }
+}
+let toastT = 0;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1800);
+}
+
+/* ───────── 손가락 조작 (한 손가락, pointer 이벤트) ───────── */
+const ME = Math.random().toString(36).slice(2, 6); // 내 획을 구분하는 짧은 표식
+let strokeN = 0;
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+const plane = new THREE.Plane(), hitP = new THREE.Vector3();
+let drag = null;
+
+function setRay(e) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+}
+function sprinkleAt(e, force) {
+  setRay(e);
+  plane.set(Y, -(stick.position.y + STICK.R * 0.7));
+  if (!ray.ray.intersectPlane(plane, hitP)) return false;
+  const s = hitP.z - stick.position.z, u = hitP.x - stick.position.x;
+  if (s < -0.02 || s > STICK.L * (1 - STICK.handle) || Math.abs(u) > STICK.R * 1.9) return false;
+  if (S.grains.length >= MAX_GRAINS) { if (force) toast('과자가 가득 찼어요'); return false; }
+  const k = KINDS[kind], j = () => (Math.random() - 0.5);
+  dispatch({
+    t: 'grain', k: kind,
+    s: +Math.max(0.012, Math.min(STICK.L * (1 - STICK.handle) - 0.01, s + j() * 0.02)).toFixed(4),
+    u: +Math.max(-STICK.R * 0.9, Math.min(STICK.R * 0.9, u + j() * 0.03)).toFixed(4),
+    sp: +(Math.random() * 6.283).toFixed(2), sc: +(0.85 + Math.random() * 0.4).toFixed(2),
+    c: Math.floor(Math.random() * k.colors.length), st: drag.st,
+  });
+  return true;
+}
+function endDrag() {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.mode === 'dip') {
+    const from = tipY, len = d.len;
+    if (len > 0.03) {
+      dispatch({ t: 'coat', c: S.color, len: +len.toFixed(3) });
+      ripple(); if (!reduceMotion) drips(len);
+    }
+    tween(520, (k) => { tipY = from + (REST_TIP - from) * easeBack(k); stick.position.y = tipY; });
+  }
+}
+function ripple() {
+  tween(700, (k) => { const a = 1 + Math.sin(k * Math.PI * 3) * 0.035 * (1 - k); chocoSurf.scale.set(a, 1, a); });
+}
+const dripGeo = new THREE.SphereGeometry(0.014, 8, 6);
+function drips() {
+  for (let i = 0; i < 3; i++) {
+    const m = put(dripGeo, coatMat(S.color), 0, 0, 0, scene, false); m.visible = false;
+    setTimeout(() => {
+      const y0 = stick.position.y; m.visible = true;
+      tween(380, (k) => { m.position.set(POT.x + (i - 1) * 0.012, y0 + (SURF_Y - y0) * k * k, POT.z); m.scale.setScalar(1 - k * 0.3); },
+        () => { scene.remove(m); });
+    }, 140 + i * 170);
+  }
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (drag || !e.isPrimary) return;
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* 가상 포인터 */ }
+  drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, moved: 0, mode: 'tap' };
+  if (travel) return;
+  if (S.station === 'choco') {
+    const elev = Math.asin(VIEWS.choco.dir.clone().normalize().y);
+    drag.mode = 'dip'; drag.tip0 = tipY; drag.len = 0;
+    drag.upp = (2 * cam.pos.distanceTo(stick.position) * tanHalf) / H / Math.cos(elev);
+  } else if (S.station === 'top') {
+    drag.mode = 'rub'; drag.st = ME + (++strokeN); drag.acc = 0;
+    sprinkleAt(e, true);
+  }
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0));
+  if (drag.mode === 'dip') {
+    tipY = Math.max(SURF_Y - MAX_DIP, Math.min(REST_TIP + 0.12, drag.tip0 - (e.clientY - drag.y0) * drag.upp));
+    stick.position.y = tipY;
+    const depth = SURF_Y - tipY;
+    if (depth > drag.len) {
+      if (drag.len <= 0) ripple();
+      drag.len = depth;
+    }
+    poke();
+  } else if (drag.mode === 'rub') {
+    drag.acc += Math.hypot(dx, dy);
+    const step = KINDS[kind].step;
+    let n = 0;
+    while (drag.acc >= step && n < 4) { drag.acc -= step; n++; sprinkleAt(e, false); }
+  }
+  drag.x = e.clientX; drag.y = e.clientY;
+});
+function onUp(e) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag;
+  if (d.mode === 'tap' && d.moved < 10 && e.type === 'pointerup' && !travel) {
+    setRay(e);
+    const h = ray.intersectObjects(hits.children, false)[0];
+    if (h) { drag = null; dispatch({ t: 'go', s: h.object.userData.station }); return; }
+  }
+  endDrag(); drag = null;
+}
+canvas.addEventListener('pointerup', onUp);
+canvas.addEventListener('pointercancel', onUp);
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+// 캔버스 밖에서 시작한 문지름으로 페이지가 끌려가지 않게
+document.addEventListener('touchmove', (e) => { if (e.target === canvas) e.preventDefault(); }, { passive: false });
+
+/* ───────── 화면 크기 ───────── */
+function resize() {
+  W = canvas.clientWidth || innerWidth; H = canvas.clientHeight || innerHeight;
+  renderer.setSize(W, H, false);
+  camera.aspect = W / H;
+  go(S.station, true);
+  if (travel) { tweens.delete(travel); travel = null; }
+  const v = viewFor(S.station); cam.pos.copy(v.pos); cam.tgt.copy(v.tgt); cam.off = v.off;
+  poke();
+}
+new ResizeObserver(resize).observe(canvas);
+
+/* ───────── 그리기 (움직일 때만, 탭이 가려지면 멈춤) ───────── */
+const _v = new THREE.Vector3();
+function placeLabels() {
+  for (const id in labelEls) {
+    _v.copy(ANCHOR[id].at).project(camera);
+    const x = (_v.x * 0.5 + 0.5) * W, y = (-_v.y * 0.5 + 0.5) * H;
+    labelEls[id].style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-50%)`;
+  }
+}
+let raf = 0, frames = 0;
+function frame(now) {
+  raf = requestAnimationFrame(frame);
+  for (const t of tweens) {
+    const k = t.dur ? Math.min(1, (now - t.t0) / t.dur) : 1;
+    t.fn(k);
+    if (k >= 1) { tweens.delete(t); if (t.done) t.done(); }
+  }
+  if (now > wake && !tweens.size) return;
+  if (drawGrains(now)) poke(100);
+  applyCam();
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld();
+  if (S.station === 'home' || travel) placeLabels();
+  renderer.shadowMap.needsUpdate = true;
+  renderer.render(scene, camera);
+  frames++;
+}
+document.addEventListener('visibilitychange', () => {
+  cancelAnimationFrame(raf);
+  if (!document.hidden) { poke(500); raf = requestAnimationFrame(frame); }
+});
+canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); cancelAnimationFrame(raf); });
+canvas.addEventListener('webglcontextrestored', () => { poke(500); raf = requestAnimationFrame(frame); });
+
+/* ───────── 시작 ───────── */
+drawCoat();
+resize();
+go('home', true);
+raf = requestAnimationFrame(frame);
+requestAnimationFrame(() => { $('loading').classList.add('done'); setTimeout(() => $('loading').remove(), 500); });
+
+// 둘이 굽기·자동 검사에서 쓰는 창구
+export const kitchen = {
+  S, CHOCO, KINDS, dispatch, onLocal: (f) => listeners.push(f), toast, poke,
+  get frames() { return frames; }, get me() { return ME; },
+  stickScreen() { // 과자 가운데의 화면 좌표 (검사용)
+    const a = stick.localToWorld(V3(0, 0, 0)).project(camera), b = stick.localToWorld(V3(0, STICK.L * 0.8, 0)).project(camera);
+    const f = (v) => ({ x: (v.x * 0.5 + 0.5) * W, y: (-v.y * 0.5 + 0.5) * H });
+    return { tip: f(a), end: f(b) };
+  },
+};
+window.__kitchen = kitchen;
