@@ -102,6 +102,15 @@ textarea{resize:none;height:120px;font-family:"Gaegu",cursive;font-size:20px;lin
 .result{font-weight:700;text-align:center;min-height:24px;margin:0}
 .btn[disabled]{opacity:.35;cursor:default}
 .btn.kakao{background:#FEE500;color:#191600}.btn.insta{background:linear-gradient(90deg,#F58529,#DD2A7B 55%,#8134AF);color:#fff}
+:root.ax{--bg:#0B1426;--ink:#EAF6FF;--sub:#8FA6C0;--line:#22344F;--card:#111E36;--yellow:#FFB020;--green:#19E3E3;--red:#FF5A6E;--box:#16294A;--boxdark:#2A4470}
+.ax .btn{color:#0B1426}.ax .btn.ghost{background:transparent;color:var(--ink)}.ax .btn.kakao{color:#191600}.ax .btn.insta{color:#fff}
+.ax input,.ax textarea,.ax .chip{background:#0F1B31;color:var(--ink)}.ax .chip.on{background:var(--green);color:#0B1426;border-color:var(--green)}
+.ax .steps span{background:#16294A}.ax .steps span.on{background:var(--green);color:#0B1426}.ax .steps span.done{background:var(--yellow);color:#0B1426}
+.ax .badge{color:#0B1426}.ax .stick.sel{background:#22344F;box-shadow:0 0 0 2px var(--green)}
+.ax .zone,.ax .board{background:#16294A;border-color:#2A4470}.ax .bar{background:#16294A}
+.ax .lid{background:#19E3E3;border-color:#EAF6FF}.ax .lid::before,.ax .lid::after{background:#FFB020;border-color:#0B1426}.ax .lid span{color:#0B1426;border-color:#0B1426}
+.ax .letter{background:#F7FBFF;color:#0B1426;border-color:#19E3E3}.ax .toast{background:#19E3E3;color:#0B1426}.ax .foot a{color:var(--green)}
+.ax .lights i:nth-child(1){background:#19E3E3}.ax .lights i:nth-child(2){background:#FFB020}.ax .lights i:nth-child(3){background:#FF5A6E}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){.lid,.fade,.giftbox.shake .lid{animation:none;transition:none}}
 </style>
@@ -117,6 +126,11 @@ var TOOLS=["스프링클","하트","별","견과","초코펜","화이트펜"];
 var STEP=[7,15,15,9,4,4], MAXP=100;
 var BAKE=["#F3E2B8","#E3B877","#8A5A30"];
 var INSTA="https://www.instagram.com/donsignal.kr/";
+/* 주소에 ?b=ax 가 붙으면 아나토믹스 판(이름·색·문구)으로 바뀐다 */
+var AX=/[?&]b=ax(&|$)/.test(location.search);
+var BR=AX?{name:"ANATOMIX",insta:"https://www.instagram.com/the.anatomix/",at:"@the.anatomix",badge:"0kcal 선물",tag:"사물의 속을 3D로 해부해요 "}
+        :{name:"돈신호등",insta:INSTA,at:"@donsignal.kr",badge:"0원 선물",tag:"생활 속 돈 정보 "};
+if(AX)document.documentElement.classList.add("ax");
 var app=document.getElementById("app");
 
 function el(tag,attrs,kids){var n=document.createElement(tag);if(attrs)for(var k in attrs){if(k==="text")n.textContent=attrs[k];else if(k==="on")for(var e in attrs.on)n.addEventListener(e,attrs.on[e]);else n.setAttribute(k,attrs[k]);}
@@ -166,11 +180,11 @@ function dec(str){try{var s=atob(str.replace(/-/g,"+").replace(/_/g,"/")),b=new 
   for(i=0;i<5;i++){var st={c:Math.min(byte(),4),l:Math.min(byte(),15),e:rs(6),p:[],u:[]},n=Math.min(byte(),MAXP);for(var j=0;j<n;j++){var v=(byte()<<8)|byte();st.p.push([Math.min(v>>13,5),(v>>8)&31,v&255])}d.sticks.push(st)}
   return d}catch(e){return null}}
 function readGift(){var m=(location.hash||"").match(/g=([A-Za-z0-9_-]+)/)||(location.search||"").match(/[?&]g=([A-Za-z0-9_-]+)/);return m?dec(m[1]):null}
-function baseUrl(){return location.origin+location.pathname}
+function baseUrl(){return location.origin+location.pathname+(AX?"?b=ax":"")}
 
-function brand(){return el("div",{class:"brand"},[el("span",{class:"lights"},[el("i"),el("i"),el("i")]),el("span",{text:"돈신호등"})])}
+function brand(){return el("div",{class:"brand"},[el("span",{class:"lights"},[el("i"),el("i"),el("i")]),el("span",{text:BR.name})])}
 function foot(){var f=el("p",{class:"foot"});f.appendChild(document.createTextNode("편지는 어디에도 저장되지 않고 링크 안에만 담겨요."));f.appendChild(el("br"));
-  f.appendChild(document.createTextNode("생활 속 돈 정보 "));f.appendChild(el("a",{href:INSTA,target:"_blank",rel:"noopener",text:"@donsignal.kr"}));return f}
+  f.appendChild(document.createTextNode(BR.tag));f.appendChild(el("a",{href:BR.insta,target:"_blank",rel:"noopener",text:BR.at}));return f}
 
 /* ───── 만드는 화면 ───── */
 function maker(d0){
@@ -178,7 +192,7 @@ function maker(d0){
   var NAMES=["반죽","자르기","굽기","꾸미기"];
   function head(n,title,lead){app.innerHTML="";app.appendChild(brand());
     var s=el("div",{class:"steps","aria-label":"만드는 순서"});NAMES.forEach(function(t,i){s.appendChild(el("span",{class:i===n?"on":(i<n?"done":""),text:t}))});app.appendChild(s);
-    var h=el("h1",{text:title});h.style.whiteSpace="pre-line";app.appendChild(el("div",null,[n===0?el("span",{class:"badge",text:"0원 선물"}):null,h,el("p",{class:"lead",text:lead})]));window.scrollTo(0,0)}
+    var h=el("h1",{text:title});h.style.whiteSpace="pre-line";app.appendChild(el("div",null,[n===0?el("span",{class:"badge",text:BR.badge}):null,h,el("p",{class:"lead",text:lead})]));window.scrollTo(0,0)}
   if(d0)decorate();else knead();
 
   /* 1. 반죽: 누르거나 문지를 때마다 찌그러지고, 열두 번이면 완성 */
