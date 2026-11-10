@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>0원 선물 상자 | 돈신호등</title>
-<meta name="description" content="직접 꾸민 막대과자와 손편지가 도착했어요. 눌러서 상자를 열어 보세요.">
+<title>갓 구운 선물 | 돈신호등</title>
+<meta name="description" content="직접 반죽해서 구운 막대과자와 쪽지가 도착했어요. 눌러서 오븐을 열어 보세요.">
 <meta property="og:type" content="website">
-<meta property="og:title" content="선물 상자가 도착했어요">
-<meta property="og:description" content="직접 꾸민 막대과자와 손편지가 들어 있어요. 눌러서 열어 보세요.">
+<meta property="og:title" content="갓 구운 선물이 도착했어요">
+<meta property="og:description" content="직접 반죽해서 구운 막대과자와 쪽지가 들어 있어요. 눌러서 오븐을 열어 보세요.">
 <meta property="og:image" content="https://jeonseunggyu.github.io/gift_11day_-/og.png">
 <meta property="og:url" content="https://jeonseunggyu.github.io/gift_11day_-/">
 <meta name="theme-color" content="#FFF8EC">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Nanum+Myeongjo:wght@700&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#FFF8EC; --ink:#1E1B16; --sub:#7A7266; --line:#E6DCCB; --card:#FFFFFF;
@@ -111,6 +111,22 @@ textarea{resize:none;height:120px;font-family:"Gaegu",cursive;font-size:20px;lin
 .ax .lid{background:#19E3E3;border-color:#EAF6FF}.ax .lid::before,.ax .lid::after{background:#FFB020;border-color:#0B1426}.ax .lid span{color:#0B1426;border-color:#0B1426}
 .ax .letter{background:#F7FBFF;color:#0B1426;border-color:#19E3E3}.ax .toast{background:#19E3E3;color:#0B1426}.ax .foot a{color:var(--green)}
 .ax .lights i:nth-child(1){background:#19E3E3}.ax .lights i:nth-child(2){background:#FFB020}.ax .lights i:nth-child(3){background:#FF5A6E}
+/* 받는 화면: 오븐 문 · 식힘망 · 레시피 쪽지 (참고 릴스의 리본 상자·줄 편지지와 다르게) */
+.giftbox{width:270px;height:300px}
+.base{height:300px;background:repeating-linear-gradient(90deg,#D8D0C2 0 3px,transparent 3px 22px),#F4EFE6;border-radius:18px;padding:0 0 18px;gap:4px}
+.lid{left:0;right:0;top:0;height:300px;background:#3A3530;border-radius:18px;flex-direction:column;gap:16px;transition:transform .9s cubic-bezier(.5,0,.3,1),opacity .5s .5s}
+.lid::before,.lid::after{content:none}
+.lid .owin{width:206px;height:150px;border-radius:14px;border:2px solid #1E1B16;background:radial-gradient(circle at 50% 115%,#FF8A2A 0,#7A2A10 55%,#2A1410 100%);display:flex;align-items:flex-end;justify-content:center;gap:10px;padding-bottom:14px;box-sizing:border-box}
+.lid .owin b{width:13px;border-radius:7px;background:#1E1B16;opacity:.6;display:block}
+.lid .ohandle{width:150px;height:12px;border-radius:6px;background:#B9AF9F;border:2px solid #1E1B16}
+.lid span{font-size:20px;padding:3px 12px}
+.giftbox.open .lid{transform:translateY(108%);opacity:0;pointer-events:none}
+.letter{background-image:none;border:2px dashed var(--ink);border-radius:16px;padding:16px 18px;min-height:0;line-height:1.5;font-size:23px;font-family:inherit}
+.letter .rhead{font-family:"Noto Sans KR",sans-serif;font-weight:900;font-size:15px;display:flex;justify-content:space-between;gap:8px;border-bottom:2px solid currentColor;padding-bottom:8px}
+.letter .spec{font-family:"Noto Sans KR",sans-serif;font-size:12.5px;font-weight:500;color:#7A7266;display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;padding:8px 0;border-bottom:1px dashed #B9AF9F}
+.letter .body{min-height:100px;white-space:pre-wrap;word-break:break-word;margin-top:10px}
+.ax .lid{background:#16294A;border-color:#19E3E3}.ax .lid .owin{border-color:#19E3E3}.ax .lid .ohandle{background:#19E3E3;border-color:#0B1426}
+.ax .base{background:repeating-linear-gradient(90deg,#2A4470 0 3px,transparent 3px 22px),#0F1B31;border-color:#19E3E3}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){.lid,.fade,.giftbox.shake .lid{animation:none;transition:none}}
 </style>
@@ -125,11 +141,12 @@ var COATS=[["밀크초코","#6B3F2A"],["다크초코","#33201A"],["화이트","#
 var TOOLS=["스프링클","하트","별","견과","초코펜","화이트펜"];
 var STEP=[7,15,15,9,4,4], MAXP=100;
 var BAKE=["#F3E2B8","#E3B877","#8A5A30"];
+var FONTS=["Gaegu","Nanum Pen Script","Nanum Myeongjo","Noto Sans KR"],FNAMES=["손글씨","펜글씨","명조","고딕"];
 var INSTA="https://www.instagram.com/donsignal.kr/";
 /* 주소에 ?b=ax 가 붙으면 아나토믹스 판(이름·색·문구)으로 바뀐다 */
 var AX=/[?&]b=ax(&|$)/.test(location.search);
 var BR=AX?{name:"ANATOMIX",insta:"https://www.instagram.com/the.anatomix/",at:"@the.anatomix",badge:"0kcal 선물",tag:"사물의 속을 3D로 해부해요 "}
-        :{name:"돈신호등",insta:INSTA,at:"@donsignal.kr",badge:"0원 선물",tag:"생활 속 돈 정보 "};
+        :{name:"돈신호등",insta:INSTA,at:"@donsignal.kr",badge:"직접 구운 선물",tag:"생활 속 돈 정보 "};
 if(AX)document.documentElement.classList.add("ax");
 var app=document.getElementById("app");
 
@@ -166,7 +183,7 @@ function scatter(n,types){var p=[];for(var i=0;i<n;i++)p.push([types[Math.floor(
 function fresh(){return [{c:0,l:10,e:"",p:scatter(14,[0]),u:[]},{c:3,l:10,e:"",p:scatter(6,[1]),u:[]},{c:2,l:10,e:"",p:scatter(9,[3]),u:[]},{c:1,l:10,e:"",p:scatter(8,[2]),u:[]},{c:4,l:10,e:"",p:scatter(12,[0,5]),u:[]}]}
 
 /* 주소에 담기, 꺼내기 (서버에 저장하지 않는다). 형식: 버전 1바이트, 글자열은 길이 2바이트 + UTF-8 */
-function enc(d){var te=new TextEncoder(),a=[3,d.g.bake];
+function enc(d){var te=new TextEncoder(),a=[3,d.g.bake|((d.g.font||0)<<2)];
   function str(s){var b=te.encode(s);a.push(b.length>>8,b.length&255);for(var i=0;i<b.length;i++)a.push(b[i])}
   str(d.to);str(d.from);str(d.msg);
   d.sticks.forEach(function(st){a.push(st.c,st.l);str(st.e);a.push(st.p.length);st.p.forEach(function(q){var v=(q[0]<<13)|(q[1]<<8)|q[2];a.push(v>>8,v&255)})});
@@ -176,7 +193,7 @@ function dec(str){try{var s=atob(str.replace(/-/g,"+").replace(/_/g,"/")),b=new 
   function byte(){if(k>=b.length)throw 0;return b[k++]}
   function rs(max){var n=(byte()<<8)|byte();if(k+n>b.length)throw 0;var t=td.decode(b.subarray(k,k+n));k+=n;return Array.from(t).slice(0,max).join("")}
   if(byte()!==3)return null;
-  var d={g:{bake:Math.min(byte(),2)},to:rs(12),from:rs(12),msg:rs(150),sticks:[]};
+  var hb=byte(),d={g:{bake:Math.min(hb&3,2),font:(hb>>2)&3},to:rs(12),from:rs(12),msg:rs(150),sticks:[]};
   for(i=0;i<5;i++){var st={c:Math.min(byte(),4),l:Math.min(byte(),15),e:rs(6),p:[],u:[]},n=Math.min(byte(),MAXP);for(var j=0;j<n;j++){var v=(byte()<<8)|byte();st.p.push([Math.min(v>>13,5),(v>>8)&31,v&255])}d.sticks.push(st)}
   return d}catch(e){return null}}
 function readGift(){var m=(location.hash||"").match(/g=([A-Za-z0-9_-]+)/)||(location.search||"").match(/[?&]g=([A-Za-z0-9_-]+)/);return m?dec(m[1]):null}
@@ -188,7 +205,7 @@ function foot(){var f=el("p",{class:"foot"});f.appendChild(document.createTextNo
 
 /* ───── 만드는 화면 ───── */
 function maker(d0){
-  var d=d0||{g:{bake:1},to:"",from:"",msg:"",sticks:fresh()},sel=0,tool=0;
+  var d=d0||{g:{bake:1,font:0},to:"",from:"",msg:"",sticks:fresh()},sel=0,tool=0;
   var NAMES=["반죽","자르기","굽기","꾸미기"];
   function head(n,title,lead){app.innerHTML="";app.appendChild(brand());
     var s=el("div",{class:"steps","aria-label":"만드는 순서"});NAMES.forEach(function(t,i){s.appendChild(el("span",{class:i===n?"on":(i<n?"done":""),text:t}))});app.appendChild(s);
@@ -288,6 +305,10 @@ function maker(d0){
   var msg=el("textarea",{maxlength:"150",placeholder:"하고 싶은 말을 적어 보세요","aria-label":"편지 내용"});
   to.value=d.to;from.value=d.from;msg.value=d.msg;count.textContent=msg.value.length+" / 150";
   msg.addEventListener("input",function(){count.textContent=msg.value.length+" / 150"});
+  var fontChips=el("div",{class:"chips",style:"margin-bottom:8px"});
+  function drawFonts(){fontChips.innerHTML="";FNAMES.forEach(function(t,i){fontChips.appendChild(el("button",{type:"button",class:"chip"+((d.g.font||0)===i?" on":""),text:t,style:"font-family:'"+FONTS[i]+"',sans-serif",on:{click:function(){d.g.font=i;drawFonts()}}}))});
+    msg.style.fontFamily="'"+FONTS[d.g.font||0]+"',cursive"}
+  drawFonts();
   function collect(){d.to=to.value.trim();d.from=from.value.trim();d.msg=msg.value.trim();
     if(!d.msg){toast("편지를 한 줄이라도 적어 주세요");msg.focus();return null}return baseUrl()+"#g="+enc(d)}
   function sbtn(t,fn){return el("button",{type:"button",class:"btn ghost small",text:t,on:{click:fn}})}
@@ -305,7 +326,7 @@ function maker(d0){
           sbtn("싹 지우기",function(){cur().p=[];cur().u=[];drawStick()})])
       ])])]));
   app.appendChild(el("section",{class:"card"},[
-    el("p",{class:"label",text:"편지 쓰기"}),el("div",{class:"row",style:"margin-bottom:8px"},[to,from]),msg,
+    el("p",{class:"label",text:"편지 쓰기"}),el("div",{class:"row",style:"margin-bottom:8px"},[to,from]),fontChips,msg,
     el("p",{class:"label",style:"margin:6px 0 0;justify-content:flex-end"},[count])]));
   /* 카카오톡: 폰의 공유 창을 연다(카카오톡을 고르면 된다). 공유 창이 없는 기기는 링크를 복사한다 */
   app.appendChild(el("button",{type:"button",class:"btn kakao",text:"카카오톡으로 공유하기",on:{click:function(){var u=collect();if(!u)return;
@@ -327,26 +348,34 @@ function copy(u,m){function ok(){toast(m||"링크를 복사했어요. 붙여넣�
   function fallback(){var t=el("textarea");t.value=u;document.body.appendChild(t);t.select();try{document.execCommand("copy");ok()}catch(e){toast("복사하지 못했어요")}t.remove()}
   if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(ok,fallback)}else fallback()}
 
-/* ───── 받는 화면 ───── */
+/* ───── 받는 화면: 오븐 → 식힘망 위 과자 → 레시피 쪽지 ───── */
 function viewer(d,preview){
   app.innerHTML="";
   var box=el("div",{class:"giftbox shake"}),base=el("div",{class:"base"});
   d.sticks.forEach(function(st){base.appendChild(stickEl(st,d.g))});
-  box.appendChild(base);box.appendChild(el("div",{class:"lid"},[el("span",{text:d.to?"To. "+d.to:"선물 상자"})]));
-  var title=el("h1",{text:(d.to?d.to+"에게 ":"")+"선물이 도착했어요"}),sub=el("p",{class:"lead",text:(d.from?d.from+" 님이 ":"")+"직접 꾸며서 보냈어요."});
-  var btn=el("button",{type:"button",class:"btn",text:"뚜껑 열기"}),stage=el("div",{class:"stage"},[el("div",null,[title,sub]),box,btn]);
+  var owin=el("div",{class:"owin"});
+  d.sticks.forEach(function(st){owin.appendChild(el("b",{style:"height:"+Math.round(geo(st.l).H*.5)+"px"}))});
+  box.appendChild(base);box.appendChild(el("div",{class:"lid"},[owin,el("div",{class:"ohandle"}),el("span",{text:d.to?"To. "+d.to:"갓 구운 선물"})]));
+  var title=el("h1",{text:(d.to?d.to+"에게 ":"")+"갓 구운 선물이 왔어요"}),sub=el("p",{class:"lead",text:(d.from?d.from+" 님이 ":"")+"직접 반죽해서 구웠어요."});
+  var btn=el("button",{type:"button",class:"btn",text:"오븐 열기"}),stage=el("div",{class:"stage"},[el("div",null,[title,sub]),box,btn]);
   var step=0;
   btn.addEventListener("click",function(){
-    if(step===0){step=1;box.classList.remove("shake");box.classList.add("open");title.textContent="직접 꾸민 막대과자예요";sub.textContent="편지도 같이 들어 있어요.";btn.textContent="편지 읽기"}
+    if(step===0){step=1;box.classList.remove("shake");box.classList.add("open");title.textContent="직접 구운 막대과자예요";sub.textContent="쪽지도 같이 왔어요.";btn.textContent="쪽지 펼치기"}
     else if(step===1){step=2;letter()}
   });
   function letter(){
     stage.innerHTML="";stage.style.justifyContent="flex-start";
     var mini=el("div",{class:"mini fade"});d.sticks.forEach(function(st){mini.appendChild(stickEl(st,d.g))});
+    var ls=d.sticks.map(function(st){return st.l}),gap=Math.max.apply(null,ls)-Math.min.apply(null,ls);
+    var spec=el("div",{class:"spec"},[
+      el("span",{text:"반죽 · 꾹꾹 12번"}),el("span",{text:"길이 · "+(gap<=1?"칼각":(gap<=5?"살짝 들쭉날쭉":"제각각"))}),
+      el("span",{text:"굽기 · "+["살짝 덜 익음","노릇노릇","조금 탐"][d.g.bake]}),el("span",{text:"열량 · 0 kcal"})]);
     var body=el("span",{class:"caret"}),from=el("div",{class:"from"});
-    var paper=el("div",{class:"letter fade","aria-label":"편지"},[d.to?el("div",{class:"to",text:"To. "+d.to}):null,body,from]);
+    var paper=el("div",{class:"letter fade","aria-label":"쪽지"},[
+      el("div",{class:"rhead"},[el("span",{text:(d.from?d.from+"의 ":"")+"수제 막대과자"}),el("span",{text:d.to?"To. "+d.to:""})]),spec,
+      el("div",{class:"body",style:"font-family:'"+FONTS[d.g.font||0]+"',cursive"},[body,from])]);
     var again=el("div",{style:"width:100%;display:flex;flex-direction:column;gap:8px",hidden:""},[
-      el("button",{type:"button",class:"btn",text:preview?"돌아가서 보내기":"나도 만들어 보내기",on:{click:function(){if(preview){maker(d)}else{history.pushState(null,"",baseUrl());maker()}window.scrollTo(0,0)}}})]);
+      el("button",{type:"button",class:"btn",text:preview?"돌아가서 보내기":"나도 구워서 보내기",on:{click:function(){if(preview){maker(d)}else{history.pushState(null,"",baseUrl());maker()}window.scrollTo(0,0)}}})]);
     stage.appendChild(mini);stage.appendChild(paper);stage.appendChild(again);
     var chars=Array.from(d.msg),i=0,reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches;
     function done(){body.textContent=d.msg;body.classList.remove("caret");if(d.from)from.textContent="From. "+d.from;again.hidden=false;again.classList.add("fade")}
