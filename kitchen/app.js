@@ -240,7 +240,9 @@ const S = {
   layers: [],        // 코팅 [{c: 색 번호, len: 끝에서부터 길이}]
   grains: [],        // 토핑 [{k, s, u, sp, sc, c, st(획 id), born}]
   backup: null,      // 지우기 직전 토핑 (되돌리기용)
+  text: '',          // 새긴 글자 (6자까지)
 };
+const cleanText = (v) => Array.from(String(v == null ? '' : v).replace(/\s+/g, ' ')).slice(0, 6).join('');
 let kind = 0;
 
 const REST_TIP = SURF_Y + 0.2;
@@ -259,6 +261,32 @@ function drawCoat() {
     const c = put(coatCyl, coatMat(l.c), 0, 0, 0, coatGroup); c.scale.set(r, Math.max(l.len, 0.001), r);
     const cap = put(coatCap, coatMat(l.c), 0, 0, 0, coatGroup, false); cap.scale.set(r, r * 0.45, r);
   });
+}
+// 새긴 글자: 캔버스에 그려 과자 윗면을 따라 붙인다 (사용자 글자는 캔버스 fillText 로만 그린다)
+const TXT = { s0: 0.07, len: 0.5, arc: 1.7 };
+const txtCanvas = document.createElement('canvas'); txtCanvas.width = 128; txtCanvas.height = 768;
+const txtTex = new THREE.CanvasTexture(txtCanvas);
+txtTex.colorSpace = THREE.SRGBColorSpace; txtTex.center.set(0.5, 0.5); txtTex.rotation = Math.PI; txtTex.anisotropy = 4;
+const txtMesh = new THREE.Mesh(
+  new THREE.CylinderGeometry(1, 1, TXT.len, 14, 1, true, Math.PI - TXT.arc / 2, TXT.arc),
+  new THREE.MeshLambertMaterial({ map: txtTex, transparent: true, depthWrite: false }));
+txtMesh.position.y = TXT.s0 + TXT.len / 2; txtMesh.visible = false; txtMesh.renderOrder = 1;
+stick.add(txtMesh);
+function drawText() {
+  const chars = Array.from(S.text);
+  txtMesh.visible = chars.length > 0;
+  if (!chars.length) return;
+  const g = txtCanvas.getContext('2d'), cell = 128;
+  g.clearRect(0, 0, 128, 768);
+  const mid = TXT.s0 + TXT.len / 2;
+  let top = null; S.layers.forEach((l) => { if (mid <= l.len) top = l.c; });
+  g.fillStyle = top === 2 || top == null ? '#5A3824' : '#FFF6E2'; // 밝은 바탕에는 갈색, 초콜릿 위에는 크림색
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = '900 96px "Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif';
+  const y0 = (768 - chars.length * cell) / 2;
+  chars.forEach((ch, i) => g.fillText(ch, 64, y0 + cell * (i + 0.5) + 4, 120));
+  txtTex.needsUpdate = true;
+  const r = surfR(mid) + 0.0015; txtMesh.scale.set(r, 1, r);
 }
 function surfR(s) {
   let r = STICK.R;
@@ -306,11 +334,14 @@ function apply(a) {
       S.layers = S.layers.filter((l) => l.len > a.len + 0.01);
       S.layers.push({ c: a.c, len: a.len });
       if (S.layers.length > 4) S.layers.shift();
-      drawCoat(); break;
+      drawCoat(); drawText(); break;
     }
-    case 'uncoat': S.layers = []; drawCoat(); break;
+    case 'uncoat': S.layers = []; drawCoat(); drawText(); break;
+    case 'text': S.text = cleanText(a.v); drawText(); break;
     case 'grain':
-      if (S.grains.length < MAX_GRAINS) S.grains.push({ k: a.k, s: a.s, u: a.u, sp: a.sp, sc: a.sc, c: a.c, st: a.st, born: performance.now() });
+      if (S.grains.length < MAX_GRAINS && !S.grains.some((g) => g.id === a.id)) {
+        S.grains.push({ k: a.k, s: a.s, u: a.u, sp: a.sp, sc: a.sc, c: a.c, st: a.st, id: a.id, born: performance.now() });
+      }
       S.backup = null; break;
     case 'undo': {
       if (S.backup) { S.grains = S.backup; S.backup = null; break; }
@@ -449,7 +480,7 @@ function hintEl(main, sub) {
   if (sub) h.appendChild(el('small', '', sub));
   return h;
 }
-let panelKey = '';
+let panelKey = '', homeAction = null;
 function renderPanel() {
   const p = $('panel'), s = S.station;
   // 높이가 달라지지 않는 갱신은 버튼 상태만 바꾼다
@@ -457,7 +488,9 @@ function renderPanel() {
   panelKey = s;
   p.textContent = '';
   if (s === 'home') {
-    const r = el('div', 'row'); r.appendChild(hintEl('자리를 눌러 가까이 가 보세요.', '초콜릿과 토핑 자리는 지금 해 볼 수 있어요.')); p.appendChild(r);
+    const r = el('div', 'row'); r.appendChild(hintEl('자리를 눌러 가까이 가 보세요.', '초콜릿과 토핑 자리는 지금 해 볼 수 있어요.'));
+    if (homeAction) { const b = button('btn', homeAction.label, homeAction.fn); b.id = 'homeAction'; r.appendChild(b); }
+    p.appendChild(r);
   } else if (STN[s].soon) {
     const r = el('div', 'row'); r.appendChild(hintEl(STN[s].title, STN[s].soon)); r.appendChild(el('span', 'soon', '준비 중')); p.appendChild(r);
   } else if (s === 'choco') {
@@ -475,7 +508,7 @@ function renderPanel() {
     p.appendChild(r2);
   } else if (s === 'top') {
     const r = el('div', 'row');
-    r.appendChild(hintEl('과자 위를 문질러 뿌려 보세요.'));
+    r.appendChild(hintEl('문질러서 뿌려 보세요.'));
     const u = button('btn', '되돌리기', () => dispatch({ t: 'undo', by: ME })); u.id = 'undo'; r.appendChild(u);
     const c = button('btn', '지우기', () => dispatch({ t: 'clear' })); c.id = 'clear'; r.appendChild(c);
     p.appendChild(r);
@@ -486,6 +519,12 @@ function renderPanel() {
       r2.appendChild(b);
     });
     p.appendChild(r2);
+    const r3 = el('div', 'row');
+    const inp = el('input', 'carve'); inp.type = 'text'; inp.id = 'carve'; inp.maxLength = 6; inp.autocomplete = 'off';
+    inp.placeholder = '글자 새기기 (6자까지)'; inp.setAttribute('aria-label', '막대과자에 새길 글자 (6자까지)'); inp.enterKeyHint = 'done';
+    inp.addEventListener('input', () => dispatch({ t: 'text', v: cleanText(inp.value) }));
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') inp.blur(); });
+    r3.appendChild(inp); p.appendChild(r3);
   }
   syncPanel();
 }
@@ -498,6 +537,7 @@ function syncPanel() {
     p.querySelectorAll('.chip').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.i === kind)));
     $('undo').disabled = !S.backup && !S.grains.some((g) => String(g.st).startsWith(ME));
     $('clear').disabled = !S.grains.length;
+    const inp = $('carve'); if (document.activeElement !== inp && inp.value !== S.text) inp.value = S.text;
   }
 }
 let toastT = 0;
@@ -507,11 +547,50 @@ function toast(msg) {
 }
 
 /* ───────── 손가락 조작 (한 손가락, pointer 이벤트) ───────── */
-const ME = Math.random().toString(36).slice(2, 6); // 내 획을 구분하는 짧은 표식
+const ME = Math.random().toString(36).slice(2, 7) + '-'; // 내 획을 구분하는 짧은 표식
 let strokeN = 0;
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 const plane = new THREE.Plane(), hitP = new THREE.Vector3();
 let drag = null;
+
+// 손 위치를 주방 안의 한 점으로 바꿔 알린다 (둘이 굽기에서 상대에게 보냄)
+const handFns = [], handPlane = new THREE.Plane(), handP = new THREE.Vector3();
+function emitHand(e, down) {
+  if (!handFns.length) return;
+  const m = { down, s: S.station };
+  if (down) {
+    setRay(e);
+    const v = VIEWS[S.station];
+    handPlane.setFromNormalAndCoplanarPoint(_n.copy(v.dir).normalize(), v.tgt);
+    if (!ray.ray.intersectPlane(handPlane, handP)) return;
+    m.p = [+handP.x.toFixed(3), +handP.y.toFixed(3), +handP.z.toFixed(3)];
+    if (drag && drag.mode === 'dip') m.tip = +tipY.toFixed(3);
+  }
+  for (const f of handFns) f(m);
+}
+let tipTween = null;
+function remoteTip(y) { // 상대가 과자를 담그는 모습
+  if (drag || travel || S.station !== 'choco') return;
+  if (tipTween) { tweens.delete(tipTween); tipTween = null; }
+  if (y == null) {
+    const from = tipY;
+    if (Math.abs(from - REST_TIP) < 0.005) return;
+    tipTween = tween(520, (k) => { tipY = from + (REST_TIP - from) * easeBack(k); stick.position.y = tipY; }, () => { tipTween = null; });
+  } else { tipY = y; stick.position.y = y; poke(); }
+}
+function getState() {
+  return { station: S.station, color: S.color, text: S.text, layers: S.layers.map((l) => ({ c: l.c, len: l.len })),
+    grains: S.grains.map((g) => ({ k: g.k, s: g.s, u: g.u, sp: g.sp, sc: g.sc, c: g.c, st: g.st, id: g.id })) };
+}
+function setState(st, keepStation) {
+  S.color = st.color | 0; chocoMat.color.setHex(CHOCO[S.color].hex);
+  S.layers = (st.layers || []).slice(0, 4).map((l) => ({ c: l.c | 0, len: +l.len }));
+  S.grains = (st.grains || []).slice(0, MAX_GRAINS).map((g) => ({ k: g.k | 0, s: +g.s, u: +g.u, sp: +g.sp, sc: +g.sc, c: g.c | 0, st: String(g.st), id: String(g.id), born: 0 }));
+  S.backup = null; S.text = cleanText(st.text);
+  drawCoat(); drawText();
+  if (!keepStation && STN[st.station] && st.station !== S.station) go(st.station); else renderPanel();
+  poke(400);
+}
 
 function setRay(e) {
   const r = canvas.getBoundingClientRect();
@@ -531,7 +610,7 @@ function sprinkleAt(e, force) {
     s: +Math.max(0.012, Math.min(STICK.L * (1 - STICK.handle) - 0.01, s + j() * 0.02)).toFixed(4),
     u: +Math.max(-STICK.R * 0.9, Math.min(STICK.R * 0.9, u + j() * 0.03)).toFixed(4),
     sp: +(Math.random() * 6.283).toFixed(2), sc: +(0.85 + Math.random() * 0.4).toFixed(2),
-    c: Math.floor(Math.random() * k.colors.length), st: drag.st,
+    c: Math.floor(Math.random() * k.colors.length), st: drag.st, id: drag.st + '.' + (drag.n++),
   });
   return true;
 }
@@ -572,9 +651,10 @@ canvas.addEventListener('pointerdown', (e) => {
     drag.mode = 'dip'; drag.tip0 = tipY; drag.len = 0;
     drag.upp = (2 * cam.pos.distanceTo(stick.position) * tanHalf) / H / Math.cos(elev);
   } else if (S.station === 'top') {
-    drag.mode = 'rub'; drag.st = ME + (++strokeN); drag.acc = 0;
+    drag.mode = 'rub'; drag.st = ME + (++strokeN); drag.acc = 0; drag.n = 0;
     sprinkleAt(e, true);
   }
+  emitHand(e, true);
 });
 canvas.addEventListener('pointermove', (e) => {
   if (!drag || e.pointerId !== drag.id) return;
@@ -596,6 +676,7 @@ canvas.addEventListener('pointermove', (e) => {
     while (drag.acc >= step && n < 4) { drag.acc -= step; n++; sprinkleAt(e, false); }
   }
   drag.x = e.clientX; drag.y = e.clientY;
+  emitHand(e, true);
 });
 function onUp(e) {
   if (!drag || e.pointerId !== drag.id) return;
@@ -606,6 +687,7 @@ function onUp(e) {
     if (h) { drag = null; dispatch({ t: 'go', s: h.object.userData.station }); return; }
   }
   endDrag(); drag = null;
+  emitHand(e, false);
 }
 canvas.addEventListener('pointerup', onUp);
 canvas.addEventListener('pointercancel', onUp);
@@ -624,6 +706,12 @@ function resize() {
   poke();
 }
 new ResizeObserver(resize).observe(canvas);
+function refit() {
+  if (travel) return;
+  const to = viewFor(S.station), from = { pos: cam.pos.clone(), tgt: cam.tgt.clone(), off: cam.off };
+  if (from.pos.distanceTo(to.pos) < 0.01 && Math.abs(from.off - to.off) < 1) return;
+  tween(300, (k) => { const e = ease(k); cam.pos.lerpVectors(from.pos, to.pos, e); cam.off = from.off + (to.off - from.off) * e; });
+}
 
 /* ───────── 그리기 (움직일 때만, 탭이 가려지면 멈춤) ───────── */
 const _v = new THREE.Vector3();
@@ -668,7 +756,11 @@ requestAnimationFrame(() => { $('loading').classList.add('done'); setTimeout(() 
 
 // 둘이 굽기·자동 검사에서 쓰는 창구
 export const kitchen = {
-  S, CHOCO, KINDS, dispatch, onLocal: (f) => listeners.push(f), toast, poke,
+  S, CHOCO, KINDS, STICK, cleanText, dispatch, onLocal: (f) => listeners.push(f), onHand: (f) => handFns.push(f), toast, poke,
+  remoteTip, getState, setState,
+  setHomeAction(a) { homeAction = a; panelKey = ''; renderPanel(); refit(); },
+  refit, // 아래 패널 높이가 바뀌었을 때 카메라를 다시 맞춘다
+  project(x, y, z) { _v.set(x, y, z).project(camera); return { x: (_v.x * 0.5 + 0.5) * W, y: (-_v.y * 0.5 + 0.5) * H }; },
   get frames() { return frames; }, get me() { return ME; },
   stickScreen() { // 과자 가운데의 화면 좌표 (검사용)
     const a = stick.localToWorld(V3(0, 0, 0)).project(camera), b = stick.localToWorld(V3(0, STICK.L * 0.8, 0)).project(camera);
