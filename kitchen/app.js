@@ -261,7 +261,9 @@ function grades() {
   const q = { dough: mods.dough.grade(), cut: mods.cut.grade(), oven: mods.oven.grade(), choco: chocoGrade() };
   const all = [q.dough, q.cut, q.oven, q.choco], stars = all.filter((v) => v === 2).length;
   q.perfect = stars === 4;
-  q.tier = stars === 4 ? 2 : (all.every((v) => v >= 1) && stars >= 2 ? 1 : 0); // 2 최고급 수제, 1 고급 수제
+  // 등급: 네 자리를 다 해야 붙는다. ★ 넷이면 최고급(2), 둘·셋이면 고급(1), 그보다 적으면 수제(3)
+  q.tier = !all.every((v) => v >= 1) ? 0 : stars === 4 ? 2 : stars >= 2 ? 1 : 3;
+  q.stars = stars;
   return q;
 }
 // 만드는 순서와 자리별 진행 (탭의 ☆★ 표시, 전체 화면의 다음 차례 안내에 쓴다)
@@ -365,13 +367,19 @@ let W = 1, H = 1;
 const tanHalf = Math.tan((FOV * Math.PI) / 360);
 
 let viewOverride = null; // 받은 선물 화면처럼 자리와 상관없는 구도
+let orbit = false, yaw = 0, pitch = 0; // 받은 선물을 한 손가락으로 돌려 보기
 function viewFor(name) {
   const v = viewOverride || VIEWS[name];
   const bottomH = H - $('bottom').getBoundingClientRect().top + (v.pad || 0); // pad: 아래에 더 비워 둘 높이(펼친 편지 등)
   const topH = $('top').getBoundingClientRect().bottom;
   const usable = Math.max(120, H - bottomH - topH);
   const dist = Math.max((v.h / (2 * tanHalf)) * (H / usable), v.w / (2 * tanHalf * (W / H)));
-  return { pos: v.dir.clone().normalize().multiplyScalar(dist).add(v.tgt), tgt: v.tgt.clone(), off: (bottomH - topH) / 2 };
+  let dir = v.dir.clone().normalize();
+  if (viewOverride && orbit && (yaw || pitch)) { // 손가락으로 돌린 만큼 시점을 옮긴다
+    const el = Math.max(0.03, Math.min(1.25, Math.asin(dir.y) + pitch)), az = Math.atan2(dir.x, dir.z) + yaw;
+    dir = V3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
+  }
+  return { pos: dir.multiplyScalar(dist).add(v.tgt), tgt: v.tgt.clone(), off: (bottomH - topH) / 2 };
 }
 function applyCam() {
   camera.position.copy(cam.pos);
@@ -419,6 +427,7 @@ for (const id in STATION_MODS) {
     send: (d) => dispatch({ t: 'st', s: id, d }),       // 상태를 바꾸는 유일한 길. apply(d) 로 돌아온다(상대에게도 간다)
     repaint: () => { if (S.station === id) { panelKey = ''; renderPanel(); refit(); } },
     setBiscuit: (hex) => { biscuitMat.color.setHex(hex); poke(); },
+    judge: (v) => { if (S.station === id) judge(v); },
     stick, restick, grades,
     go: (s) => dispatch({ t: 'go', s }),
   };
@@ -450,12 +459,14 @@ for (const id in STN) {
 const QV = new THREE.Quaternion(); // 세워 든 자세
 const QL = new THREE.Quaternion().setFromAxisAngle(V3(1, 0, 0), Math.PI / 2); // 판에 눕힌 자세
 const QF = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI, 0, 0.045)); // 손잡이를 아래로, 꾸민 면을 앞으로 (선물 보여 주기)
-let presenting = false;
+const QS = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI, 0, 0.13)); // 상자 앞에 꺼내 보여 주는 자세
+let presenting = 0; // 0 아님, 1 상자 위로 솟아오름, 2 상자 밖으로 꺼내 보여 줌
 function stickPose(name) {
   const pk = mods.pack;
   if (pk && pk.slot) { // 포장했으면 상자 안, 포장 자리에서는 상자 위
     const sl = pk.slot();
-    if (presenting) return { p: V3(sl.x, sl.topY - 0.13 + STICK.L, sl.z), q: QF }; // 상자에서 솟아오른 모습
+    if (presenting === 1) return { p: V3(sl.x, sl.topY + 0.08 + STICK.L, sl.z), q: QF };           // 상자 위로 다 빠져나온 모습
+    if (presenting === 2) return { p: V3(sl.x + 0.02, sl.topY - 0.3 + STICK.L, sl.z + 0.52), q: QS }; // 상자 앞에 꺼내 든 모습
     if (pk.packed()) return { p: V3(sl.x, sl.inY, sl.z), q: QV };
     if (name === 'pack') return { p: V3(sl.x, sl.overY, sl.z), q: QV };
   }
@@ -473,10 +484,21 @@ function restick(ms, done) {
     () => { stickTween = null; if (done) done(); });
 }
 // 선물 보여 주기: 과자를 상자 안에서 뒤집어 두고, 상자가 열리면 솟아오르게 한다
-function present(on) {
-  presenting = !!on;
-  if (on && mods.pack) { const sl = mods.pack.slot(); stick.position.set(sl.x, sl.inY + STICK.L, sl.z); stick.quaternion.copy(QF); }
+function present(n) {
+  presenting = n === true ? 1 : n | 0;
+  if (presenting === 1 && mods.pack) { const sl = mods.pack.slot(); stick.position.set(sl.x, sl.inY + STICK.L, sl.z); stick.quaternion.copy(QF); }
+  else if (presenting === 2) restick(750);
   poke();
+}
+function setOrbit(v) { orbit = !!v; if (!orbit) { yaw = 0; pitch = 0; } }
+function snapCam() { const to = viewFor(S.station); cam.pos.copy(to.pos); cam.tgt.copy(to.tgt); cam.off = to.off; poke(); }
+// 판정 표시: 딱 맞추면 PERFECT!, 아니면 GOOD
+let judgeT = 0;
+function judge(v) {
+  const j = $('judge');
+  j.textContent = v === 2 ? 'PERFECT!' : 'GOOD'; j.className = v === 2 ? 'p' : 'g';
+  j.hidden = false; j.style.animation = 'none'; void j.offsetWidth; j.style.animation = '';
+  clearTimeout(judgeT); judgeT = setTimeout(() => { j.hidden = true; }, 1100);
 }
 // 무대: 주방을 숨기고 선물 상자와 과자만 둥근 받침 위에 보여 준다
 let stageOn = false, stageSaved = null, stageDisc = null;
@@ -584,7 +606,7 @@ function renderPanel() {
   } else if (s === 'home') {
     const r = el('div', 'row');
     const pr = progress();
-    r.appendChild(hintEl(pr.next ? '다음 차례: ' + STN[pr.next].title : '선물이 완성됐어요!', pr.next ? '탭의 ☆ 는 완성, ★ 는 완벽이에요.' : '포장 자리에서 편지를 써서 보내 보세요.'));
+    r.appendChild(hintEl(pr.next ? '다음 차례: ' + STN[pr.next].title : '선물이 완성됐어요!', pr.next ? 'PERFECT 를 모을수록 등급이 올라요: 수제 → 고급 → 최고급' : '포장 자리에서 편지를 써서 보내 보세요.'));
     const nb = button('btn', pr.next ? '하러 가기' : '포장 보기', () => dispatch({ t: 'go', s: pr.next || 'pack' })); nb.id = 'homeNext';
     nb.style.cssText = 'background:var(--choc);border-color:var(--choc);color:#FFF4E0';
     r.appendChild(nb);
@@ -739,7 +761,7 @@ function endDrag() {
     const from = tipY, len = d.len;
     if (len > 0.03) {
       dispatch({ t: 'coat', c: S.color, len: +len.toFixed(3) });
-      if (chocoGrade() === 2) toast('완벽한 코팅!');
+      judge(chocoGrade() === 2 ? 2 : 1);
       ripple(); if (!reduceMotion) drips(len);
     }
     tween(520, (k) => { tipY = from + (REST_TIP - from) * easeBack(k); stick.position.y = tipY; });
@@ -761,7 +783,14 @@ function drips() {
 }
 
 canvas.addEventListener('pointerdown', (e) => {
-  if (drag || !e.isPrimary || locked) return;
+  if (drag || !e.isPrimary) return;
+  if (locked) { // 받은 선물 화면: 꾸미기는 막고, 밀어서 시점만 돌린다
+    if (orbit && viewOverride) {
+      try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* 가상 포인터 */ }
+      drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, moved: 0, mode: 'orbit' };
+    }
+    return;
+  }
   try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* 가상 포인터 */ }
   drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, moved: 0, mode: 'tap' };
   if (travel) return;
@@ -782,7 +811,9 @@ canvas.addEventListener('pointermove', (e) => {
   if (!drag || e.pointerId !== drag.id) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0));
-  if (drag.mode === 'dip') {
+  if (drag.mode === 'orbit') {
+    yaw -= dx * 0.009; pitch = Math.max(-0.35, Math.min(0.75, pitch + dy * 0.005)); snapCam();
+  } else if (drag.mode === 'dip') {
     tipY = Math.max(SURF_Y - MAX_DIP, Math.min(REST_TIP + 0.12, drag.tip0 - (e.clientY - drag.y0) * drag.upp));
     stick.position.y = tipY;
     const depth = SURF_Y - tipY;
@@ -899,7 +930,7 @@ requestAnimationFrame(() => { $('loading').classList.add('done'); setTimeout(() 
 // 둘이 굽기·자동 검사에서 쓰는 창구
 export const kitchen = {
   S, CHOCO, KINDS, STICK, cleanText, dispatch, onLocal: (f) => listeners.push(f), onHand: (f) => handFns.push(f), toast, poke,
-  remoteTip, getState, setState, setLocked(v) { locked = !!v; }, setStage, setView, present, grades, DIP, snapStick,
+  remoteTip, getState, setState, setLocked(v) { locked = !!v; }, setStage, setView, present, grades, DIP, snapStick, setOrbit, judge, get yaw() { return yaw; },
   get stage() { return stageOn; }, get presenting() { return presenting; },
   setHomeAction(a, panel) { homeAction = a; homePanel = panel || null; panelKey = ''; renderPanel(); refit(); },
   refit, // 아래 패널 높이가 바뀌었을 때 카메라를 다시 맞춘다

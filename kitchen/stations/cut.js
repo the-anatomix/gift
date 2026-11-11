@@ -129,6 +129,7 @@ export default function (kit) {
     const b = d.cut | 0;
     if (!(b >= 0 && b < CUTS) || cut.has(b)) return;
     cut.add(b); if (!d.ok) bad++; rebuild(); chop(b);
+    kit.judge(d.ok ? 2 : 1);
     kit.tween(240, (k) => { open[b] = kit.ease(k); layout(); });
     refresh();
   }

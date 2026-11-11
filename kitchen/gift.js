@@ -4,6 +4,7 @@
 import { kitchen as K } from './app.js';
 import { packState, unpackState, share, canGive, give, takeGift } from './duo.js';
 import { openBrag } from './brag.js';
+import { bgm } from './bgm.js';
 
 const $ = (id) => document.getElementById(id);
 const LIM = { to: 12, fr: 12, m: 200 };
@@ -23,7 +24,7 @@ function readGift(txt) {
   const o = JSON.parse(b64.dec(txt));
   if (!o || o.v !== 1 || typeof o.s !== 'string') throw new Error('gift');
   const st = unpackState(o.s);
-  st.station = 'pack'; st.x = st.x || {}; const q = o.q === 2 ? 2 : o.q ? 1 : 0; // 2 최고급 수제, 1 고급 수제
+  st.station = 'pack'; st.x = st.x || {}; const q = o.q === 1 || o.q === 2 || o.q === 3 ? o.q : 0; // 2 최고급 수제, 1 고급 수제, 3 수제
   st.x.pack = { box: o.b | 0, packed: 1, seal: q };
   return { st, q, to: clip(o.to, LIM.to), fr: clip(o.fr, LIM.fr), m: clip(o.m, LIM.m) };
 }
@@ -52,7 +53,8 @@ let best = 0; // 받은 선물의 칭호 (0 없음, 1 고급, 2 최고급)
 let back = null; // 서로 선물에서 받은 선물을 보고 내 주방으로 돌아갈 때 쓰는 내 상태
 // 받은 선물은 주방 없이 무대 위에서만 보여 준다
 const VIEW_BOX = { tgt: [0.52, 1.42, -1.72], dir: [0.1, 0.34, 1], w: 1.5, h: 1.55 };
-const VIEW_STICK = { tgt: [0.6, 2.02, -1.82], dir: [0.04, 0.16, 1], w: 0.8, h: 1.3 };
+const VIEW_STICK = { tgt: [0.62, 1.95, -1.32], dir: [0.06, 0.14, 1], w: 0.7, h: 1.1 };  // 상자 앞에 꺼내 든 과자
+const VIEW_READ = { tgt: [0.62, 1.95, -1.32], dir: [0.06, 0.1, 1], w: 0.36, h: 0.9 };   // 편지를 펼쳤을 때: 과자만 크게
 let timers = [];
 const later = (ms, fn) => timers.push(setTimeout(fn, ms));
 // 편지는 봉투에서 꺼내고, 다시 봉투로 넣는다
@@ -65,9 +67,11 @@ function showLetter(on) {
   if (on) {
     card.classList.remove('closing'); card.hidden = false;
     // 편지는 아래에, 과자는 위에: 서로 가리지 않게 카메라를 옮긴다
-    K.setView(Object.assign({}, VIEW_STICK, { pad: card.querySelector('.letterpaper').offsetHeight + 112 }), 450);
+    K.setView(Object.assign({}, VIEW_READ, { pad: card.querySelector('.letterpaper').offsetHeight + 70 }), 450);
+    bgm.play();
     return;
   }
+  bgm.stop();
   if (card.hidden) return;
   K.setView(VIEW_STICK, 450);
   card.classList.add('closing');                      // 봉투 쪽으로 들어가는 움직임이 끝난 뒤 숨긴다
@@ -75,7 +79,8 @@ function showLetter(on) {
 }
 function setBar(opened) {
   $('rcOpen').hidden = opened; $('rcOpen').disabled = false; $('rcRow2').hidden = !opened;
-  $('rcHint').textContent = opened ? (best === 2 ? '완벽하게 만든 막대과자예요.' : best ? '정성껏 만든 막대과자예요.' : '직접 구운 막대과자예요.') : '선물이 도착했어요.';
+  $('rcSub').textContent = opened ? '' : '화면을 밀면 돌려 볼 수 있어요.';
+  $('rcHint').firstChild.textContent = opened ? (best === 2 ? '완벽하게 만든 막대과자예요.' : best === 1 ? '정성껏 만든 막대과자예요.' : '직접 구운 막대과자예요.') : '선물이 도착했어요.';
   $('rcMake').textContent = back ? '내 주방으로' : '나도 만들기';
   document.documentElement.style.setProperty('--barh', $('bottom').offsetHeight + 'px'); // 봉투를 아래 막대 바로 위에 둔다
   K.refit();
@@ -95,33 +100,39 @@ function receive(g, mine) {
   K.present(false);
   K.setState(g.st, true);           // 과자는 포장된 상자 안에
   K.dispatch({ t: 'go', s: 'pack' }, true);
-  K.setStage(true);
+  K.setStage(true); K.setOrbit(true);
   K.setView(VIEW_BOX, 0);
   $('rcTo').textContent = g.to ? g.to + '에게' : '';
   $('rcMsg').textContent = g.m;
   $('rcFrom').textContent = g.fr ? g.fr + ' 드림' : '';
   $('rcTo').hidden = !g.to; $('rcFrom').hidden = !g.fr;
-  $('rcTitle').hidden = !g.q; $('rcStamp').hidden = !g.q; best = g.q;
-  $('rcChip').textContent = g.q === 2 ? '🏅 최고급 수제 초콜릿' : '🎖 고급 수제 초콜릿'; $('rcChip').classList.toggle('silver', g.q === 1);
-  $('rcStamp').textContent = ''; $('rcStamp').appendChild(document.createTextNode(g.q === 2 ? '최고급' : '고급')); $('rcStamp').appendChild(document.createElement('br')); $('rcStamp').appendChild(document.createTextNode('수제 초콜릿'));
+  $('rcTitle').hidden = !g.q; best = g.q;
+  $('rcChip').textContent = g.q === 2 ? '🥇 최고급 수제 초콜릿' : g.q === 1 ? '🥈 고급 수제 초콜릿' : '🥉 수제 초콜릿';
+  $('rcChip').classList.toggle('silver', g.q === 1); $('rcChip').classList.toggle('bronze', g.q === 3);
   $('recv').hidden = false; $('rcard').hidden = true; $('env').hidden = true; $('env').classList.remove('open');
   setBar(false);
 }
 function endReceive() {
   timers.forEach(clearTimeout); timers = [];
   document.body.classList.remove('recv'); $('recv').hidden = true; $('rcard').hidden = true; $('env').hidden = true;
-  K.present(false); K.setStage(false); K.setView(null, 0); K.setLocked(false);
+  bgm.stop();
+  K.present(false); K.setStage(false); K.setOrbit(false); K.setView(null, 0); K.setLocked(false);
 }
 $('rcOpen').addEventListener('click', () => {
   $('rcOpen').disabled = true;
   K.present(true);                                             // 상자 안에서 꾸민 면이 앞을 보게 돌려 두고
   K.dispatch({ t: 'st', s: 'pack', d: { open: 1 } }, true);     // 뚜껑이 열리면 솟아오른다
   later(700, () => { K.dispatch({ t: 'st', s: 'pack', d: { cheer: 1 } }, true); sparkle(); });
-  later(1000, () => { K.setView(VIEW_STICK, 1000); setBar(true); });
-  later(2100, () => { if (document.body.classList.contains('recv')) { $('env').hidden = false; $('rcHint').textContent = '봉투를 눌러 편지를 읽어 보세요.'; } });
+  later(1150, () => { K.setOrbit(false); K.setOrbit(true); K.present(2); // 돌려 둔 시점은 정면으로 되돌린다
+    K.setView(VIEW_STICK, 900); setBar(true); $('rcHint').firstChild.textContent = '화면을 밀면 돌려 볼 수 있어요.'; }); // 상자 밖으로 꺼내 든다
+  later(2500, () => { if (document.body.classList.contains('recv')) { $('env').hidden = false; $('rcHint').firstChild.textContent = '봉투를 눌러 편지를 읽어 보세요.'; } });
 });
 $('env').addEventListener('click', () => showLetter(!$('env').classList.contains('open')));
 $('rcClose').addEventListener('click', () => showLetter(false));
+$('rcSound').addEventListener('click', () => {
+  bgm.setMuted(!bgm.muted); if (!bgm.muted) bgm.play();
+  $('rcSound').textContent = bgm.muted ? '🔇' : '🔈'; $('rcSound').setAttribute('aria-label', bgm.muted ? '음악 켜기' : '음악 끄기');
+});
 $('rcBrag').addEventListener('click', () => { if (!$('rcard').hidden) showLetter(false); if (cur) openBrag(cur); });
 $('rcard').addEventListener('click', (e) => { if (e.target === $('rcard')) showLetter(false); }); // 편지 바깥을 눌러도 접힌다
 $('rcMake').addEventListener('click', () => {

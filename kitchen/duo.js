@@ -263,7 +263,7 @@ function render() {
 }
 
 function choosePanel(p, ui) {
-  const r = ui.el('div', 'row'); r.appendChild(ui.hintEl('어떻게 구울까요?', '혼자 만들어 링크로 선물하거나, 둘이 함께 할 수 있어요.')); p.appendChild(r);
+  const r = ui.el('div', 'row'); r.appendChild(ui.hintEl('어떻게 구울까요?', '잘 만들수록 과자 등급이 올라요: 수제 → 고급 → 최고급')); p.appendChild(r);
   const big = (id, title, sub, fn, main) => {
     const b = ui.button('btn', '', fn); b.id = id;
     b.style.cssText = 'flex:1;min-width:0;min-height:56px;padding:6px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.25';

@@ -55,9 +55,11 @@ async function make(p, o) { // 네 자리를 정해진 정확도로 만든다
     const swipe = async (wx) => { const a = await P(wx, 0.75 - 0.3), b = await P(wx, 0.75 + 0.3); await A.mouse.move(a.x, a.y); await A.mouse.down(); await A.mouse.move(b.x, b.y, { steps: 10 }); await A.mouse.up(); await sleep(350); };
     const SW = 0.09, X0 = -0.95 - 0.1 - 3 * SW; // 반죽판 왼쪽 끝
     await swipe(X0 + SW * 1);            // 첫 눈금에 딱
+    check('눈금에 딱 맞추면 화면에 PERFECT! 표시', (await A.textContent('#judge')) === 'PERFECT!' );
     let cs = await A.evaluate(() => window.__kitchen.getState().x.cut);
     check('자르기: 눈금에 딱 맞춰 그으면 어긋남 0', cs.cuts.length === 1 && cs.bad === 0, cs);
     await swipe(X0 + SW * 2 + 0.03 + 0.022); // 둘째 눈금에서 살짝 옆 (첫 칼집으로 벌어진 만큼 더함)
+    check('어긋나면 화면에 GOOD 표시', (await A.textContent('#judge')) === 'GOOD');
     cs = await A.evaluate(() => window.__kitchen.getState().x.cut);
     check('자르기: 눈금에서 살짝 벗어나면 잘리긴 해도 어긋남으로 셈', cs.cuts.length === 2 && cs.bad === 1, cs);
     await A.screenshot({ path: path.join(__dirname, 'out', 'title-cut.png') });
@@ -84,16 +86,21 @@ async function make(p, o) { // 네 자리를 정해진 정확도로 만든다
     check('포장 자리에 점수 요약이 보임 (★ 셋, ☆ 하나)', /반죽 ★ 자르기 ★ 굽기 ☆ 초콜릿 ★/.test(await A.textContent('#panel')), await A.textContent('#panel'));
     await A.tap('#packDone'); await until(() => A.isVisible('#letter'), 15000);
     await A.tap('#ltClose'); await sleep(300);
-    check('★ 셋이면 "고급 수제 초콜릿" (최고급은 아님)', (await A.evaluate(() => window.__kitchen.getState().x.pack.seal)) === 1 && /🎖 고급 수제 초콜릿/.test(await A.textContent('#panel')));
+    check('★ 셋이면 "고급 수제 초콜릿" (최고급은 아님)', (await A.evaluate(() => window.__kitchen.getState().x.pack.seal)) === 1 && /🥈 고급 수제 초콜릿/.test(await A.textContent('#panel')));
     const urlS = await A.evaluate(() => { document.getElementById('ltMsg').value = '고급'; return window.__gift.giftUrl(); });
     await A.screenshot({ path: path.join(__dirname, 'out', 'title-silver.png') });
     await A.tap('#packOpen'); await sleep(1200);
     await make(A, { dough: 0, cut: 0, oven: 0.7, dip: 0.52 });
-    check('★ 하나뿐이면 칭호 없음', (await q(A)).tier === 0);
+    check('네 자리를 다 했지만 ★ 하나뿐이면 "수제" 등급', (await q(A)).tier === 3);
+    await tab(A, '포장'); await A.tap('#packDone'); await until(() => A.isVisible('#letter'), 15000); await A.tap('#ltClose'); await sleep(300);
+    check('수제 등급으로 포장하면 "🥉 수제 초콜릿"', (await A.evaluate(() => window.__kitchen.getState().x.pack.seal)) === 3 && /🥉 수제 초콜릿/.test(await A.textContent('#panel')), await A.textContent('#panel'));
+    const urlB = await A.evaluate(() => { document.getElementById('ltMsg').value = '수제'; return window.__gift.giftUrl(); });
+    await A.tap('#packOpen'); await sleep(1200);
     await st(A, 'dough', { reset: true });
+    check('한 자리라도 안 했으면 등급 없음', (await q(A)).tier === 0);
     await ev(A, { t: 'go', s: 'home' }); await sleep(1100);
     if (await A.isVisible('#chooseSolo')) { await A.tap('#chooseSolo'); await sleep(300); }
-    check('전체 화면에 다음 차례 안내 ("다음 차례: 반죽하기")', (await A.textContent('#panel')).includes('다음 차례: 반죽하기') && (await A.isVisible('#homeNext')));
+    check('전체 화면에 다음 차례와 등급 안내', (await A.textContent('#panel')).includes('다음 차례: 반죽하기') && (await A.textContent('#panel')).includes('수제 → 고급 → 최고급') && (await A.isVisible('#homeNext')));
     check('탭에 진행 표시 (자르기 ☆, 초콜릿 ★, 반죽은 다음 차례)', await A.evaluate(() => { const t = [...document.querySelectorAll('#tabs button')]; const f = (n) => t.find((b) => b.textContent === n); return f('자르기').dataset.g === '1' && f('초콜릿').dataset.g === '2' && f('반죽').classList.contains('next'); }));
     await A.screenshot({ path: path.join(__dirname, 'out', 'title-home.png') });
     await A.tap('#homeNext'); await sleep(1100);
@@ -115,10 +122,12 @@ async function make(p, o) { // 네 자리를 정해진 정확도로 만든다
     check('받는 사람 화면에 칭호 표시', (await R.isVisible('#rcTitle')) && (await R.textContent('#rcTitle')).includes('최고급 수제 초콜릿'));
     await R.screenshot({ path: path.join(__dirname, 'out', 'title-recv.png') });
     await R.tap('#rcOpen'); await until(() => R.isVisible('#env'), 9000); await R.tap('#env'); await until(() => R.isVisible('#rcard'), 4000); await sleep(700);
-    check('편지지에도 칭호 도장', await R.isVisible('#rcStamp'));
+    check('편지지에는 칭호 도장을 찍지 않음', (await R.locator('#rcStamp').count()) === 0);
     await R.screenshot({ path: path.join(__dirname, 'out', 'title-letter.png') });
     const S2 = await open(ctx2, urlS); await sleep(600);
-    check('고급 수제 선물은 받는 화면에 "고급 수제 초콜릿"으로 표시', (await S2.textContent('#rcTitle')).includes('🎖 고급 수제 초콜릿'));
+    check('고급 수제 선물은 받는 화면에 "고급 수제 초콜릿"으로 표시', (await S2.textContent('#rcTitle')).includes('🥈 고급 수제 초콜릿'));
+    const S3 = await open(ctx2, urlB); await sleep(600);
+    check('수제 선물은 받는 화면에 "수제 초콜릿"으로 표시', (await S3.textContent('#rcTitle')).includes('🥉 수제 초콜릿'));
     await ctx2.close(); await ctx.close();
   } catch (e) { check('검사 도중 오류 없음', false, String(e && e.message).slice(0, 300)); }
   await browser.close(); server.close();

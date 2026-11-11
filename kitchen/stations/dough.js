@@ -100,7 +100,7 @@ export default function (kit) {
     draw();
     if (p >= 1 && was < 1) {
       shown = 1; perf = !!d.perf;
-      if (kit.active()) kit.toast(perf ? '완벽한 반죽!' : '반죽 완성!');
+      kit.judge(perf ? 2 : 1);
       if (!kit.reduceMotion) kit.tween(420, (k) => { const b = 1 + Math.sin(k * Math.PI) * 0.12; inside.scale.set(b, 2 - b, b); }, () => inside.scale.set(1, 1, 1));
     }
     refresh();

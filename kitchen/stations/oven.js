@@ -103,7 +103,8 @@ export default function (kit) {
         if (phase !== 'baking') return;
         stopRun(); lv = levelOf(Math.max(0, Math.min(1, d.out))); perf = Math.abs(d.out - BEST) <= BEST_TOL; phase = 'done'; show();
         for (const st of rackSticks) { const y = st.position.y; kit.tween(420, (k) => { st.position.y = y + 0.12 * (1 - kit.easeBack(k)); }); }
-        if (kit.active()) kit.toast(perf ? '완벽하게 구워졌어요!' : LV[lv].name);
+        kit.judge(perf ? 2 : 1);
+        if (kit.active() && !perf) kit.toast(LV[lv].name);
         kit.repaint();
       }
     },

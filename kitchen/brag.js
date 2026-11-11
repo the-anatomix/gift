@@ -57,10 +57,10 @@ function draw() {
   c.textAlign = 'center'; c.fillStyle = '#5A3824'; c.font = `700 78px ${FONT}`;
   c.fillText('갓 구운 선물을 받았어요!', W / 2, 138);
   if (gift && gift.q) {
-    const t = gift.q === 2 ? '🏅 최고급 수제 초콜릿' : '🎖 고급 수제 초콜릿';
+    const t = gift.q === 2 ? '🥇 최고급 수제 초콜릿' : gift.q === 1 ? '🥈 고급 수제 초콜릿' : '🥉 수제 초콜릿';
     c.font = `900 38px ${SANS}`; const tw = c.measureText(t).width + 70;
     const gg = c.createLinearGradient(0, 170, 0, 240);
-    if (gift.q === 2) { gg.addColorStop(0, '#F9E3A2'); gg.addColorStop(1, '#E7B441'); } else { gg.addColorStop(0, '#F1F2F4'); gg.addColorStop(1, '#C3C7CE'); }
+    if (gift.q === 2) { gg.addColorStop(0, '#F9E3A2'); gg.addColorStop(1, '#E7B441'); } else if (gift.q === 1) { gg.addColorStop(0, '#F1F2F4'); gg.addColorStop(1, '#C3C7CE'); } else { gg.addColorStop(0, '#F3D9BF'); gg.addColorStop(1, '#D29A66'); }
     c.fillStyle = gg; rr(W / 2 - tw / 2, 172, tw, 68, 34); c.fill();
     c.fillStyle = '#4A3312'; c.fillText(t, W / 2, 220);
   }

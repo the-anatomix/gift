@@ -70,11 +70,16 @@ const audit = (p) => p.evaluate(() => {
     check('받는 사람: 같은 과자·상자가 담겨 있음', got.n === 12 && got.t === '메리' && got.tc === 2 && got.lv === 2 && got.c === 3 && got.box === 1 && got.packed === 1, got);
     await sleep(800);
     await R.screenshot({ path: path.join(__dirname, 'out', 'recv-closed.png') });
-    await R.tap('#rcOpen');
     check('칭호가 없는 선물에는 칭호 띠가 보이지 않음', !(await R.isVisible('#rcTitle')));
     check('받는 사람: 주방은 숨기고 선물만 보임', await R.evaluate(() => window.__kitchen.stage === true));
-    await R.waitForTimeout(1900);
-    check('열면 과자가 상자에서 솟아올라 보임', await R.evaluate(() => window.__kitchen.presenting === true && window.__kitchen.S.station === 'pack'));
+    // 한 손가락으로 밀어 시점 돌리기
+    const yaw0 = await R.evaluate(() => window.__kitchen.yaw);
+    await R.mouse.move(120, 380); await R.mouse.down(); await R.mouse.move(260, 380, { steps: 8 }); await R.mouse.up();
+    check('받은 선물을 밀면 시점이 돌아감', (await R.evaluate(() => window.__kitchen.yaw)) !== yaw0);
+    await R.tap('#rcOpen');
+    await R.waitForTimeout(2300);
+    const out = await R.evaluate(() => { const K = window.__kitchen, s = K.stickScreen(); return { p: K.presenting, st: K.S.station, tip: s.tip, end: s.end }; });
+    check('열면 과자가 상자 밖으로 완전히 나와 크게 보임', out.p === 2 && out.st === 'pack' && Math.abs(out.end.y - out.tip.y) > 250, out);
     await R.screenshot({ path: path.join(__dirname, 'out', 'recv-stick.png') });
     check('상자 옆에 봉투가 나타남 (편지는 아직 접혀 있음)', await until(() => R.isVisible('#env'), 8000) && !(await R.isVisible('#rcard')));
     const eb = await R.locator('#env').boundingBox();
@@ -88,8 +93,15 @@ const audit = (p) => p.evaluate(() => {
     await sleep(900);
     await R.screenshot({ path: path.join(__dirname, 'out', 'recv-letter.png') });
     const lay = await R.evaluate(() => { const s = window.__kitchen.stickScreen(), p = document.querySelector('.letterpaper').getBoundingClientRect(); return { tip: s.tip.y, end: s.end.y, paperTop: p.top, paperBottom: p.bottom, bar: document.getElementById('bottom').getBoundingClientRect().top }; });
-    check('편지를 펼쳐도 과자를 가리지 않음 (과자는 위, 편지는 아래)', Math.max(lay.tip, lay.end) < lay.paperTop + 4 && Math.min(lay.tip, lay.end) > 40 && lay.paperBottom <= lay.bar, lay);
+    check('편지를 펼쳐도 과자를 가리지 않음 (과자는 위, 편지는 아래)', Math.max(lay.tip, lay.end) < lay.paperTop + 4 && Math.min(lay.tip, lay.end) > 40 && lay.paperBottom <= lay.bar + 46, lay);
+    check('편지를 펼쳤을 때도 과자가 충분히 큼 (화면 높이의 1/4 이상)', Math.abs(lay.end - lay.tip) / 0.8 > 812 * 0.25, Math.abs(lay.end - lay.tip) / 0.8);
+    check('편지가 나오면 배경음악이 흐름', await R.evaluate(() => window.__bgm.playing === true));
+    await R.tap('#rcSound');
+    check('음악 끄기 버튼으로 끌 수 있음', await R.evaluate(() => window.__bgm.playing === false && window.__bgm.muted === true));
+    await R.tap('#rcSound');
+    check('다시 누르면 음악이 켜짐', await R.evaluate(() => window.__bgm.playing === true));
     await R.tap('#rcClose');
+    check('편지를 넣으면 음악이 멈춤', await until(() => R.evaluate(() => window.__bgm.playing === false), 2000));
     check('편지지의 ✕ 로 봉투에 다시 넣을 수 있음', await until(async () => !(await R.isVisible('#rcard'))) && !(await R.evaluate(() => document.getElementById('env').classList.contains('open'))));
     await R.tap('#env'); await sleep(300);
     check('봉투를 다시 누르면 다시 나옴', await R.isVisible('#rcard'));

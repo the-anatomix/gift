@@ -77,7 +77,7 @@ async function packAndGive(p, msg) {
     if (await B.isVisible('#rcard')) await B.tap('#rcClose');
     await B.tap('#rcMake'); await sleep(900);
     check('내 주방으로 돌아오면 B 자신의 과자가 그대로', (await n(B)) === 8 && (await B.isVisible('#tabs')) && (await B.evaluate(() => window.__kitchen.S.layers[0].c)) === 1);
-    check('돌아오면 주방이 다시 보임', await B.evaluate(() => window.__kitchen.stage === false && window.__kitchen.presenting === false));
+    check('돌아오면 주방이 다시 보임', await B.evaluate(() => window.__kitchen.stage === false && !window.__kitchen.presenting));
     check('선물을 보는 동안에도 연결 유지', (await mode(A)) === 'on' && (await mode(B)) === 'on');
 
     await packAndGive(B, 'B 가 A 에게'); await B.tap('#ltGive');
