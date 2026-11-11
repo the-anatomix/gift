@@ -46,6 +46,47 @@ $('ltShare').addEventListener('click', async () => {
   if (how === 'manual') { const i = $('ltUrl'); i.value = url; i.hidden = false; $('ltUrlHint').hidden = false; }
 });
 $('ltUrl').addEventListener('focus', () => $('ltUrl').select());
+
+/* ───────── 짧은 링크 (고른 사람만) ─────────
+   외부 단축 서비스에 선물 링크를 맡기고 짧은 주소를 받는다. 이때는 선물 내용이 그 서비스에 저장된다.
+   실패하면(막힘·시간 초과) 아무것도 바꾸지 않고 기본 링크를 쓰라고 알린다. */
+const SHORT_OK = /^https:\/\/is\.gd\/[A-Za-z0-9_-]{3,40}$/;
+function shortenJsonp(api) { // 응답을 직접 읽지 못하는 브라우저용
+  return new Promise((ok) => {
+    const cb = '__short' + Math.random().toString(36).slice(2), s = document.createElement('script');
+    const end = (v) => { clearTimeout(t); delete window[cb]; s.remove(); ok(v); };
+    const t = setTimeout(() => end(null), 6000);
+    window[cb] = (j) => end(j && typeof j.shorturl === 'string' ? j.shorturl : null);
+    s.onerror = () => end(null); s.src = api + '&callback=' + cb; document.head.appendChild(s);
+  });
+}
+async function shorten(url) {
+  const api = 'https://is.gd/create.php?format=json&url=' + encodeURIComponent(url);
+  let out = null;
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 6000);
+  try { const j = await (await fetch(api, { signal: ctl.signal })).json(); out = j && j.shorturl; } catch (_) { out = null; }
+  clearTimeout(t);
+  if (!out) out = await shortenJsonp(api);
+  return typeof out === 'string' && SHORT_OK.test(out) ? out : null;
+}
+function clearShort() { $('ltShortRow').hidden = true; $('ltShortUrl').value = ''; }
+$('ltShort').addEventListener('click', async () => {
+  if (!$('ltMsg').value.trim()) { K.toast('편지를 한 줄이라도 적어 주세요'); $('ltMsg').focus(); return; }
+  const b = $('ltShort'), label = b.textContent;
+  b.disabled = true; b.textContent = '만드는 중…';
+  const short = await shorten(giftUrl());
+  b.disabled = false; b.textContent = label;
+  if (!short) { K.toast('짧은 링크를 만들지 못했어요. 기본 링크로 보내 주세요'); clearShort(); return; }
+  $('ltShortUrl').value = short; $('ltShortRow').hidden = false; // 보내기는 한 번 더 눌러서 (브라우저가 누른 직후에만 공유를 허락한다)
+  K.toast('짧은 링크가 준비됐어요. "보내기"를 눌러 주세요');
+});
+$('ltShortSend').addEventListener('click', async () => {
+  const url = $('ltShortUrl').value; if (!SHORT_OK.test(url)) return;
+  const how = await share(url, '갓 구운 선물이 도착했어요. 눌러서 열어 보세요.');
+  if (how === 'manual') { $('ltShortUrl').focus(); $('ltShortUrl').select(); K.toast('링크를 길게 눌러 복사해 보내 주세요'); }
+});
+$('ltShortUrl').addEventListener('focus', () => $('ltShortUrl').select());
+for (const id of ['ltTo', 'ltFrom', 'ltMsg']) $(id).addEventListener('input', clearShort); // 편지를 고치면 만들어 둔 짧은 링크는 버린다
 // 미리보기: 받는 사람이 볼 편지지 모양 그대로 보여 준다
 $('ltPreview').addEventListener('click', () => {
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();

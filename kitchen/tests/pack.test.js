@@ -61,6 +61,21 @@ const audit = (p) => p.evaluate(() => {
     check('선물 링크 생성 (#g=…, 6000자 이하)', /#g=[A-Za-z0-9_-]+$/.test(url) && url.length < 6000, url.length);
     await A.tap('#ltShare'); await sleep(400);
     check('보내기를 누르면 공유·복사, 안 되면 링크를 보여 줌', (await A.isVisible('#ltUrl')) || (await A.textContent('#toast')).includes('복사'));
+    // 짧은 링크 (고른 사람만, 외부 단축 서비스). 검사에서는 그 서비스를 흉내 낸다
+    let asked = null;
+    await A.route('https://is.gd/**', (r) => { asked = r.request().url(); r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ shorturl: 'https://is.gd/AbC123' }) }); });
+    check('짧은 링크 안내 문구가 보임 (외부 서비스에 저장된다는 점)', (await A.textContent('#letter')).includes('외부 단축 서비스') && (await A.isVisible('#ltShort')));
+    await A.tap('#ltShort');
+    check('짧은 링크를 고르면 단축 주소가 준비됨', await until(async () => (await A.isVisible('#ltShortRow')) && (await A.inputValue('#ltShortUrl')) === 'https://is.gd/AbC123', 8000));
+    check('단축 서비스에는 지금 선물 링크가 그대로 전달됨', asked && decodeURIComponent(asked.split('url=')[1].split('&')[0]) === (await A.evaluate(() => window.__gift.giftUrl())), asked && asked.slice(0, 60));
+    check('짧은 링크 칸과 버튼이 화면 안·44px 이상', (await audit(A)).length === 0, await audit(A));
+    await A.screenshot({ path: path.join(__dirname, 'out', 'letter-short.png') });
+    await A.fill('#ltMsg', '메리 크리스마스!\n<b>굵게</b> & "따옴표"');
+    check('편지를 고치면 만들어 둔 짧은 링크는 사라짐', !(await A.isVisible('#ltShortRow')));
+    await A.unroute('https://is.gd/**'); await A.route('https://is.gd/**', (r) => r.abort());
+    await A.tap('#ltShort');
+    check('단축 서비스가 막히면 기본 링크로 보내라고 안내', await until(async () => (await A.textContent('#toast')).includes('만들지 못했어요'), 15000) && !(await A.isVisible('#ltShortRow')));
+    await A.unroute('https://is.gd/**');
     await A.tap('#ltClose');
     check('포장 뒤 패널에 "편지 쓰기 / 다시 열기"', (await A.isVisible('#packLetter')) && (await A.isVisible('#packOpen')));
     await A.screenshot({ path: path.join(__dirname, 'out', 'pack-done.png') });

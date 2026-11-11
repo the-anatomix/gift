@@ -276,7 +276,9 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels,body.recv #top
     <div class="hint" id="ltUrlHint" hidden><small>링크를 길게 눌러 복사해 보내 주세요.</small></div>
     <div class="row"><button type="button" class="btn" id="ltPreview" style="flex:1">편지지 미리보기</button><button type="button" class="btn" id="ltBrag" style="flex:1">📸 자랑 카드</button></div>
     <div class="row"><button type="button" class="btn main" id="ltGive" hidden>상대에게 바로 선물하기</button></div>
-    <div class="row"><button type="button" class="btn main" id="ltShare" style="flex:1">선물 링크 보내기</button></div>
+    <div class="row"><button type="button" class="btn main" id="ltShare" style="flex:1">선물 링크 보내기</button><button type="button" class="btn" id="ltShort" style="flex:1">짧은 링크로 보내기</button></div>
+    <div class="row" id="ltShortRow" hidden><input id="ltShortUrl" type="text" readonly aria-label="짧은 링크" style="flex:1;min-width:0"><button type="button" class="btn main" id="ltShortSend">보내기</button></div>
+    <div class="hint"><small>기본 링크는 선물 내용이 링크 안에만 담겨요. 짧은 링크는 외부 단축 서비스(is.gd)에 선물 내용이 저장돼요.</small></div>
   </div>
 </div>
 <div id="ltPrev" hidden>
