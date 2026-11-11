@@ -21,6 +21,9 @@ export default function (kit) {
   const geos = {};
   let segs = []; // [{mesh, a, b}] a~b 번 막대를 묶은 조각
   const done = () => cut.size >= CUTS;
+  const TOL = 0.016, STRAIGHT = 0.03; // 완벽 기준: 눈금에서 벗어난 정도, 긋는 동안 옆으로 흔들린 정도
+  let bad = 0;                        // 기준을 벗어난 칼질 수
+  const marks = [];                   // 자를 곳 눈금
 
   function rebuild() {
     sheet.clear(); segs = [];
@@ -44,6 +47,7 @@ export default function (kit) {
       if (i < CUTS) { bx[i] = cur + (GAP * open[i]) / 2; cur += GAP * open[i]; }
     }
     for (const s of segs) s.mesh.position.x = (cx[s.a] + cx[s.b]) / 2;
+    marks.forEach((m, i) => { m.position.x = bx[i]; m.visible = !cut.has(i); });
     kit.poke();
   }
   function chop(b) { // 칼이 그 자리로 가서 내려찍고 제자리로
@@ -66,7 +70,7 @@ export default function (kit) {
     shownDone = done();
     const r = ui.el('div', 'row');
     if (shownDone) {
-      r.appendChild(ui.hintEl('막대 완성!', '막대 ' + N + '개가 나왔어요. 이제 구우면 돼요.'));
+      r.appendChild(ui.hintEl(bad ? '막대 완성!' : '완벽하게 잘랐어요!', bad ? '눈금에 딱 맞춰 곧게 그으면 완벽해요.' : '막대 ' + N + '개가 고르게 나왔어요.'));
       p.appendChild(r);
       const r2 = ui.el('div', 'row');
       const again = ui.button('btn', '다시 하기', () => kit.send({ reset: true })); again.id = 'cutReset'; again.style.flex = '1';
@@ -74,7 +78,7 @@ export default function (kit) {
       r2.appendChild(again); r2.appendChild(next); p.appendChild(r2);
       pill = null;
     } else {
-      r.appendChild(ui.hintEl('반죽 위를 위에서 아래로 그어 잘라 보세요.', '다섯 번 자르면 막대가 돼요.'));
+      r.appendChild(ui.hintEl('반죽 위를 위에서 아래로 그어 잘라 보세요.', '눈금에 딱 맞춰 곧게 그으면 완벽!'));
       pill = ui.el('span', 'soon', cut.size + ' / ' + CUTS); pill.id = 'cutCount';
       r.appendChild(pill); p.appendChild(r);
     }
@@ -94,12 +98,13 @@ export default function (kit) {
   }
   function down(i) {
     const p = local(i);
-    stroke = p ? { x0: p.x, z0: p.z, zMin: p.z, zMax: p.z, used: false } : null;
+    stroke = p ? { x0: p.x, z0: p.z, zMin: p.z, zMax: p.z, xMin: p.x, xMax: p.x, used: false } : null;
   }
   function move(i) {
     if (!stroke || stroke.used || done()) return;
     const p = local(i); if (!p) return;
     stroke.zMin = Math.min(stroke.zMin, p.z); stroke.zMax = Math.max(stroke.zMax, p.z);
+    stroke.xMin = Math.min(stroke.xMin, p.x); stroke.xMax = Math.max(stroke.xMax, p.x);
     const dz = Math.abs(p.z - stroke.z0), dx = Math.abs(p.x - stroke.x0);
     if (dz < 0.16 || dz < dx * 1.5) return;                                  // 세로로 충분히 그어야 한다
     if (stroke.zMax < -DEPTH / 2 || stroke.zMin > DEPTH / 2) return;         // 반죽판을 지나야 한다
@@ -112,30 +117,32 @@ export default function (kit) {
     }
     if (best < 0) return;
     stroke.used = true;
-    kit.send({ cut: best });
+    kit.send({ cut: best, ok: bd <= TOL && stroke.xMax - stroke.xMin <= STRAIGHT ? 1 : 0 });
   }
   function up() { stroke = null; }
 
   function apply(d) {
     if (d.reset) {
       if (!cut.size) return;
-      cut.clear(); open.fill(0); rebuild(); refresh(); return;
+      cut.clear(); open.fill(0); bad = 0; rebuild(); refresh(); return;
     }
     const b = d.cut | 0;
     if (!(b >= 0 && b < CUTS) || cut.has(b)) return;
-    cut.add(b); rebuild(); chop(b);
+    cut.add(b); if (!d.ok) bad++; rebuild(); chop(b);
     kit.tween(240, (k) => { open[b] = kit.ease(k); layout(); });
     refresh();
   }
-  function get() { return { cuts: Array.from(cut).sort() }; }
+  function get() { return { cuts: Array.from(cut).sort(), bad }; }
   function set(v) {
-    cut.clear(); open.fill(0);
+    cut.clear(); open.fill(0); bad = v && v.bad > 0 ? v.bad | 0 : 0;
     for (const b of (v && Array.isArray(v.cuts) ? v.cuts : [])) if (b >= 0 && b < CUTS) { cut.add(b | 0); open[b | 0] = 1; }
     rebuild(); refresh();
   }
+  for (let i = 0; i < CUTS; i++) marks.push(put(new THREE.BoxGeometry(0.008, 0.004, 0.03), C.choc, 0, 0.052, -DEPTH / 2 - 0.035, g, false));
   rebuild();
 
   return {
+    grade: () => (done() ? (bad ? 1 : 2) : 0),
     view: { tgt: [-0.95, 0.96, 0.75], dir: [0, 2.3, 1], w: 1.02, h: 0.72 },
     panel, down, move, up, apply, get, set,
   };

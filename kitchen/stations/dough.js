@@ -35,6 +35,8 @@ export default function (kit) {
   let shown = 0;    // 화면에 보이는 진행도 (문지르는 동안은 p 보다 조금 앞설 수 있음)
   let press = 0, ox = 0, oz = 0; // 손가락에 눌린 정도와 밀린 방향
   let back = null;
+  let perf = false;   // 완벽: 손을 떼지 않고 처음부터 끝까지 한 번에
+  let oneGo = false;  // 지금 긋는 획이 0 에서 시작했는가
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
   const STEP = 0.05;
 
@@ -65,7 +67,7 @@ export default function (kit) {
     bar = null; pct = null; panelDone = p >= 1;
     const r = ui.el('div', 'row');
     if (panelDone) {
-      r.appendChild(ui.hintEl('반죽 완성!', '매끈하게 잘 뭉쳐졌어요.'));
+      r.appendChild(ui.hintEl(perf ? '완벽한 반죽!' : '반죽 완성!', perf ? '한 번에 매끈하게 뭉쳤어요.' : '손을 떼지 않고 한 번에 하면 완벽해요.'));
       root.appendChild(r);
       const r2 = ui.el('div', 'row');
       const again = ui.button('btn', '다시 하기', () => kit.send({ reset: true })); again.id = 'doughAgain';
@@ -73,7 +75,7 @@ export default function (kit) {
       next.style.cssText = 'flex:1;background:var(--choc);border-color:var(--choc);color:#FFF4E0';
       r2.appendChild(again); r2.appendChild(next); root.appendChild(r2);
     } else {
-      r.appendChild(ui.hintEl('그릇을 빙글빙글 문질러 반죽해 보세요.', '가루와 덩어리가 하나로 뭉쳐져요.'));
+      r.appendChild(ui.hintEl('그릇을 빙글빙글 문질러 반죽해 보세요.', '손을 떼지 않고 한 번에 끝내면 완벽!'));
       pct = ui.el('span', 'soon', '0%'); pct.id = 'doughPct'; r.appendChild(pct);
       root.appendChild(r);
       const r2 = ui.el('div', 'row');
@@ -89,7 +91,7 @@ export default function (kit) {
 
   /* ───── 사건 ───── */
   function apply(d) {
-    if (d.reset) { p = 0; shown = 0; acc = 0; press = 0; ox = 0; oz = 0; draw(); refresh(); return; }
+    if (d.reset) { p = 0; shown = 0; acc = 0; press = 0; ox = 0; oz = 0; perf = false; oneGo = false; draw(); panelDone = null; refresh(); return; }
     if (typeof d.p !== 'number' || !(d.p > p)) return;
     const was = p;
     p = clamp01(Math.round(d.p / STEP) * STEP);
@@ -97,8 +99,8 @@ export default function (kit) {
     acc = Math.max(acc, p);
     draw();
     if (p >= 1 && was < 1) {
-      shown = 1;
-      if (kit.active()) kit.toast('반죽 완성!');
+      shown = 1; perf = !!d.perf;
+      if (kit.active()) kit.toast(perf ? '완벽한 반죽!' : '반죽 완성!');
       if (!kit.reduceMotion) kit.tween(420, (k) => { const b = 1 + Math.sin(k * Math.PI) * 0.12; inside.scale.set(b, 2 - b, b); }, () => inside.scale.set(1, 1, 1));
     }
     refresh();
@@ -114,6 +116,7 @@ export default function (kit) {
   }
   function down(i) {
     if (back) back = null;
+    oneGo = p === 0 && acc === 0;
     if (p < 1 && onBowl(i)) { press = 1; lean(); draw(); }
   }
   function lean() {
@@ -131,9 +134,10 @@ export default function (kit) {
     lumps.rotation.y += dist * 0.012;
     draw(); syncPanel();
     const step = Math.floor(acc / STEP + 1e-6) * STEP;
-    if (step > p + 1e-6) kit.send({ p: +step.toFixed(2) });
+    if (step > p + 1e-6) kit.send(step >= 1 && oneGo ? { p: 1, perf: 1 } : { p: +step.toFixed(2) });
   }
   function up() {
+    oneGo = false;
     if (!press) return;
     const p0 = press, x0 = ox, z0 = oz, me = {};
     back = me;
@@ -149,10 +153,11 @@ export default function (kit) {
     view: { tgt: [1.12, 1.02, -1.7], dir: [0.08, 1.25, 1], w: 1.0, h: 0.95 },
     panel, down, move, up, apply,
     leave() { if (press) { back = null; press = 0; ox = 0; oz = 0; draw(); } },
-    get() { return { p }; },
+    get() { return { p, perf: perf ? 1 : 0 }; },
+    grade: () => (p >= 1 ? (perf ? 2 : 1) : 0),
     set(v) {
       p = v && typeof v.p === 'number' ? clamp01(Math.round(v.p / STEP) * STEP) : 0;
-      shown = p; acc = p; press = 0; ox = 0; oz = 0;
+      shown = p; acc = p; press = 0; ox = 0; oz = 0; perf = !!(v && v.perf && p >= 1); oneGo = false;
       draw(); refresh();
     },
   };

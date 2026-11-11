@@ -14,7 +14,7 @@ const b64 = {
 
 function giftText() {
   const st = K.getState();
-  const o = { v: 1, s: packState(st), b: (st.x.pack && st.x.pack.box) | 0, to: clip($('ltTo').value.trim(), LIM.to), fr: clip($('ltFrom').value.trim(), LIM.fr), m: clip($('ltMsg').value.trim(), LIM.m) };
+  const o = { v: 1, s: packState(st), b: (st.x.pack && st.x.pack.box) | 0, q: st.x.pack && st.x.pack.seal ? 1 : 0, to: clip($('ltTo').value.trim(), LIM.to), fr: clip($('ltFrom').value.trim(), LIM.fr), m: clip($('ltMsg').value.trim(), LIM.m) };
   return b64.enc(JSON.stringify(o));
 }
 const giftUrl = () => location.origin + location.pathname + '#g=' + giftText();
@@ -22,8 +22,8 @@ function readGift(txt) {
   const o = JSON.parse(b64.dec(txt));
   if (!o || o.v !== 1 || typeof o.s !== 'string') throw new Error('gift');
   const st = unpackState(o.s);
-  st.station = 'pack'; st.x = st.x || {}; st.x.pack = { box: o.b | 0, packed: 1 };
-  return { st, to: clip(o.to, LIM.to), fr: clip(o.fr, LIM.fr), m: clip(o.m, LIM.m) };
+  st.station = 'pack'; st.x = st.x || {}; st.x.pack = { box: o.b | 0, packed: 1, seal: o.q ? 1 : 0 };
+  return { st, q: !!o.q, to: clip(o.to, LIM.to), fr: clip(o.fr, LIM.fr), m: clip(o.m, LIM.m) };
 }
 
 /* ───────── 편지 쓰기 ───────── */
@@ -45,6 +45,7 @@ $('ltGive').addEventListener('click', () => { // 서로 선물: 연결된 상대
 });
 
 /* ───────── 받은 선물 ───────── */
+let best = false; // 칭호를 받은 선물인가
 let back = null; // 서로 선물에서 받은 선물을 보고 내 주방으로 돌아갈 때 쓰는 내 상태
 // 받은 선물은 주방 없이 무대 위에서만 보여 준다
 const VIEW_BOX = { tgt: [0.52, 1.42, -1.72], dir: [0.1, 0.34, 1], w: 1.5, h: 1.55 };
@@ -57,7 +58,7 @@ function showLetter(on) {
 }
 function setBar(opened) {
   $('rcOpen').hidden = opened; $('rcOpen').disabled = false; $('rcToggle').hidden = !opened; $('rcMake').hidden = !opened;
-  $('rcHint').textContent = opened ? '직접 구운 막대과자예요.' : '선물이 도착했어요.';
+  $('rcHint').textContent = opened ? (best ? '완벽하게 만든 막대과자예요.' : '직접 구운 막대과자예요.') : '선물이 도착했어요.';
   $('rcMake').textContent = back ? '내 주방으로' : '나도 만들기';
   K.refit();
 }
@@ -82,6 +83,7 @@ function receive(g, mine) {
   $('rcMsg').textContent = g.m;
   $('rcFrom').textContent = g.fr ? g.fr + ' 드림' : '';
   $('rcTo').hidden = !g.to; $('rcFrom').hidden = !g.fr;
+  $('rcTitle').hidden = !g.q; $('rcStamp').hidden = !g.q; best = g.q;
   $('recv').hidden = false; showLetter(false);
   setBar(false);
 }

@@ -134,6 +134,10 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 .letterpaper .body{white-space:pre-wrap;word-break:break-word;min-height:108px;user-select:text;-webkit-user-select:text}
 .letterpaper .from{font-weight:700;text-align:right}
 .letterpaper .heart{position:absolute;right:20px;bottom:12px;font-size:20px;color:var(--accent);opacity:.75;transform:rotate(12deg)}
+.letterpaper .stamp{position:absolute;left:34px;bottom:10px;padding:4px 9px;border:2px solid #C9962B;color:#B07F1E;border-radius:8px;
+  font-family:"Noto Sans KR",sans-serif;font-size:11px;font-weight:900;line-height:1.25;text-align:center;transform:rotate(-8deg);opacity:.9}
+.titlechip{flex:1;text-align:center;padding:7px 10px;border-radius:12px;background:linear-gradient(135deg,#F9E3A2,#E7B441);color:#4A3312;
+  font-size:14px;font-weight:900;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55)}
 /* 편지 쓰는 칸도 같은 편지지 */
 .sheet textarea{font-family:"Gaegu","Nanum Pen Script","Noto Sans KR",cursive;font-size:21px;line-height:32px;min-height:140px;border-radius:6px;padding:6px 12px 6px 30px;
   background:linear-gradient(90deg,transparent 20px,rgba(217,72,59,.28) 20px,rgba(217,72,59,.28) 21.5px,transparent 21.5px),
@@ -177,6 +181,7 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels,body.recv #top
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="bottom">
   <div id="recv" hidden>
+    <div class="row" id="rcTitle" hidden><span class="titlechip">🏅 최고급 수제 초콜릿</span></div>
     <div class="row"><div class="hint" id="rcHint">선물이 도착했어요.</div>
       <button type="button" class="btn main" id="rcOpen">열어 보기</button>
       <button type="button" class="btn" id="rcToggle" hidden>💌 편지 열기</button>
@@ -191,6 +196,7 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels,body.recv #top
     <span class="tape"></span>
     <button type="button" class="x" id="rcClose" aria-label="편지 접기">✕</button>
     <div class="to" id="rcTo"></div><div class="body" id="rcMsg"></div><div class="from" id="rcFrom"></div>
+    <span class="stamp" id="rcStamp" hidden>최고급<br>수제 초콜릿</span>
     <span class="heart" aria-hidden="true">♥</span>
   </div>
 </div>

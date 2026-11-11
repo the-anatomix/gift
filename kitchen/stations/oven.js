@@ -27,6 +27,7 @@ export default function (kit) {
 
   /* ── 굽기: 시작을 누르면 게이지가 차오르고, 알맞은 구간에서 꺼내면 노릇하게 구워진다 ── */
   const BAKE_MS = 5200, ZONE = [0.55, 0.8];
+  const BEST = 0.675, BEST_TOL = 0.013; // 완벽 기준: 가운데 선에서 0.07초 안쪽
   const LV = [
     null,
     { name: '살짝 덜 구워졌어요', sub: '연한 색 과자가 됐어요.', hex: 0xEDCB93 },
@@ -34,7 +35,7 @@ export default function (kit) {
     { name: '조금 진하게 구워졌어요', sub: '바삭하고 진한 과자가 됐어요.', hex: 0xA8703A },
   ];
   const dim = new THREE.Color(C.dark).lerp(new THREE.Color(C.ovenGlow), 0.25), hot = new THREE.Color(0xFFB347), idleGlow = new THREE.Color(C.ovenGlow);
-  let phase = 'idle', lv = 0, prog = 0, run = null, fillEl = null;
+  let phase = 'idle', lv = 0, prog = 0, run = null, fillEl = null, perf = false;
   glow.color.copy(dim);
 
   function show() {
@@ -68,7 +69,7 @@ export default function (kit) {
       fillEl = null;
       const r = ui.el('div', 'row');
       if (phase === 'done') {
-        r.appendChild(ui.hintEl(LV[lv].name, LV[lv].sub));
+        r.appendChild(ui.hintEl(perf ? '완벽하게 구워졌어요!' : LV[lv].name, perf ? '가운데 선에 딱 맞췄어요.' : lv === 2 ? '가운데 선에 딱 맞추면 완벽해요.' : LV[lv].sub));
         const again = ui.button('btn', '다시 굽기', () => kit.send({ reset: 1 })); again.id = 'ovenAgain';
         r.appendChild(again); p.appendChild(r);
         const r2 = ui.el('div', 'row');
@@ -77,7 +78,7 @@ export default function (kit) {
         return;
       }
       r.appendChild(ui.hintEl(phase === 'baking' ? '노릇한 구간에서 꺼내세요!' : '오븐에 넣고 알맞을 때 꺼내 보세요.',
-        phase === 'baking' ? '색이 짙은 구간이 알맞은 때예요.' : '굽기 정도에 따라 과자 색이 달라져요.'));
+        phase === 'baking' ? '가운데 선에 딱 맞추면 완벽!' : '굽기 정도에 따라 과자 색이 달라져요.'));
       const b = ui.button('btn', phase === 'baking' ? '지금 꺼내기' : '굽기 시작', act); b.id = 'ovenAct';
       mainStyle(b); b.style.minWidth = '104px';
       r.appendChild(b); p.appendChild(r);
@@ -89,25 +90,28 @@ export default function (kit) {
       const fill = ui.el('div');
       fill.style.cssText = 'position:absolute;top:0;bottom:0;left:0;background:rgba(90,56,36,.55);border-right:3px solid #5A3824';
       fill.style.width = (phase === 'baking' ? prog * 100 : 0) + '%';
-      bar.appendChild(zone); bar.appendChild(fill); r2.appendChild(bar); p.appendChild(r2);
+      const best = ui.el('div');
+      best.style.cssText = `position:absolute;top:0;bottom:0;left:calc(${BEST * 100}% - 1.5px);width:3px;background:#FFF6E2`;
+      bar.appendChild(zone); bar.appendChild(best); bar.appendChild(fill); r2.appendChild(bar); p.appendChild(r2);
       fillEl = fill;
     },
     leave() { fillEl = null; },
     apply(d) {
-      if (d.reset) { stopRun(); phase = 'idle'; lv = 0; prog = 0; show(); kit.repaint(); return; }
-      if (d.start) { if (phase === 'baking') return; lv = 0; startBake(); kit.repaint(); return; }
+      if (d.reset) { stopRun(); phase = 'idle'; lv = 0; prog = 0; perf = false; show(); kit.repaint(); return; }
+      if (d.start) { if (phase === 'baking') return; lv = 0; perf = false; startBake(); kit.repaint(); return; }
       if (typeof d.out === 'number') {
         if (phase !== 'baking') return;
-        stopRun(); lv = levelOf(Math.max(0, Math.min(1, d.out))); phase = 'done'; show();
+        stopRun(); lv = levelOf(Math.max(0, Math.min(1, d.out))); perf = Math.abs(d.out - BEST) <= BEST_TOL; phase = 'done'; show();
         for (const st of rackSticks) { const y = st.position.y; kit.tween(420, (k) => { st.position.y = y + 0.12 * (1 - kit.easeBack(k)); }); }
-        if (kit.active()) kit.toast(LV[lv].name);
+        if (kit.active()) kit.toast(perf ? '완벽하게 구워졌어요!' : LV[lv].name);
         kit.repaint();
       }
     },
-    get() { return { lv, done: phase === 'done' ? 1 : 0, prog: +prog.toFixed(3), phase }; },
+    get() { return { lv, done: phase === 'done' ? 1 : 0, perf: perf ? 1 : 0, prog: +prog.toFixed(3), phase }; },
+    grade: () => (phase === 'done' ? (perf ? 2 : 1) : 0),
     set(v) {
       stopRun();
-      lv = v && v.done ? Math.max(1, Math.min(3, v.lv | 0)) : 0; phase = lv ? 'done' : 'idle'; prog = 0;
+      lv = v && v.done ? Math.max(1, Math.min(3, v.lv | 0)) : 0; phase = lv ? 'done' : 'idle'; prog = 0; perf = !!(v && v.perf && lv === 2);
       show(); kit.repaint();
     },
   };

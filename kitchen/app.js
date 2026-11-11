@@ -157,10 +157,12 @@ const coatMats = new Map();
 const inst = {};
 const MAX_GRAINS = 480;
 const biscuitMat = new THREE.MeshLambertMaterial({ color: C.biscuit });
+const DIP = { best: 0.52, tol: 0.012 }; // 완벽 기준: 과자의 금에서 벗어난 정도
 
 function buildStick() {
   put(cyl(STICK.R, STICK.R, STICK.L, 16).translate(0, STICK.L / 2, 0), biscuitMat, 0, 0, 0, stick);
   stick.add(coatGroup);
+  put(cyl(STICK.R + 0.0012, STICK.R + 0.0012, 0.007, 16), 0xB5823F, 0, DIP.best, 0, stick, false); // 여기까지 담그라는 금
   const heart = new THREE.Shape();
   heart.moveTo(0, -0.9); heart.bezierCurveTo(-1.5, 0.1, -0.9, 1.1, 0, 0.45); heart.bezierCurveTo(0.9, 1.1, 1.5, 0.1, 0, -0.9);
   const star = new THREE.Shape();
@@ -249,6 +251,16 @@ function drawText() {
   chars.forEach((ch, i) => g.fillText(ch, 64, y0 + cell * (i + 0.5) + 4, 120));
   txtTex.needsUpdate = true;
   const r = surfR(mid) + 0.0015; txtMesh.scale.set(r, 1, r);
+}
+// 만들기 점수: 0 아직, 1 했음, 2 완벽. 네 가지가 모두 완벽이면 칭호를 준다
+function chocoGrade() {
+  if (!S.layers.length) return 0;
+  return S.layers.length === 1 && Math.abs(S.layers[0].len - DIP.best) <= DIP.tol ? 2 : 1;
+}
+function grades() {
+  const q = { dough: mods.dough.grade(), cut: mods.cut.grade(), oven: mods.oven.grade(), choco: chocoGrade() };
+  q.perfect = q.dough === 2 && q.cut === 2 && q.oven === 2 && q.choco === 2;
+  return q;
 }
 function surfR(s) {
   let r = STICK.R;
@@ -390,7 +402,7 @@ for (const id in STATION_MODS) {
     send: (d) => dispatch({ t: 'st', s: id, d }),       // 상태를 바꾸는 유일한 길. apply(d) 로 돌아온다(상대에게도 간다)
     repaint: () => { if (S.station === id) { panelKey = ''; renderPanel(); refit(); } },
     setBiscuit: (hex) => { biscuitMat.color.setHex(hex); poke(); },
-    stick, restick,
+    stick, restick, grades,
     go: (s) => dispatch({ t: 'go', s }),
   };
   const m = STATION_MODS[id](kit) || {};
@@ -543,7 +555,7 @@ function renderPanel() {
     const r = el('div', 'row'); r.appendChild(hintEl(STN[s].title, STN[s].soon)); r.appendChild(el('span', 'soon', '준비 중')); p.appendChild(r);
   } else if (s === 'choco') {
     const r = el('div', 'row');
-    r.appendChild(hintEl('과자를 아래로 끌어 담갔다가 놓으세요.', '깊이 담글수록 길게 입혀져요.'));
+    r.appendChild(hintEl('과자를 아래로 끌어 담갔다가 놓으세요.', '과자의 금에 딱 맞춰 한 번에 담그면 완벽!'));
     const b = button('btn', '코팅 지우기', () => dispatch({ t: 'uncoat' })); b.id = 'uncoat'; r.appendChild(b);
     p.appendChild(r);
     const r2 = el('div', 'row');
@@ -685,6 +697,7 @@ function endDrag() {
     const from = tipY, len = d.len;
     if (len > 0.03) {
       dispatch({ t: 'coat', c: S.color, len: +len.toFixed(3) });
+      if (chocoGrade() === 2) toast('완벽한 코팅!');
       ripple(); if (!reduceMotion) drips(len);
     }
     tween(520, (k) => { tipY = from + (REST_TIP - from) * easeBack(k); stick.position.y = tipY; });
@@ -843,7 +856,7 @@ requestAnimationFrame(() => { $('loading').classList.add('done'); setTimeout(() 
 // 둘이 굽기·자동 검사에서 쓰는 창구
 export const kitchen = {
   S, CHOCO, KINDS, STICK, cleanText, dispatch, onLocal: (f) => listeners.push(f), onHand: (f) => handFns.push(f), toast, poke,
-  remoteTip, getState, setState, setLocked(v) { locked = !!v; }, setStage, setView, present,
+  remoteTip, getState, setState, setLocked(v) { locked = !!v; }, setStage, setView, present, grades, DIP,
   get stage() { return stageOn; }, get presenting() { return presenting; },
   setHomeAction(a, panel) { homeAction = a; homePanel = panel || null; panelKey = ''; renderPanel(); refit(); },
   refit, // 아래 패널 높이가 바뀌었을 때 카메라를 다시 맞춘다
