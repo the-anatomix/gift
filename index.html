@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>갓 구운 선물 | 돈신호등</title>
+<title>갓 구운 선물</title>
 <meta name="description" content="직접 반죽해서 구운 막대과자와 쪽지가 도착했어요. 눌러서 오븐을 열어 보세요.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="갓 구운 선물이 도착했어요">
@@ -77,7 +77,8 @@ textarea{resize:none;height:120px;font-family:"Gaegu",cursive;font-size:20px;lin
 .mini{display:flex;justify-content:center;gap:6px}.mini .stick{pointer-events:none;padding:0}.mini svg{width:27px;height:90px}
 .fade{animation:fade .5s both}@keyframes fade{from{opacity:0;transform:translateY(8px)}}
 .foot{font-size:12px;color:var(--sub);text-align:center;line-height:1.6}
-.foot a{color:var(--ink);font-weight:700;text-decoration:none}
+.foot a{color:var(--ink);font-weight:700;text-decoration:none;display:inline-block;padding:10px 4px}
+.brand .to3d{margin-left:auto;min-height:44px;display:inline-flex;align-items:center;padding:0 12px;border:1.5px solid var(--line);border-radius:999px;background:#fff;color:var(--ink);font-size:13px;font-weight:700;text-decoration:none}
 /* 반죽 · 자르기 · 굽기 */
 .steps{display:flex;gap:6px}.steps span{flex:1;text-align:center;font-size:12px;font-weight:700;color:var(--sub);padding:6px 0;border-radius:999px;background:#F3EADB}
 .steps span.on{background:var(--ink);color:#fff}.steps span.done{background:var(--yellow);color:var(--ink)}
@@ -142,12 +143,9 @@ var WHO=[["","에게","사랑해","하고 싶은 말을 적어 보세요"],
   ["선생님","께","감사해요","예: 잘 가르쳐 주셔서 감사해요"],
   ["동료","에게","수고했어","예: 요즘 고생 많았어. 수고했어"]];
 function josa(g){return (WHO[g.who||0]||WHO[0])[1]}
-var INSTA="https://www.instagram.com/donsignal.kr/";
-/* 주소에 ?b=ax 가 붙으면 아나토믹스 판(이름·색·문구)으로 바뀐다 */
+/* 계정 표기는 넣지 않고 서비스 이름만 쓴다. 주소에 ?b=ax 가 붙어 들어와도 화면은 같다(먼저 나간 링크가 깨지지 않게 값만 받아 둔다) */
 var AX=/[?&]b=ax(&|$)/.test(location.search);
-var BR=AX?{name:"ANATOMIX",insta:"https://www.instagram.com/the.anatomix/",at:"@the.anatomix",badge:"0kcal 선물",tag:"사물의 속을 3D로 해부해요 "}
-        :{name:"돈신호등",insta:INSTA,at:"@donsignal.kr",badge:"직접 구운 선물",tag:"생활 속 돈 정보 "};
-if(AX)document.documentElement.classList.add("ax");
+var BR={name:"갓 구운 선물",badge:"직접 구운 선물"};
 var app=document.getElementById("app");
 
 function el(tag,attrs,kids){var n=document.createElement(tag);if(attrs)for(var k in attrs){if(k==="text")n.textContent=attrs[k];else if(k==="on")for(var e in attrs.on)n.addEventListener(e,attrs.on[e]);else n.setAttribute(k,attrs[k]);}
@@ -199,9 +197,9 @@ function dec(str){try{var s=atob(str.replace(/-/g,"+").replace(/_/g,"/")),b=new 
 function readGift(){var m=(location.hash||"").match(/g=([A-Za-z0-9_-]+)/)||(location.search||"").match(/[?&]g=([A-Za-z0-9_-]+)/);return m?dec(m[1]):null}
 function baseUrl(){return location.origin+location.pathname+(AX?"?b=ax":"")}
 
-function brand(){return el("div",{class:"brand"},[el("span",{class:"lights"},[el("i"),el("i"),el("i")]),el("span",{text:BR.name})])}
+function brand(){return el("div",{class:"brand"},[el("span",{text:BR.name}),el("a",{class:"to3d",href:"./kitchen/",text:"3D 주방에서 만들기"})])}
 function foot(){var f=el("p",{class:"foot"});f.appendChild(document.createTextNode("편지는 어디에도 저장되지 않고 링크 안에만 담겨요."));f.appendChild(el("br"));
-  f.appendChild(document.createTextNode(BR.tag));f.appendChild(el("a",{href:BR.insta,target:"_blank",rel:"noopener",text:BR.at}));return f}
+  f.appendChild(el("a",{href:"./kitchen/",text:"3D 미니 주방에서 만들기"}));f.appendChild(document.createTextNode(" · "));f.appendChild(el("a",{href:"./nolja/",text:"놀자방 홈"}));return f}
 
 /* ───── 만드는 화면 ───── */
 function maker(d0){

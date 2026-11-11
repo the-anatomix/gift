@@ -28,6 +28,7 @@ button{font:inherit;color:inherit;touch-action:manipulation}
   display:flex;align-items:center;justify-content:space-between;pointer-events:none}
 #top .brand{font-weight:800;font-size:15px;letter-spacing:-.02em;display:flex;align-items:center;gap:6px}
 #top .tag{font-size:11px;font-weight:800;background:var(--choc);color:#FFF4E0;padding:2px 7px;border-radius:999px}
+#top .links{display:flex;gap:6px}
 #top a{pointer-events:auto;min-height:44px;min-width:44px;padding:0 12px;display:inline-flex;align-items:center;
   font-size:13px;font-weight:700;color:var(--choc);text-decoration:none;background:rgba(255,252,245,.85);
   border:1.5px solid var(--line);border-radius:999px}
@@ -220,7 +221,7 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels,body.recv #top
 <div id="emos" aria-hidden="true"></div>
 <div id="top">
   <div class="brand">갓 구운 선물<span id="account" hidden></span></div>
-  <a href="../nolja/">놀자방 홈</a>
+  <span class="links"><a href="../">2D 판</a><a href="../nolja/">놀자방 홈</a></span>
 </div>
 <div id="inapp" hidden>
   <p>앱 안 브라우저로 열렸어요.<small>여기서는 3D 화면이나 "같이 굽기" 연결이 안 될 수 있어요. 주소를 복사해 기본 브라우저(사파리·크롬)에 붙여 열어 주세요.</small></p>
