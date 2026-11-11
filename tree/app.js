@@ -548,7 +548,7 @@ function stepAside() {
 // 꾸밀 수 있는 사람인지에 따라 탭을 보이거나 숨긴다
 function paintRole() {
   for (const m of ['furn', 'tree', 'paint']) document.querySelector(`#tabs button[data-m="${m}"]`).hidden = !canEdit;
-  $('tabs').style.gridTemplateColumns = `repeat(${canEdit ? 5 : 2}, 1fr)`;
+  $('tabs').style.gridTemplateColumns = `repeat(${canEdit ? 6 : 3}, 1fr)`;
   if (!canEdit && (mode === 'furn' || mode === 'tree' || mode === 'paint')) setMode(null);
 }
 const FX = { dart: 'number', fire: 'number', music: 'string' };
@@ -583,6 +583,7 @@ const duo = makeDuo({
     return true;
   },
   peerFx(m) { if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false; play.peerFx(m); return true; },
+  peerSay(id, text) { const t = cleanSay(text); if (!t || !others.has(id)) return null; said(id, t); return t; },
   status: () => paintDuo(),
   toast: (m) => toast(m),
 });
@@ -769,6 +770,58 @@ function toast(msg) {
 }
 $('turn').addEventListener('click', () => turnView(1));
 $('pov').addEventListener('click', () => setPov(!fp));
+
+/* ───────── 채팅: 말풍선과 지난 말 ───────── */
+const SAY_MAX = 60, SAY_SHOW = 5.5;  // 한 번에 보낼 수 있는 글자 수, 말풍선이 떠 있는 시간(초)
+const bubbles = new Map();           // 누구('me' 또는 이름) → { el, until }
+let sayAt = 0;
+// 받은 글을 다듬는다: 글만, 한 줄로, 정해진 길이까지
+function cleanSay(text) {
+  if (typeof text !== 'string') return '';
+  return text.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, SAY_MAX);
+}
+const nameOf = (who) => (who === 'me' ? '나' : who === 'h' ? '방장' : '친구' + (parseInt(who.slice(1), 36) || ''));
+// 누가 말했다: 말풍선을 띄우고 지난 말에 적는다
+function said(who, text) {
+  let b = bubbles.get(who);
+  if (!b) { b = { el: document.createElement('div'), until: 0 }; b.el.className = 'bub'; $('bubbles').appendChild(b.el); bubbles.set(who, b); }
+  b.el.textContent = text; b.until = clock + SAY_SHOW;
+  const log = $('chatLog'), ln = document.createElement('div'), nm = document.createElement('b');
+  if (log.firstElementChild && log.firstElementChild.classList.contains('none')) log.textContent = '';
+  ln.className = 'ln' + (who === 'me' ? ' me' : ''); nm.textContent = nameOf(who);
+  ln.append(nm, ' ' + text);
+  log.appendChild(ln);
+  while (log.childElementCount > 40) log.firstElementChild.remove();
+  log.scrollTop = log.scrollHeight;
+  if (mode !== 'chat' && who !== 'me') document.querySelector('#tabs button[data-m="chat"]').classList.add('new'); // 안 읽은 말이 있다는 표시
+}
+function say(raw) {
+  const text = cleanSay(raw);
+  if (!text) return false;
+  if (clock - sayAt < 0.6) { toast('조금 천천히 보내 주세요'); return false; }
+  sayAt = clock;
+  said('me', text);
+  duo.say(text);
+  return true;
+}
+$('chatForm').addEventListener('submit', (e) => { e.preventDefault(); const i = $('chatIn'); if (say(i.value)) i.value = ''; });
+// 말풍선을 말한 사람 머리 위에 붙인다
+const bv = new THREE.Vector3();
+function placeBubbles() {
+  for (const [who, b] of bubbles) {
+    const a = who === 'me' ? me : others.get(who);
+    if (!a || clock > b.until || (who === 'me' && usingEye())) { if (b.el.style.display !== 'none') b.el.style.display = 'none'; if (!a && who !== 'me') { b.el.remove(); bubbles.delete(who); } continue; }
+    bv.set(a.x, 1.72, a.z).project(cam());
+    if (bv.z > 1 || bv.z < -1) { b.el.style.display = 'none'; continue; } // 카메라 뒤
+    b.el.style.display = '';
+    b.el.style.transform = `translate(${(bv.x + 1) / 2 * window.innerWidth}px, ${(1 - bv.y) / 2 * window.innerHeight}px) translate(-50%, -100%)`;
+  }
+}
+// 폰 키보드가 올라오면 아래 판을 키보드 위로 올린다
+if (window.visualViewport) {
+  const lift2 = () => { const vv = window.visualViewport, d = Math.max(0, window.innerHeight - vv.height - vv.offsetTop); $('bottom').style.transform = d > 40 ? `translateY(${-d}px)` : ''; };
+  window.visualViewport.addEventListener('resize', lift2); window.visualViewport.addEventListener('scroll', lift2);
+}
 // 조이스틱: 1인칭에서 걷는 데 쓴다
 {
   const st = $('stick'), knob = st.firstElementChild;
@@ -788,7 +841,7 @@ $('pov').addEventListener('click', () => setPov(!fp));
 $('zin').addEventListener('click', () => zoomBy(1.35));
 $('zout').addEventListener('click', () => zoomBy(1 / 1.35));
 
-const PANELS = { furn: 'furn', tree: 'treeP', paint: 'paint', look: 'look', duo: 'duoP', play: 'playP' };
+const PANELS = { furn: 'furn', tree: 'treeP', paint: 'paint', look: 'look', duo: 'duoP', play: 'playP', chat: 'chatP' };
 function setMode(m) {
   if (m === mode) m = null; // 같은 탭을 다시 누르면 닫는다
   if (ghost) ghostCancel();
@@ -801,6 +854,8 @@ function setMode(m) {
   itemsG.visible = m !== 'tree'; // 트리를 꾸밀 때는 가구가 트리를 가리지 않게 잠깐 숨긴다
   if (m === 'tree') { standByTree(); toast('트리를 눌러 장식을 달아요'); }
   if (m === 'look') { me.stop(); me.onArrive = null; faceCamera(); }
+  if (m === 'chat') { document.querySelector('#tabs button[data-m="chat"]').classList.remove('new'); const l = $('chatLog'); l.scrollTop = l.scrollHeight; }
+  if (was === 'chat') $('chatIn').blur();
   if (was === 'look') store.set(LOOK_KEY, look);
   paintPanels();
   dirty = true;
@@ -924,6 +979,7 @@ function frame(now) {
     if (p.t >= 1) pops.splice(k, 1);
   }
   bulbs.tick(clock);
+  placeBubbles();
   play.tick(dt);
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
@@ -953,9 +1009,12 @@ window.__duo = {
   get mode() { return duo.mode; }, get role() { return duo.role; }, get room() { return duo.room; }, get mine() { return cur ? cur.mine : null; },
   get canEdit() { return canEdit; }, get count() { return duo.count; }, get me() { return duo.me; }, get editors() { return duo.editors; }, get slot() { return mySlot; },
   get others() { return [...others].map(([id, a]) => ({ id, x: a.x, z: a.z, look: a.look, moving: a.moving })); },
+  say, cleanSay, get bubbles() { return [...bubbles].filter(([, b]) => b.el.style.display !== 'none').map(([who, b]) => { const r = b.el.getBoundingClientRect(); return { who, text: b.el.textContent, x: r.left + r.width / 2, y: r.bottom }; }); },
+  get chatLog() { return [...document.querySelectorAll('#chatLog .ln')].map((l) => l.textContent); },
   get other() { const a = others.values().next().value; return a ? { x: a.x, z: a.z, look: a.look, moving: a.moving } : null; },
   inviteUrl: (edit) => duo.inviteUrl(edit !== false && canEdit), invite, leaveRoom, hash: roomHash, feed: (m, pid) => duo.feed(m, pid),
   rawOp: (op) => duo.op(op), // 화면의 막음을 건너뛰고 변화를 보내 본다 (주인이 걸러 내는지 검사용)
+  rawSay: (t) => duo.say(t),
 };
 window.__play = Object.assign(play.test, {
   start: (id) => startPlay(id), // 가구 앞으로 걸어가서 연다

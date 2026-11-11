@@ -80,12 +80,25 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 .sw{flex:none;width:46px;height:46px;padding:0;border-radius:50%;border:2px solid rgba(43,29,20,.14);background:var(--c);cursor:pointer;
   box-shadow:0 0 0 0 var(--choc);transition:box-shadow .15s}
 .sw[aria-pressed=true]{box-shadow:0 0 0 2px #fff,0 0 0 4.5px var(--choc)}
-#tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;background:rgba(255,252,245,.97);
+#tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:2px;background:rgba(255,252,245,.97);
   border:1.5px solid var(--line);border-radius:18px;padding:4px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
 #tabs button{min-height:50px;min-width:0;padding:0;border:0;border-radius:14px;background:none;font-size:12px;
   font-weight:700;color:var(--sub);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
 #tabs button b{font-size:19px;font-weight:400;line-height:1.1}
 #tabs button[aria-pressed=true]{background:var(--choc);color:#FFF4E0}
+#tabs button.new{position:relative}
+#tabs button.new::after{content:"";position:absolute;right:calc(50% - 20px);top:6px;width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px #FFFCF5}
+#bubbles{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
+.bub{position:absolute;left:0;top:0;max-width:190px;padding:6px 11px;border-radius:14px;background:#FFFCF5;color:var(--ink);font-size:13.5px;font-weight:700;line-height:1.35;
+  box-shadow:0 3px 10px rgba(0,0,0,.28);word-break:break-word;will-change:transform}
+.bub::after{content:"";position:absolute;left:50%;bottom:-5px;width:10px;height:10px;margin-left:-5px;background:#FFFCF5;transform:rotate(45deg)}
+#chatLog{max-height:104px;overflow-y:auto;font-size:13.5px;line-height:1.5;user-select:text;-webkit-user-select:text}
+#chatLog .ln b{color:var(--sub);font-weight:800;margin-right:2px}
+#chatLog .ln.me b{color:var(--choc)}
+#chatLog .none{color:var(--sub);font-size:12.5px}
+#chatIn{flex:1;min-width:0;min-height:46px;border:1.5px solid var(--line);border-radius:12px;padding:0 12px;font:inherit;font-size:16px;font-weight:600;
+  background:#fff;color:var(--ink);user-select:text;-webkit-user-select:text;outline:none}
+#chatIn:focus{border-color:var(--choc)}
 #tabs button.live b{text-shadow:0 0 0 #2F9E6E;filter:drop-shadow(0 0 3px #2F9E6E)}
 #duoUrl{flex:1;min-width:0;min-height:44px;border:1.5px solid var(--line);border-radius:12px;padding:0 10px;font:inherit;font-size:13px;
   background:#fff;color:var(--ink);user-select:text;-webkit-user-select:text}
@@ -118,6 +131,7 @@ button{font:inherit;color:inherit;touch-action:manipulation}
   <div class="row"><button type="button" class="btn copyurl main" style="flex:1">주소 복사</button><button type="button" class="btn" id="inappClose">닫기</button></div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
+<div id="bubbles" aria-hidden="true"></div>
 <div id="stick" hidden aria-label="걷기 조이스틱"><i></i></div>
 <div id="bottom">
   <div id="tools">
@@ -164,6 +178,13 @@ button{font:inherit;color:inherit;touch-action:manipulation}
     <div class="wrap" id="playBtns"></div>
     <input type="file" id="tvFile" accept="video/*" hidden>
   </div>
+  <div id="chatP" class="sheet" hidden>
+    <div id="chatLog" role="log" aria-live="polite"><div class="none">아직 아무 말도 없어요. 보낸 말은 머리 위 말풍선으로도 보여요.</div></div>
+    <form class="row" id="chatForm">
+      <input id="chatIn" type="text" maxlength="60" autocomplete="off" enterkeyhint="send" placeholder="하고 싶은 말" aria-label="하고 싶은 말">
+      <button type="submit" class="btn main" id="chatSend">보내기</button>
+    </form>
+  </div>
   <div id="duoP" class="sheet" hidden>
     <div class="hint"><span id="duoMain"></span><small id="duoSub"></small></div>
     <div class="row" id="duoUrlRow" hidden><input id="duoUrl" type="text" readonly aria-label="친구에게 보낼 링크"></div>
@@ -181,6 +202,7 @@ button{font:inherit;color:inherit;touch-action:manipulation}
     <button type="button" data-m="tree"><b>🎄</b>트리</button>
     <button type="button" data-m="paint"><b>🎨</b>벽·바닥</button>
     <button type="button" data-m="look"><b>🙂</b>캐릭터</button>
+    <button type="button" data-m="chat"><b>💬</b>채팅</button>
     <button type="button" data-m="duo"><b>👫</b>같이</button>
   </nav>
 </div>

@@ -8,7 +8,7 @@
 //   주인 → 손님  { t: 'join', id, look, pos } { t: 'gone', id }         다른 사람이 들어오고 나감
 //   서로         { t: 'op', op }                                        방의 변화 하나. 구경하는 사람이 보낸 것은 주인이 받지 않는다
 //   손님 → 주인  { t: 'sync' }                                          방이 달라진 것 같으니 통째로 다시 달라
-//   서로         { t: 'look', look } { t: 'pos', x, z } { t: 'fx', k, v }   주인이 전해 줄 때는 누구 것인지 id 를 붙인다
+//   서로         { t: 'look', look } { t: 'pos', x, z } { t: 'fx', k, v } { t: 'say', text }   주인이 전해 줄 때는 누구 것인지 id 를 붙인다
 //   서로         { t: 'ping', h }                                       h = 방의 지문
 // 꾸밀 수 있는 사람인지는 방 열쇠(key)로 가린다. "같이 꾸미기" 링크에만 열쇠가 들어 있다.
 // 어느 쪽 방을 쓸지는 state.js 의 guestWins 가 정한다(처음 온 사람은 주인 방을 받고, 헤어져 혼자 꾸민 쪽이 있으면 그쪽).
@@ -154,6 +154,13 @@ export function makeDuo(K) {
       case 'look': { const lk = K.peerLook(pid, m.look); if (lk) relay({ t: 'look', id: pid, look: lk }, pid); break; }
       case 'pos': if (K.peerPos(pid, m.x, m.z)) relay({ t: 'pos', id: pid, x: m.x, z: m.z }, pid); break;
       case 'fx': if (K.peerFx(m)) relay({ t: 'fx', id: pid, k: m.k, v: m.v }, pid); break;
+      case 'say': { // 채팅: 너무 잦으면 버린다
+        const now = performance.now();
+        if (now - (p.said || 0) < 300) return;
+        const text = K.peerSay(pid, m.text);
+        if (text) { p.said = now; relay({ t: 'say', id: pid, text }, pid); }
+        break;
+      }
       case 'ping': if (typeof m.h === 'string' && m.h === K.hash() && p.edit) K.synced(); break;
     }
   }
@@ -183,6 +190,7 @@ export function makeDuo(K) {
       case 'look': K.peerLook(typeof m.id === 'string' ? m.id : 'h', m.look); break;
       case 'pos': K.peerPos(typeof m.id === 'string' ? m.id : 'h', m.x, m.z); break;
       case 'fx': K.peerFx(m); break;
+      case 'say': K.peerSay(typeof m.id === 'string' ? m.id : 'h', m.text); break;
       case 'ping':
         if (typeof m.h !== 'string') return;
         if (m.h === K.hash()) { misses = 0; if (canEdit) K.synced(); }
@@ -227,6 +235,7 @@ export function makeDuo(K) {
     look(look) { out({ t: 'look', look }); },
     pos(x, z) { out({ t: 'pos', x, z }); },
     fx(m) { out({ t: 'fx', k: m.k, v: m.v }); },
+    say(text) { out({ t: 'say', text }); },
     // 초대 링크. edit = 같이 꾸미기(열쇠가 들어 있다), 아니면 구경
     inviteUrl(edit = true) {
       if (!room) return '';
