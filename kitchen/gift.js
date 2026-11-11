@@ -55,6 +55,7 @@ $('ltPreview').addEventListener('click', () => {
   $('pvFrom').textContent = fr; $('pvFrom').hidden = !fr;
   $('ltPrev').hidden = false;
 });
+$('ltBrag').addEventListener('click', () => { closeLetter(); window.dispatchEvent(new CustomEvent('kitchen:brag')); });
 $('pvClose').addEventListener('click', () => { $('ltPrev').hidden = true; });
 $('ltPrev').addEventListener('click', (e) => { if (e.target === $('ltPrev')) $('ltPrev').hidden = true; });
 $('ltGive').addEventListener('click', () => { // 서로 선물: 연결된 상대에게 바로 보낸다
@@ -78,6 +79,7 @@ function showLetter(on) {
   clearTimeout(closing);
   const card = $('rcard'), env = $('env');
   env.classList.toggle('open', on);
+  if (on) env.classList.add('seen'); // 한 번 열어 봤으면 안내 말풍선과 흔들림을 멈춘다
   env.setAttribute('aria-label', on ? '편지를 봉투에 넣기' : '봉투를 열어 편지 읽기');
   if (on) {
     card.classList.remove('closing'); card.hidden = false;
@@ -124,7 +126,7 @@ function receive(g, mine) {
   $('rcTitle').hidden = !g.q; best = g.q;
   $('rcChip').textContent = g.q === 2 ? '🥇 최고급 수제 과자' : g.q === 1 ? '🥈 고급 수제 과자' : '🥉 수제 과자';
   $('rcChip').classList.toggle('silver', g.q === 1); $('rcChip').classList.toggle('bronze', g.q === 3);
-  $('recv').hidden = false; $('rcard').hidden = true; $('env').hidden = true; $('env').classList.remove('open');
+  $('recv').hidden = false; $('rcard').hidden = true; $('env').hidden = true; $('env').classList.remove('open', 'seen');
   setBar(false);
 }
 function endReceive() {

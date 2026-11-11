@@ -33,7 +33,11 @@ const save = async (p, name) => fs.writeFileSync(path.join(__dirname, 'out', nam
     await tab(A, '포장'); await A.tap('#packDone'); await until(() => A.isVisible('#letter'), 15000);
     await A.fill('#ltTo', '사랑하는 지우에게'); await A.fill('#ltFrom', '너를 아끼는 민서가'); await A.fill('#ltMsg', '내가 직접 만들었어. 맛있게 먹어!');
     const url = await A.evaluate(() => window.__gift.giftUrl());
-    await A.tap('#ltClose'); await sleep(300);
+    const lb = await A.locator('#ltBrag').boundingBox();
+    check('편지 쓰기 칸 안에도 "자랑 카드" 버튼이 있음 (화면 안·44px 이상)', lb && lb.height >= 44 && lb.x >= 0 && lb.x + lb.width <= 375 && lb.y + lb.height <= 812, lb);
+    await A.tap('#ltBrag');
+    check('편지 칸의 자랑 카드 버튼을 누르면 카드가 열림', await until(() => A.evaluate(() => !document.getElementById('brag').hidden && document.getElementById('letter').hidden), 6000));
+    await A.tap('#bgClose'); await sleep(300);
     const bb = await A.locator('#packBrag').boundingBox();
     check('포장 뒤 "만든 과정 자랑 카드" 버튼이 화면 안·44px 이상', bb && bb.height >= 44 && bb.x >= 0 && bb.x + bb.width <= 375 && bb.y + bb.height <= 812, bb);
     await A.tap('#packBrag');

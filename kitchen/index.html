@@ -153,7 +153,7 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 #rcard.closing{background:transparent;transition:background .3s}
 #rcard.closing .letterpaper{animation:paperOut .32s ease-in forwards}
 /* 봉투: 누르면 열리며 편지가 나오고, 다시 누르면 편지가 들어간다 */
-#env{position:absolute;right:16px;bottom:calc(var(--barh,96px) + 16px);width:108px;height:74px;padding:0;border:0;background:none;cursor:pointer;z-index:3;
+#env{position:absolute;right:16px;bottom:calc(var(--barh,96px) + 16px);width:124px;height:86px;padding:0;border:0;background:none;cursor:pointer;z-index:3;
   animation:envIn .7s cubic-bezier(.2,.9,.3,1.35);filter:drop-shadow(0 8px 12px rgba(43,29,20,.28))}
 #env[hidden]{display:none}
 @keyframes envIn{from{transform:translateY(40px) scale(.4) rotate(-14deg);opacity:0}to{transform:none;opacity:1}}
@@ -170,8 +170,16 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 #env.open .f{transform:scaleY(-1)}
 #env.open .s{opacity:0}
 #env.open .p{transform:translateY(-16px)}
-#env:not(.open){animation:envIn .7s cubic-bezier(.2,.9,.3,1.35),envNudge 2.6s 1.2s ease-in-out 3}
-@keyframes envNudge{0%,86%,100%{transform:none}90%{transform:rotate(-6deg) translateY(-3px)}95%{transform:rotate(5deg)}}
+#env:not(.open){animation:envIn .7s cubic-bezier(.2,.9,.3,1.35),envNudge 1.5s .9s ease-in-out infinite}
+/* 열기 전까지: 말풍선과 빛나는 테두리로 눌러야 한다는 것을 알린다 */
+#env .tip{position:absolute;right:0;bottom:calc(100% + 14px);padding:9px 14px;border-radius:999px;background:var(--choc);color:#FFF4E0;
+  font-size:15px;font-weight:800;white-space:nowrap;box-shadow:0 6px 14px rgba(43,29,20,.3);animation:tipBob 1.1s ease-in-out infinite}
+#env .tip::after{content:"";position:absolute;right:44px;top:100%;border:8px solid transparent;border-top-color:var(--choc)}
+@keyframes tipBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+#env.seen .tip{display:none}
+#env:not(.seen) .b{box-shadow:0 0 0 4px rgba(217,72,59,.35),0 0 22px 6px rgba(246,200,95,.75)}
+#env.seen:not(.open){animation:none}
+@keyframes envNudge{0%,60%,100%{transform:none}70%{transform:rotate(-7deg) translateY(-7px)}82%{transform:rotate(6deg) translateY(-3px)}}
 .letterpaper .tape{position:sticky;display:block;top:-30px;margin:-30px auto 4px;width:92px;height:24px;background:rgba(217,72,59,.5);
   transform:rotate(-3deg) translateY(-8px);border-radius:2px;box-shadow:0 1px 2px rgba(43,29,20,.15)}
 .letterpaper .x{position:absolute;right:2px;top:2px;width:44px;height:44px;border:0;background:none;font-size:18px;color:#8A7868;cursor:pointer}
@@ -244,7 +252,7 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels,body.recv #top
   <div id="panel"></div>
   <nav id="tabs" role="tablist" aria-label="자리 이동"></nav>
 </div>
-<button type="button" id="env" hidden aria-label="봉투를 열어 편지 읽기"><span class="p"></span><span class="b"></span><span class="f"></span><span class="s">♥</span></button>
+<button type="button" id="env" hidden aria-label="봉투를 열어 편지 읽기"><span class="tip">👆 눌러서 편지 읽기</span><span class="p"></span><span class="b"></span><span class="f"></span><span class="s">♥</span></button>
 <div id="rcard" hidden>
   <div class="letterpaper" role="dialog" aria-label="편지">
     <button type="button" class="x snd" id="rcSound" aria-label="음악 끄기">🔈</button>
@@ -265,7 +273,7 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels,body.recv #top
       <textarea id="ltMsg" maxlength="200" placeholder="직접 구운 과자와 함께 전할 말을 적어 주세요."></textarea></label>
     <input id="ltUrl" type="text" readonly hidden aria-label="보낼 링크">
     <div class="hint" id="ltUrlHint" hidden><small>링크를 길게 눌러 복사해 보내 주세요.</small></div>
-    <div class="row"><button type="button" class="btn" id="ltPreview" style="flex:1">편지지 미리보기</button></div>
+    <div class="row"><button type="button" class="btn" id="ltPreview" style="flex:1">편지지 미리보기</button><button type="button" class="btn" id="ltBrag" style="flex:1">📸 자랑 카드</button></div>
     <div class="row"><button type="button" class="btn main" id="ltGive" hidden>상대에게 바로 선물하기</button></div>
     <div class="row"><button type="button" class="btn main" id="ltShare" style="flex:1">선물 링크 보내기</button></div>
   </div>

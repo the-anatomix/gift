@@ -92,7 +92,9 @@ const audit = (p) => p.evaluate(() => {
     check('봉투가 화면 안에 있고 44px 이상', eb.width >= 44 && eb.height >= 44 && eb.x >= 0 && eb.x + eb.width <= 375 && eb.y + eb.height <= 812, eb);
     await sleep(800);
     await R.screenshot({ path: path.join(__dirname, 'out', 'recv-env.png') });
+    check('봉투에 "눌러서 편지 읽기" 말풍선이 보임', (await R.isVisible('#env .tip')) && (await R.textContent('#env .tip')).includes('눌러서 편지 읽기'));
     await R.tap('#env');
+    check('한 번 열면 말풍선이 사라짐', !(await R.isVisible('#env .tip')));
     check('봉투를 누르면 편지가 나옴', await until(() => R.isVisible('#rcard'), 3000) && (await R.evaluate(() => document.getElementById('env').classList.contains('open'))));
     check('편지 글이 글자 그대로 보임 (태그로 바뀌지 않음)', (await R.textContent('#rcMsg')) === '메리 크리스마스!\n<b>굵게</b> & "따옴표"' && (await R.evaluate(() => !document.querySelector('#rcMsg b')))
       && (await R.textContent('#rcTo')) === '사랑하는 지우에게' && (await R.textContent('#rcFrom')) === '너를 아끼는 민서가');
