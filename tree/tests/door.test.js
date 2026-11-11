@@ -70,12 +70,16 @@ const audit = (p) => p.evaluate(() => {
     check('들어온 뒤에는 문 앞 카메라가 남지 않고 원래처럼 방을 내려다봄', await T(B, () => !window.__tree.eyeOn && window.__tree.meShown && window.__tree.pov === 'iso') && (await B.isVisible('#turn')));
     check('들어온 뒤에는 아래 탭이 다시 보임', (await B.isVisible('#tabs')) && (await B.isVisible('#tools')) && (await B.textContent('#net')) === '같이 노는 중 · 2명');
 
-    /* 한 번 들인 친구는 다음부터 초인종만 누르면 바로 */
+    /* 한 번 들인 친구도 다시 오면 다시 허락을 받아야 한다 */
     await B.reload(); await ready(B);
     await until(async () => (await mode(B)) === 'door', 15000);
     await until(async () => (await T(A, () => window.__duo.others.length)) === 0, 12000);
     await B.tap('#bell');
-    check('전에 들인 친구는 초인종만 누르면 방장에게 묻지 않고 바로 들어옴', await until(async () => (await mode(B)) === 'on', 10000) && (await T(A, () => window.__duo.knocks.length)) === 0 && !(await B.isVisible('#look')));
+    check('전에 들인 친구도 다시 오면 방장에게 다시 물어봄 (허락 없이 들어오지 못함)', await until(async () => (await T(A, () => window.__duo.knocks.length)) === 1 && (await A.isVisible('#knock')), 5000) && (await mode(B)) === 'door' && (await T(A, () => window.__duo.others.length)) === 0);
+    await sleep(1500);
+    check('방장이 누르기 전에는 계속 문 앞에서 기다림', (await mode(B)) === 'door' && (await T(B, () => window.__door.shown)) && (await T(A, () => window.__duo.others.length)) === 0);
+    await A.tap('#knock button.main');
+    check('방장이 다시 "들어오게 하기"를 눌러야 들어옴 (캐릭터는 다시 고르지 않음)', await until(async () => (await mode(B)) === 'on', 10000) && (await T(A, () => window.__duo.knocks.length)) === 0 && !(await B.isVisible('#look')));
 
     /* 구경 온 사람: 돌려보내기 */
     const C = await open(ctx, url('dc', '#v=' + id));

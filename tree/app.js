@@ -73,7 +73,7 @@ let cur = store.get(CUR_KEY);
 if (!cur || typeof cur !== 'object' || !ROOM_RE.test(cur.id || '')) cur = null;
 else {
   const devs = (a) => (Array.isArray(a) ? a.filter((x) => typeof x === 'string' && /^[a-z0-9]{6,24}$/.test(x)).slice(-60) : []);
-  // friends = 내가 방장일 때 들인 친구들, banned = 내보낸 사람들 (기기 이름)
+  // banned = 내가 방장일 때 내보낸 사람들 (기기 이름). friends 는 예전에 쓰던 것(들인 친구)이라 지금은 보지 않는다
   cur = { id: cur.id, mine: cur.mine === true, key: typeof cur.key === 'string' ? cur.key : '', view: cur.view === true, friends: devs(cur.friends), banned: devs(cur.banned) };
 }
 {
@@ -630,9 +630,7 @@ const duo = makeDuo({
   },
   // 초인종과 입장
   dev: () => dev,
-  isFriend: (d) => !!cur && cur.friends.includes(d),
   banned: (d) => !!cur && cur.banned.includes(d),
-  friend(d) { if (cur && !cur.friends.includes(d)) { cur.friends.push(d); store.set(CUR_KEY, cur); } },
   ban(d) { if (!cur) return; cur.friends = cur.friends.filter((x) => x !== d); if (!cur.banned.includes(d)) cur.banned.push(d); store.set(CUR_KEY, cur); },
   bell: (again) => ding(again),
   admitted() { // 문이 열렸다: 걸어 들어간 다음에 방에 들어선다

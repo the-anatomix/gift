@@ -115,7 +115,6 @@ export function makeDuo(K) {
     const p = peers.get(pid);
     if (!p || p.ok) return;
     p.ok = true; p.asked = false;
-    if (p.dev) K.friend(p.dev);
     link.send({ t: 'admit' }, pid);
     K.status();
   }
@@ -175,7 +174,7 @@ export function makeDuo(K) {
       p.asked = true;
       K.bell(again); // 딩동
       relay({ t: 'fx', id: pid, k: 'bell', v: 1 });
-      if (!DOOR || (p.dev && K.isFriend(p.dev))) admit(pid); // 전에 들인 친구는 바로 들어온다
+      if (!DOOR) admit(pid); // 문 없이 여는 검사용. 평소에는 전에 들인 친구라도 올 때마다 방장이 문을 열어 줘야 들어온다
       else K.status();
       return;
     }
