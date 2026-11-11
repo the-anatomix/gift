@@ -163,8 +163,11 @@ export function buildRoom(scene) {
 
   const tree = buildTree(scene);
   let floorId = FLOORS[0].id;
+  // 천장: 내려다볼 때는 없고, 1인칭으로 볼 때만 보인다
+  const ceil = put(new THREE.PlaneGeometry(N * CELL + 0.3, N * CELL + 0.3), new THREE.MeshLambertMaterial({ color: 0xFFF6E6 }), 0, WALL_H, 0, scene, false);
+  ceil.rotation.x = Math.PI / 2; ceil.receiveShadow = false; ceil.visible = false;
   return {
-    walls, tree: tree.g, cones: tree.cones,
+    ceil, walls, tree: tree.g, cones: tree.cones,
     setWall(id) { const w = WALLS.find((x) => x.id === id) || WALLS[0]; mats.wall.color.setHex(w.wall); mats.panel.color.setHex(w.panel); },
     setFloor(id) { const f = FLOORS.find((x) => x.id === id) || FLOORS[0]; if (f.id === floorId) return; floorId = f.id; const old = floorMat.map; floorMat.map = floorTexture(f.tones); floorMat.needsUpdate = true; if (old) old.dispose(); },
   };

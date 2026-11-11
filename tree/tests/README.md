@@ -15,6 +15,7 @@ npx playwright install chromium
 ```bash
 node room.test.js     # 거실 · 걷기 · 길찾기 · 방 돌려 보기 · 크게 보기 · 캐릭터 고르기
 node decor.test.js    # 가구 놓기·옮기기·치우기 · 트리 장식과 전구 · 벽지와 바닥 · 저장
+node pov.test.js      # 1인칭 ↔ 내려다보는 시점: 둘러보기 · 걷기 · 조이스틱 · 1인칭에서 가구 놓기와 트리 꾸미기
 node duo.test.js      # 둘이 같이: 방 만들기·들어가기·서로 보이기·끊김·다시 만나 맞추기 (같은 브라우저 안 통신)
 node duo.test.js --peer   # 위에 더해 로컬 PeerJS 브로커로 실제 WebRTC 데이터 채널까지
 ```

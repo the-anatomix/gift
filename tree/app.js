@@ -57,7 +57,7 @@ scene.add(glow);
 // 저장 이름. ?ns=이름 은 자동 검사에서 한 브라우저 안의 두 사람을 가르는 데만 쓴다.
 const NS = (new URLSearchParams(location.search).get('ns') || '').replace(/[^a-z0-9]/g, '').slice(0, 8);
 const key = (k) => 'nolja-tree-' + k + (NS ? '.' + NS : '');
-const LOOK_KEY = key('look'), ROOM_KEY = key('room'), CUR_KEY = key('cur');
+const LOOK_KEY = key('look'), ROOM_KEY = key('room'), CUR_KEY = key('cur'), POV_KEY = key('pov');
 // 같이 꾸미는 방: 주소의 #r=방이름. cur = 이 기기가 지금 들어가 있는 방 { id, mine(내가 만든 방인지) }.
 // 방마다 따로 저장한다(혼자 꾸민 내 방은 ROOM_KEY, 같이 꾸미는 방은 ROOM_KEY-방이름).
 let cur = store.get(CUR_KEY);
@@ -217,6 +217,7 @@ function measure(snap = true) {
   if (snap) view.snap = true;
   updateView(0);
   edges();
+  $('stick').style.bottom = (view.bottom + 6) + 'px';
 }
 
 function zoomGoal() {
@@ -232,6 +233,7 @@ function zoomGoal() {
 }
 function setZoomMul(m) { view.zMul = clamp(m, 1 / view.zDef, Z_MAX / view.zDef); }
 function zoomBy(f) {
+  if (usingEye()) { if (!pose) fpFov = clamp(fpFov / f, 40, 85); return; }
   if (mode === 'tree') { view.tMul = clamp(view.tMul * f, 0.6, 2.4); return; }
   setZoomMul(view.zMul * f);
   if (f < 1 && zoomGoal() <= 1.001) toast('방 전체 보기');
@@ -264,6 +266,9 @@ function updateView(dt) {
 
 // 카메라 쪽 벽 두 면은 숨긴다
 function showWalls() {
+  dirty = true;
+  room.ceil.visible = usingEye();
+  if (usingEye()) { for (const k in room.walls) room.walls[k].upper.visible = true; return; } // 1인칭에서는 네 면과 천장이 다 보인다
   const dx = Math.sin(yaw), dz = Math.cos(yaw);
   room.walls.w.upper.visible = dx > 0.02;
   room.walls.e.upper.visible = dx < -0.02;
@@ -273,11 +278,59 @@ function showWalls() {
 }
 
 function turnView(dir = 1) {
+  if (usingEye()) { if (!pose) fy += dir * Math.PI / 4; return; } // 1인칭에서는 고개를 돌린다
   yawK = (yawK + dir + 4) % 4;
   toast(['앞에서', '오른쪽에서', '뒤에서', '왼쪽에서'][yawK] + ' 보는 중');
   if (mode === 'tree') standByTree();
 }
 const faceCamera = () => me.turnTo(Math.sin(yawOf(yawK)), Math.cos(yawOf(yawK)));
+
+/* ───────── 1인칭으로 보기 ───────── */
+// fp = 1인칭을 골랐는지. 캐릭터를 고를 때는 내 모습이 보여야 하므로 잠깐 내려다보는 시점으로 돌아간다.
+// pose = 놀이(다트·TV …) 중에 고정된 카메라 자리 { pos: [x, y, z], at: [x, y, z], fov }
+const eye = new THREE.PerspectiveCamera(70, 1, 0.05, 80);
+const EYE_H = 1.18;              // 눈높이
+let fp = store.get(POV_KEY) === 'fp';
+let fy = Math.PI, fpitch = -0.08, fpFov = 70; // 보는 방향: 바닥에서 (-sin fy, -cos fy) 쪽, fpitch 만큼 위로
+let pose = null;
+const joy = { x: 0, y: 0 };      // 조이스틱 (-1 ~ 1)
+function usingEye() { return !!pose || (fp && mode !== 'look'); }
+const cam = () => (usingEye() ? eye : camera);
+function updateEye() {
+  const w = window.innerWidth, h = window.innerHeight;
+  if (pose) { eye.position.set(pose.pos[0], pose.pos[1], pose.pos[2]); eye.fov = pose.fov || 60; eye.lookAt(pose.at[0], pose.at[1], pose.at[2]); }
+  else {
+    const c = Math.cos(fpitch);
+    eye.position.set(me.x, EYE_H, me.z);
+    eye.fov = Math.min(95, fpFov * (w < h ? 1.25 : 1)); // 세로 화면은 좌우가 좁으니 조금 더 넓게 본다
+    eye.lookAt(me.x - Math.sin(fy) * c, EYE_H + Math.sin(fpitch), me.z - Math.cos(fy) * c);
+  }
+  // 보는 가운데가 위 막대와 아래 판 사이의 한가운데에 오게 한다
+  const d = (view.bottom - view.top) / 2;
+  if (d >= 0) eye.setViewOffset(w, h + 2 * d, 0, 2 * d, w, h); else eye.setViewOffset(w, h - 2 * d, 0, 0, w, h);
+  eye.updateMatrixWorld();
+}
+// 벽, 내 아바타, 단추를 지금 시점에 맞춘다
+function applyPov() {
+  const e = usingEye();
+  me.root.visible = !e;
+  showWalls();
+  $('pov').setAttribute('aria-pressed', String(fp));
+  $('pov').setAttribute('aria-label', fp ? '내려다보기' : '1인칭으로 보기');
+  $('turn').hidden = e;
+  $('stick').hidden = !(e && !pose && mode !== 'tree');
+  if ($('stick').hidden) { joy.x = joy.y = 0; }
+  if (e) updateEye();
+}
+function setPov(on) {
+  fp = !!on;
+  store.set(POV_KEY, fp ? 'fp' : 'iso');
+  if (fp) { fy = Math.atan2(me.x, me.z); fpitch = -0.06; } // 처음에는 방 한가운데(트리) 쪽을 본다
+  applyPov();
+  if (fp && mode === 'tree') lookAtTree();
+  toast(fp ? '1인칭으로 보는 중. 화면을 끌어서 둘러봐요' : '내려다보는 중');
+}
+function lookAtTree() { fy = Math.atan2(me.x, me.z); fpitch = 0.06; }
 
 /* ───────── 걷기 ───────── */
 function goTo(x, z) {
@@ -293,7 +346,7 @@ function goTo(x, z) {
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3();
 function aimRay(px, py) {
   ndc.set((px / window.innerWidth) * 2 - 1, -(py / window.innerHeight) * 2 + 1);
-  ray.setFromCamera(ndc, camera);
+  ray.setFromCamera(ndc, cam());
 }
 // 화면의 한 점이 가리키는 바닥 자리. inside = true 면 방 안일 때만.
 function floorAt(px, py, inside = true) {
@@ -303,7 +356,7 @@ function floorAt(px, py, inside = true) {
   return { x: hit.x, z: hit.z };
 }
 function screenOf(x, z, y = 0) {
-  const v = new THREE.Vector3(x, y, z).project(camera);
+  const v = new THREE.Vector3(x, y, z).project(cam());
   return { x: (v.x + 1) / 2 * window.innerWidth, y: (1 - v.y) / 2 * window.innerHeight };
 }
 // 누른 것이 딸린 묶음(가구·장식)의 이름표를 찾는다
@@ -414,8 +467,9 @@ let tool = ORNAMENTS[0].id; // 고른 장식. 'cut' 이면 떼기
 // 트리 옆(화면에서 오른쪽 앞)에 가서 선다. 트리를 가리지 않는 자리. 손님으로 들어온 사람은 왼쪽 앞에 선다(둘이 겹치지 않게).
 function standByTree() {
   const a = yawOf(yawK) + (duo.role === 'guest' ? -1.0 : 1.0);
-  if (goTo(Math.sin(a) * 1.95, Math.cos(a) * 1.95)) me.onArrive = () => me.turnTo(-me.x, -me.z);
-  else me.turnTo(-me.x, -me.z);
+  const face = () => { me.turnTo(-me.x, -me.z); if (fp) lookAtTree(); };
+  const d = fp ? 3.2 : 1.95; // 1인칭에서는 트리가 한눈에 들어오게 좀 더 떨어져 선다
+  if (goTo(Math.sin(a) * d, Math.cos(a) * d)) me.onArrive = face; else face();
 }
 const r3 = (v) => Math.round(v * 1000) / 1000;
 function treeTap(px, py) {
@@ -554,15 +608,18 @@ const spread = () => { const [a, b] = [...touches.values()]; return Math.hypot(a
 function ghostAt(px, py) { const p = floorAt(px, py, false); if (p) ghostMoveTo(p.x, p.z); }
 canvas.addEventListener('pointerdown', (e) => {
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (touches.size === 1) { tap = { x: e.clientX, y: e.clientY, id: e.pointerId }; if (ghost) ghostAt(e.clientX, e.clientY); }
+  if (touches.size === 1) { tap = { x: e.clientX, y: e.clientY, id: e.pointerId }; if (ghost && !usingEye()) ghostAt(e.clientX, e.clientY); }
   else { tap = null; pinch = touches.size === 2 ? spread() : 0; }
 });
 canvas.addEventListener('pointermove', (e) => {
   const t = touches.get(e.pointerId);
   if (!t) return;
+  const mx = e.clientX - t.x, my = e.clientY - t.y;
   t.x = e.clientX; t.y = e.clientY;
   if (touches.size === 2 && pinch > 0) { const d = spread(); if (d > 0) { zoomBy(d / pinch); pinch = d; } }
-  else if (touches.size === 1 && ghost && tap && tap.id === e.pointerId) ghostAt(e.clientX, e.clientY);
+  else if (touches.size !== 1) return;
+  else if (usingEye()) { if (!pose) { fy += mx * 0.005; fpitch = clamp(fpitch + my * 0.004, -1.0, 0.9); } } // 1인칭: 끌어서 둘러본다
+  else if (ghost && tap && tap.id === e.pointerId) ghostAt(e.clientX, e.clientY);
 });
 function lift(e, ok) {
   touches.delete(e.pointerId);
@@ -570,7 +627,9 @@ function lift(e, ok) {
   const t = tap;
   if (!t || t.id !== e.pointerId) return;
   tap = null;
-  if (ghost || !ok || Math.hypot(e.clientX - t.x, e.clientY - t.y) > 10) return;
+  const still = ok && Math.hypot(e.clientX - t.x, e.clientY - t.y) <= 10;
+  if (ghost) { if (still && usingEye()) ghostAt(e.clientX, e.clientY); return; } // 1인칭에서는 누른 자리로 가구가 온다
+  if (!still) return;
   if (mode === 'tree') { treeTap(e.clientX, e.clientY); return; }
   if (mode === 'furn') { const id = pickItem(e.clientX, e.clientY); if (id) { ghostPick(id); return; } }
   const p = floorAt(e.clientX, e.clientY);
@@ -598,14 +657,17 @@ addEventListener('blur', () => keys.clear());
 
 function keyWalk(dt) {
   if (mode === 'tree') return false; // 트리를 꾸미는 동안은 트리 옆에 서 있는다
-  const f = (keys.has('u') ? 1 : 0) - (keys.has('d') ? 1 : 0), r = (keys.has('r') ? 1 : 0) - (keys.has('l') ? 1 : 0);
-  if (!f && !r) return false;
+  if (pose) return false;           // 놀이 중에는 걷지 않는다
+  const f = (keys.has('u') ? 1 : 0) - (keys.has('d') ? 1 : 0) - joy.y, r = (keys.has('r') ? 1 : 0) - (keys.has('l') ? 1 : 0) + joy.x;
+  const push = Math.min(1, Math.hypot(f, r)); // 조이스틱을 살짝 밀면 천천히 걷는다
+  if (push < 0.15) return false;
   me.stop(); me.onArrive = null; pinT = Math.min(pinT, 0.2);
-  // 화면 위쪽 = 카메라가 보는 쪽, 화면 오른쪽 = 그 오른쪽
-  let dx = -Math.sin(yaw) * f + Math.cos(yaw) * r, dz = -Math.cos(yaw) * f - Math.sin(yaw) * r;
+  // 화면 위쪽 = 카메라가 보는 쪽, 화면 오른쪽 = 그 오른쪽 (1인칭에서는 내가 보는 쪽)
+  const ya = usingEye() ? fy : yaw;
+  let dx = -Math.sin(ya) * f + Math.cos(ya) * r, dz = -Math.cos(ya) * f - Math.sin(ya) * r;
   const len = Math.hypot(dx, dz); dx /= len; dz /= len;
   me.turnTo(dx, dz);
-  const step = SPEED * dt, lim = HALF - BODY_R;
+  const step = SPEED * push * dt, lim = HALF - BODY_R;
   const nx = clamp(me.x + dx * step, -lim, lim), nz = clamp(me.z + dz * step, -lim, lim);
   const ox = me.x, oz = me.z;
   if (grid.fits(nx, nz, BODY_R)) me.place(nx, nz);
@@ -624,6 +686,23 @@ function toast(msg) {
   clearTimeout(toastK); toastK = setTimeout(() => t.classList.remove('on'), 1800);
 }
 $('turn').addEventListener('click', () => turnView(1));
+$('pov').addEventListener('click', () => setPov(!fp));
+// 조이스틱: 1인칭에서 걷는 데 쓴다
+{
+  const st = $('stick'), knob = st.firstElementChild;
+  let id = null;
+  const move = (e) => {
+    const r = st.getBoundingClientRect(), R = r.width / 2;
+    let x = (e.clientX - r.left - R) / (R * 0.7), y = (e.clientY - r.top - R) / (R * 0.7);
+    const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
+    joy.x = x; joy.y = y;
+    knob.style.transform = `translate(${x * R * 0.55}px, ${y * R * 0.55}px)`;
+  };
+  const end = (e) => { if (e.pointerId !== id) return; id = null; joy.x = joy.y = 0; knob.style.transform = ''; };
+  st.addEventListener('pointerdown', (e) => { id = e.pointerId; try { st.setPointerCapture(id); } catch (_) { /* 무시 */ } move(e); e.preventDefault(); });
+  st.addEventListener('pointermove', (e) => { if (e.pointerId === id) move(e); });
+  st.addEventListener('pointerup', end); st.addEventListener('pointercancel', end);
+}
 $('zin').addEventListener('click', () => zoomBy(1.35));
 $('zout').addEventListener('click', () => zoomBy(1 / 1.35));
 
@@ -642,6 +721,7 @@ function setMode(m) {
   paintPanels();
   dirty = true;
   measure(false);
+  applyPov();
 }
 for (const b of document.querySelectorAll('#tabs button')) b.addEventListener('click', () => setMode(b.dataset.m));
 let hinted = !!savedLook; // 처음 온 사람에게만 걷는 법을 한 번 알려 준다
@@ -749,6 +829,7 @@ function frame(now) {
     duo.pos(r3(me.x), r3(me.z));
   }
   updateView(dt);
+  if (usingEye()) updateEye();
 
   if (pinT > 0) { pinT = Math.max(0, pinT - dt * (me.path.length ? 0.6 : 3)); pin.material.opacity = Math.min(1, pinT * 1.4) * 0.9; pin.scale.setScalar(1 + (1 - pinT) * 0.5); }
   if (ghost) ghost.g.position.y = 0.1 + Math.sin(clock * 5) * 0.025; // 들고 있는 가구는 살짝 떠서 흔들린다
@@ -761,7 +842,7 @@ function frame(now) {
   bulbs.tick(clock);
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
-  renderer.render(scene, camera);
+  renderer.render(scene, cam());
   frames++;
 }
 
@@ -773,6 +854,7 @@ faceCamera(); me.root.rotation.y = me.face; // 처음에는 화면 쪽을 본다
 showWalls();
 paintPanels();
 if (savedLook) measure(); else setMode('look'); // 처음 온 사람은 캐릭터부터 고른다
+applyPov();
 addEventListener('hashchange', () => location.reload()); // 다른 방 링크를 열면 새로 시작한다
 if (cur) duo.start(cur.id); else paintDuo();
 view.snap = true; updateView(0);
@@ -793,6 +875,8 @@ window.__tree = {
   openLook(on) { if ((mode === 'look') !== on) setMode('look'); },
   // 트리 겉면의 한 점(높이 y, 둘레 각 a)이 화면에서 어디인지
   treePoint(y, a) { const r = surfaceR(y) * 0.93; return screenOf(Math.sin(a) * r, Math.cos(a) * r, y); },
+  setPov, lookTo(dx, dz) { fy = Math.atan2(-dx, -dz); }, get pov() { return fp ? 'fp' : 'iso'; }, get eyeOn() { return usingEye(); }, get meShown() { return me.root.visible; },
+  get look3() { return { fy, fpitch, x: eye.position.x, y: eye.position.y, z: eye.position.z }; },
   get yaw() { return yaw; }, get mode() { return mode; }, get tool() { return tool; }, set tool(v) { tool = v; paintPanels(); },
   get ghost() { return ghost ? { k: ghost.k, i: ghost.i, j: ghost.j, r: ghost.r, id: ghost.id, ok: ghost.ok } : null; },
   get look() { return look; }, get lookOpen() { return mode === 'look'; }, get bulbsOn() { return bulbs.on; },
