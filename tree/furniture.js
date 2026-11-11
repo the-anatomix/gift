@@ -141,6 +141,55 @@ const B = {
     put(cyl(0.012, 0.012, 0.1, 6), GOLD, 0.16, 0.62, 0, g, false).rotation.z = Math.PI / 2;
     put(ball(0.022, 8, 6), DARK, 0.21, 0.62, 0, g, false);
   },
+  cake(g) { // 3 × 2, 케이크 작업대. 케이크 자체는 cake.js 가 올린다
+    put(rbox(1.4, 0.8, 0.9, 0.04), 0xE9DCC3, 0, 0.42, 0, g);
+    put(rbox(1.48, 0.07, 0.98, 0.03), WOOD, 0, 0.86, 0, g);
+    for (const s of [-1, 1]) { put(new THREE.BoxGeometry(0.6, 0.6, 0.02), 0xF6EEDD, 0.34 * s, 0.42, 0.455, g, false); put(ball(0.02, 8, 6), GOLD, 0.1 * s, 0.5, 0.47, g, false); }
+    put(rbox(0.3, 0.02, 0.2, 0.008), RED, -0.52, 0.905, 0.28, g, false);      // 행주
+    put(cyl(0.05, 0.04, 0.1, 10), 0xFFFAF2, 0.55, 0.945, -0.28, g);            // 컵
+    put(cyl(0.012, 0.012, 0.2, 6), WOOD_D, 0.56, 1.02, -0.27, g, false).rotation.z = 0.3; // 거품기 자루
+  },
+  counter(g) { // 2 × 1, 조리대 (뒤쪽 벽에 붙인다)
+    put(rbox(0.98, 0.82, 0.46, 0.03), 0xE9DCC3, 0, 0.43, 0, g);
+    put(rbox(1.0, 0.06, 0.5, 0.02), WOOD, 0, 0.87, 0, g);
+    for (const s of [-1, 1]) { put(new THREE.BoxGeometry(0.44, 0.62, 0.02), 0xF6EEDD, 0.24 * s, 0.43, 0.235, g, false); put(ball(0.018, 8, 6), GOLD, 0.06 * s, 0.5, 0.25, g, false); }
+    put(cyl(0.09, 0.07, 0.12, 12), 0xFFFAF2, -0.28, 0.96, 0, g);              // 그릇
+    put(ball(0.05, 8, 6), RED, 0.2, 0.94, 0.05, g, false); put(ball(0.05, 8, 6), 0xE7A13A, 0.3, 0.94, -0.03, g, false); // 과일
+  },
+  stove(g) { // 2 × 1, 오븐과 가스레인지
+    put(rbox(0.98, 0.84, 0.46, 0.03), 0xD9D0C3, 0, 0.44, 0, g);
+    put(new THREE.BoxGeometry(0.7, 0.4, 0.02), 0x2B2420, 0, 0.36, 0.235, g, false);
+    put(new THREE.BoxGeometry(0.5, 0.22, 0.01), lit(0xF7B25A), 0, 0.36, 0.247, g, false); // 오븐 안 불빛
+    put(cyl(0.012, 0.012, 0.6, 6), 0x8C8478, 0, 0.6, 0.26, g, false).rotation.z = Math.PI / 2;
+    for (const x of [-0.24, 0.24]) { put(cyl(0.11, 0.11, 0.02, 14), 0x2B2420, x, 0.875, 0, g, false); put(ball(0.025, 8, 6), RED, x, 0.74, 0.24, g, false); }
+    put(cyl(0.13, 0.11, 0.1, 14), 0xC8443A, -0.24, 0.94, 0, g);                // 냄비
+  },
+  fridge(g) { // 2 × 1, 키 큰 냉장고
+    put(rbox(0.92, 1.75, 0.46, 0.04), 0xEEF2F4, 0, 0.9, 0, g);
+    put(new THREE.BoxGeometry(0.9, 0.012, 0.01), 0xB9C2C8, 0, 1.15, 0.232, g, false);
+    for (const y of [0.75, 1.4]) put(cyl(0.014, 0.014, 0.26, 6), 0x8C8478, 0.36, y, 0.25, g, false);
+    put(rbox(0.16, 0.12, 0.012, 0.004), RED, -0.2, 1.45, 0.236, g, false);     // 냉장고 자석 쪽지
+  },
+  bed(g) { // 3 × 4, 머리맡이 뒤쪽(-z)
+    put(rbox(1.42, 0.3, 1.94, 0.05), WOOD_D, 0, 0.17, 0, g);
+    put(rbox(1.36, 0.2, 1.86, 0.08), 0xFFFAF2, 0, 0.4, 0.02, g);
+    put(rbox(1.42, 0.9, 0.1, 0.04), WOOD, 0, 0.5, -0.94, g);                   // 머리판
+    put(rbox(1.38, 0.14, 1.2, 0.06), RED, 0, 0.5, 0.34, g);                    // 이불
+    put(rbox(1.38, 0.15, 0.22, 0.06), 0xFFFAF2, 0, 0.5, -0.3, g, false);       // 이불 접은 단
+    for (const s of [-1, 1]) put(rbox(0.5, 0.14, 0.34, 0.07), 0xFFFAF2, 0.35 * s, 0.55, -0.66, g); // 베개
+    feet(g, 0.62, 0.86, 0.03);
+  },
+  closet(g) { // 3 × 1, 옷장
+    put(rbox(1.42, 1.8, 0.46, 0.04), WOOD, 0, 0.92, 0, g);
+    for (const s of [-1, 1]) { put(new THREE.BoxGeometry(0.66, 1.6, 0.02), 0xD8B085, 0.35 * s, 0.94, 0.235, g, false); put(cyl(0.014, 0.014, 0.22, 6), GOLD, 0.06 * s, 0.95, 0.255, g, false); }
+    put(rbox(1.48, 0.06, 0.5, 0.02), WOOD_D, 0, 1.85, 0, g);
+  },
+  stand(g) { // 1 × 1, 협탁과 작은 등
+    put(rbox(0.42, 0.44, 0.4, 0.03), WOOD, 0, 0.24, 0, g);
+    put(new THREE.BoxGeometry(0.34, 0.14, 0.02), WOOD_D, 0, 0.3, 0.205, g, false); put(ball(0.018, 8, 6), GOLD, 0, 0.3, 0.22, g, false);
+    put(cyl(0.05, 0.07, 0.03, 10), DARK, 0, 0.475, 0, g); put(cyl(0.012, 0.012, 0.16, 6), 0xC9A24B, 0, 0.56, 0, g);
+    put(cyl(0.07, 0.11, 0.14, 12), lit(0xFFE2A8), 0, 0.7, 0, g, false);
+  },
   rug(g) { // 3 × 2, 밟고 지나갈 수 있다
     put(rbox(1.45, 0.016, 0.95, 0.007), 0x4F6FB8, 0, 0.028, 0, g, false);
     put(new THREE.BoxGeometry(1.22, 0.018, 0.72), CREAM, 0, 0.029, 0, g, false);

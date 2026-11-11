@@ -7,8 +7,14 @@
 //   { t: 'ornDel', id }            트리 장식 떼기
 //   { t: 'lights', set, blink }    전구 색 묶음과 깜빡임
 //   { t: 'wall', v } / { t: 'floor', v }
+// 케이크(케이크 작업대 가구 id 마다 하나):
+//   { t: 'cakeCream', id, v }        크림 색 (CREAMS 의 번호)
+//   { t: 'cakeTop', id, k, x, z }    장식 올리기 (케이크 가운데가 0, 0)
+//   { t: 'cakeClear', id }           장식 다 치우기
+//   { t: 'cakeLit', id, n }          초 n 개에 불 켜기 (0 이면 다 끄기)
+//   { t: 'cakeBlow', id }            촛불 하나 불어서 끄기 (구경하는 사람도 할 수 있다)
 import { NX, NZ } from './path.js';
-import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS } from './catalog.js';
+import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, CREAMS, TOPPINGS, CAKE } from './catalog.js';
 
 const F = Object.fromEntries(FURNITURE.map((f) => [f.id, f]));
 const has = (list, id) => typeof id === 'string' && list.some((x) => x.id === id);
@@ -24,10 +30,22 @@ export function cellsOf(it) {
   return out;
 }
 
+// 케이크 하나의 상태. cream = 크림 색 번호, tops = [[장식, x, z], …], lit = 불이 켜진 초의 개수
+export const newCake = () => ({ cream: 0, tops: [], lit: 0 });
+export const candles = (c) => c.tops.filter((t) => t[0] === 'candle').length;
+// 그 가구(케이크 작업대)의 케이크. 아직 손대지 않았으면 make 일 때 새로 만든다.
+function cakeOf(S, id, make) {
+  const it = S.items.get(id);
+  if (!it || it.k !== 'cake') return null;
+  let c = S.cakes.get(id);
+  if (!c && make) { c = newCake(); S.cakes.set(id, c); }
+  return c || null;
+}
+
 export function makeState() {
   // at = 마지막으로 꾸민 때(ms, 한 번도 안 꾸몄으면 0).
   // sync = 친구의 방과 똑같다고 마지막으로 확인했을 때의 at (한 번도 맞춘 적 없으면 0). at > sync 면 헤어진 뒤 혼자 꾸민 것이다.
-  return { items: new Map(), orns: new Map(), lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id, at: 0, sync: 0 };
+  return { items: new Map(), orns: new Map(), cakes: new Map(), lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id, at: 0, sync: 0 };
 }
 
 // 그 자리에 놓을 수 있는지. fixed(i, j) = 트리처럼 처음부터 막힌 칸. ignoreId = 옮기는 중인 자기 자신.
@@ -68,7 +86,7 @@ export function apply(S, op, fixed) {
       S.items.set(it.id, it);
       return true;
     }
-    case 'del': return S.items.delete(op.id);
+    case 'del': S.cakes.delete(op.id); return S.items.delete(op.id);
     case 'orn': {
       if (!okId(op.id) || S.orns.has(op.id) || S.orns.size >= MAX_ORNS || !has(ORNAMENTS, op.k)) return false;
       if (!okNum(op.x, -1.4, 1.4) || !okNum(op.z, -1.4, 1.4) || !okNum(op.y, 0.3, 3)) return false;
@@ -81,6 +99,28 @@ export function apply(S, op, fixed) {
       S.lights = { set: op.set, blink: op.blink };
       return true;
     }
+    case 'cakeCream': {
+      if (!isInt(op.v) || op.v < 0 || op.v >= CREAMS.length) return false;
+      const c = cakeOf(S, op.id, true);
+      if (!c) return false;
+      c.cream = op.v;
+      return true;
+    }
+    case 'cakeTop': {
+      if (!has(TOPPINGS, op.k) || !okNum(op.x, -CAKE.r, CAKE.r) || !okNum(op.z, -CAKE.r, CAKE.r) || Math.hypot(op.x, op.z) > CAKE.r) return false;
+      const c = cakeOf(S, op.id, true);
+      if (!c || c.tops.length >= CAKE.max) return false;
+      c.tops.push([op.k, op.x, op.z]);
+      return true;
+    }
+    case 'cakeClear': { const c = cakeOf(S, op.id, false); if (!c || (!c.tops.length && !c.lit)) return false; c.tops = []; c.lit = 0; return true; }
+    case 'cakeLit': {
+      const c = cakeOf(S, op.id, false);
+      if (!c || !isInt(op.n) || op.n < 0 || op.n > candles(c) || op.n === c.lit) return false;
+      c.lit = op.n;
+      return true;
+    }
+    case 'cakeBlow': { const c = cakeOf(S, op.id, false); if (!c || c.lit <= 0) return false; c.lit--; return true; }
     case 'wall': if (!has(WALLS, op.v)) return false; S.wall = op.v; return true;
     case 'floor': if (!has(FLOORS, op.v)) return false; S.floor = op.v; return true;
     default: return false;
@@ -93,6 +133,7 @@ export function serialize(S) {
     v: 2, at: S.at, sync: S.sync, // v 1 = 거실만 있던 때의 방, v 2 = 주방과 방이 붙은 집 (칸 번호는 같다)
     items: [...S.items.values()].map((o) => [o.id, o.k, o.i, o.j, o.r]),
     orns: [...S.orns.values()].map((o) => [o.id, o.k, o.x, o.y, o.z]),
+    cakes: [...S.cakes].map(([id, c]) => [id, c.cream, c.lit, c.tops.map((t) => [t[0], t[1], t[2]])]),
     lights: [S.lights.set, S.lights.blink], wall: S.wall, floor: S.floor,
   };
 }
@@ -124,6 +165,11 @@ export function ops(data) {
   const rows = (a) => (Array.isArray(a) ? a.filter(Array.isArray) : []);
   for (const [id, k, i, j, r] of rows(data.items)) out.push({ t: 'put', id, k, i, j, r });
   for (const [id, k, x, y, z] of rows(data.orns)) out.push({ t: 'orn', id, k, x, y, z });
+  for (const [id, cream, lit, tops] of rows(data.cakes)) {
+    out.push({ t: 'cakeCream', id, v: cream });
+    for (const [k, x, z] of rows(tops)) out.push({ t: 'cakeTop', id, k, x, z });
+    if (lit) out.push({ t: 'cakeLit', id, n: lit });
+  }
   if (Array.isArray(data.lights)) out.push({ t: 'lights', set: data.lights[0], blink: data.lights[1] });
   out.push({ t: 'wall', v: data.wall }, { t: 'floor', v: data.floor });
   return out;

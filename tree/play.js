@@ -1,8 +1,9 @@
 // 방 안에서 노는 것들. 가구를 누르면 그 가구에 맞는 놀이가 열린다.
-//   다트판 → 1인칭 다트, TV → 1인칭으로 보기(내가 넣은 동영상), 벽난로 → 마시멜로 굽기, 오르골 → 캐럴
+//   다트판 → 1인칭 다트, TV → 1인칭으로 보기(내가 넣은 동영상), 벽난로 → 마시멜로 굽기, 오르골 → 캐럴,
+//   케이크 작업대 → 케이크 만들기(여럿이 같이, 다 만들면 촛불 불기)
 // app.js 가 넘겨주는 창구 K 로 카메라 자리(pose)와 아래 판을 다룬다.
 import { THREE, M, put, cyl } from './kit.js';
-import { DART, TV, SONGS } from './catalog.js';
+import { DART, TV, SONGS, CREAMS, TOPPINGS } from './catalog.js';
 import { TV_MAT } from './furniture.js';
 
 const $ = (id) => document.getElementById(id);
@@ -298,7 +299,39 @@ export function makePlay(K) {
     tick() {}, tap() {}, stop() {},
   };
 
-  const KINDS = { dart, tv, fire, music };
+  /* ───────── 케이크 만들기 ───────── */
+  // 케이크는 방의 것이라(방 상태에 들어 있다) 옆에 온 사람 누구나 같이 꾸밀 수 있고, 모두에게 바로 보인다.
+  let topping = TOPPINGS[0].id;
+  const cake = {
+    start(c) {
+      K.setPose({ pos: world(c.g, 0, portrait() ? 2.5 : 2.0, portrait() ? 1.2 : 1.0), at: world(c.g, 0, 1.1, 0), fov: portrait() ? 64 : 40, inside: true }); // 세로 화면은 좌우가 좁아서 더 멀리, 더 넓게 본다
+      cake.paint(c);
+    },
+    paint(c) {
+      const k = K.cake(c.id), n = k.tops.filter((t) => t[0] === 'candle').length, edit = K.canEdit();
+      if (k.lit > 0) {
+        panel(`촛불 ${k.lit}개가 켜져 있어요 🕯️`, '다 같이 후~ 불어서 꺼 보세요.', [{ label: '후~ 불기', main: true, id: 'playGo', fn: () => K.op({ t: 'cakeBlow', id: c.id }) }, quit]);
+        return;
+      }
+      if (!edit) { panel('케이크', '구경하는 중에는 꾸밀 수 없어요. 촛불이 켜지면 같이 불 수 있어요.', [quit]); return; }
+      panel('케이크 만들기', '크림을 고르고, 장식을 골라 케이크 위를 눌러 올려요. 옆에 온 친구도 같이 만들 수 있어요.', [
+        ...CREAMS.map((x, i) => ({ label: x.name, chip: true, id: 'cream-' + x.id, on: k.cream === i, fn: () => K.op({ t: 'cakeCream', id: c.id, v: i }) })),
+        ...TOPPINGS.map((x) => ({ label: x.icon + ' ' + x.name, chip: true, id: 'top-' + x.id, on: topping === x.id, fn: () => { topping = x.id; cake.paint(c); } })),
+        ...(n ? [{ label: '🕯️ 촛불 켜기', main: true, id: 'playGo', fn: () => K.op({ t: 'cakeLit', id: c.id, n }) }] : []),
+        ...(k.tops.length ? [{ label: '다 치우기', id: 'playClear', fn: () => K.op({ t: 'cakeClear', id: c.id }) }] : []),
+        quit]);
+    },
+    tick() {},
+    tap(c, px, py) {
+      const k = K.cake(c.id);
+      if (k.lit > 0 || !K.canEdit()) return;
+      const p = K.pickCake(c.id, px, py);
+      if (p && !K.op({ t: 'cakeTop', id: c.id, k: topping, x: p.x, z: p.z })) K.toast('장식을 더 올릴 수 없어요');
+    },
+    stop() {},
+  };
+
+  const KINDS = { dart, tv, fire, music, cake };
   // 화면을 처음 누를 때: 막혀 있던 동영상·소리를 다시 튼다 (브라우저는 누르기 전에는 소리를 못 내게 한다)
   addEventListener('pointerdown', () => {
     if (wantPlay && video) { wantPlay = false; tryPlay(); }
@@ -328,7 +361,9 @@ export function makePlay(K) {
       tickSong();
       if (K.hasKind('tv')) { tvT += dt; if (tvT > 0.06) { drawScreen(tvT); tvT = 0; } }
     },
-    tap() { if (cur) KINDS[cur.kind].tap(cur); },
+    tap(px, py) { if (cur) KINDS[cur.kind].tap(cur, px, py); },
+    // 방 상태가 바뀌었을 때(누가 케이크를 꾸몄을 때) 판을 다시 그린다
+    refresh(id) { if (cur && cur.id === id && KINDS[cur.kind].paint) KINDS[cur.kind].paint(cur); },
     // 친구가 한 것
     peerFx(m) {
       if (!m || typeof m.k !== 'string') return;
@@ -343,6 +378,7 @@ export function makePlay(K) {
     // 자동 검사가 쓰는 창구
     test: {
       get state() { return cur ? { kind: cur.kind, phase: cur.phase, left: cur.left, score: cur.score, heat: cur.heat, pts: cur.pts, say: cur.say, last: cur.last, darts: cur.darts ? cur.darts.length : 0 } : null; },
+      get topping() { return topping; }, set topping(v) { topping = v; if (cur && cur.kind === 'cake') cake.paint(cur); },
       get song() { return song ? song.id : null; }, get audio() { return ac ? ac.state : null; },
       get video() { return video ? { ready: video.readyState, w: video.videoWidth, muted: video.muted, paused: video.paused } : null; },
       throwAt(x, y) { if (cur && cur.kind === 'dart') dart.shoot(cur, [x, y]); },

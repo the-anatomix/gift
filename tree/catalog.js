@@ -16,10 +16,35 @@ export const FURNITURE = [
   { id: 'dart', name: '다트판', icon: '🎯', w: 1, d: 1, solid: true, play: 'dart' },
   { id: 'tv', name: 'TV', icon: '📺', w: 3, d: 1, solid: true, play: 'tv' },
   { id: 'music', name: '오르골', icon: '🎶', w: 1, d: 1, solid: true, play: 'music' },
+  // 주방
+  { id: 'cake', name: '케이크 작업대', icon: '🎂', w: 3, d: 2, solid: true, play: 'cake' },
+  { id: 'counter', name: '조리대', icon: '🔪', w: 2, d: 1, solid: true },
+  { id: 'stove', name: '오븐', icon: '🍳', w: 2, d: 1, solid: true },
+  { id: 'fridge', name: '냉장고', icon: '🧊', w: 2, d: 1, solid: true },
+  // 방
+  { id: 'bed', name: '침대', icon: '🛏️', w: 3, d: 4, solid: true },
+  { id: 'closet', name: '옷장', icon: '🚪', w: 3, d: 1, solid: true },
+  { id: 'stand', name: '협탁', icon: '🕯️', w: 1, d: 1, solid: true },
 ];
 
 // 새로 시작하는 방에 처음부터 놓여 있는 가구 [종류, i, j, 돌린 횟수]. 놀 수 있는 가구들이고, 다른 가구처럼 옮기거나 치울 수 있다.
 export const STARTER = [['fire', 6, 0, 0], ['tv', 0, 6, 1], ['dart', 11, 0, 0], ['music', 15, 12, 3]];
+// 주방과 방에 처음부터 놓여 있는 가구. 거실만 있던 때(저장 형식 v 1)에 꾸민 방을 열 때도 이것만 더해 준다.
+export const STARTER_EAST = [
+  ['counter', 21, 0, 0], ['stove', 23, 0, 0], ['counter', 25, 0, 0], ['fridge', 28, 0, 0], ['cake', 24, 4, 0],
+  ['bed', 26, 12, 3], ['stand', 29, 11, 3], ['closet', 22, 17, 2],
+];
+
+// 케이크: 크림 색, 올릴 수 있는 장식, 치수(케이크 작업대 기준). r = 윗면 반지름, y = 윗면 높이, max = 장식 개수
+export const CREAMS = [
+  { id: 'white', name: '생크림', hex: 0xFFF8EA }, { id: 'pink', name: '딸기크림', hex: 0xF7B6C2 },
+  { id: 'choco', name: '초코크림', hex: 0x7B4A2D }, { id: 'matcha', name: '말차크림', hex: 0xB7CF8A },
+];
+export const TOPPINGS = [
+  { id: 'berry', name: '딸기', icon: '🍓' }, { id: 'cherry', name: '체리', icon: '🍒' }, { id: 'choco', name: '초콜릿', icon: '🍫' },
+  { id: 'star', name: '별', icon: '⭐' }, { id: 'tree', name: '트리', icon: '🎄' }, { id: 'candle', name: '초', icon: '🕯️' },
+];
+export const CAKE = { r: 0.3, y: 1.14, max: 40 };
 
 // 다트판: 가운데 높이 y, 판 겉면 z(가구 기준), 고리마다 [반지름, 점수] (안쪽부터)
 export const DART = { y: 1.3, z: 0.036, rings: [[0.045, 50], [0.11, 30], [0.19, 20], [0.28, 10]] };
@@ -75,5 +100,5 @@ export const FLOORS = [
   { id: 'ash', name: '흰 나무', tones: ['#EADFCB', '#E3D6BF', '#EFE6D4', '#DDD0B8'] },
 ];
 
-export const MAX_ITEMS = 60;   // 가구는 이만큼까지
+export const MAX_ITEMS = 100;  // 가구는 이만큼까지
 export const MAX_ORNS = 150;   // 트리 장식은 이만큼까지

@@ -59,15 +59,15 @@ async function walkAndTrace(p, act) {
 
     /* 가구 */
     await A.tap('#tabs button[data-m="furn"]'); await sleep(300);
-    check('가구 탭을 누르면 가구 14가지가 나옴', (await A.isVisible('#furn')) && (await A.locator('#furnList .pick').count()) === 14 && (await T(A, () => window.__tree.mode)) === 'furn');
+    check('가구 탭을 누르면 가구 21가지가 나옴', (await A.isVisible('#furn')) && (await A.locator('#furnList .pick').count()) === 21 && (await T(A, () => window.__tree.mode)) === 'furn');
     check('가구 판의 단추가 44px 이상', (await audit(A)).length === 0, await audit(A));
     // 목록: 접어 두면 옆으로 넘기고, "전체 보기"를 누르면 한 번에 다 보인다
     const shown = (sel) => A.evaluate((q) => { const box = document.querySelector(q), r = box.getBoundingClientRect();
       return [...box.querySelectorAll('.pick')].filter((b) => { const c = b.getBoundingClientRect(); return c.left >= r.left - 1 && c.right <= Math.min(r.right, innerWidth) + 1 && c.top >= 0 && c.bottom <= innerHeight; }).length; }, sel);
     const n0 = await shown('#furnList');
-    check('접어 둔 목록은 일부만 보이고, 더 있다는 표시가 있음', n0 >= 3 && n0 < 14 && (await A.evaluate(() => document.getElementById('furnList').classList.contains('more-right'))), n0);
+    check('접어 둔 목록은 일부만 보이고, 더 있다는 표시가 있음', n0 >= 3 && n0 < 21 && (await A.evaluate(() => document.getElementById('furnList').classList.contains('more-right'))), n0);
     await A.tap('.more[data-list="furnList"]'); await sleep(250);
-    check('"전체 보기"를 누르면 가구 14가지가 한 번에 다 보임', (await shown('#furnList')) === 14 && (await A.textContent('.more[data-list="furnList"]')) === '접기' && (await audit(A)).length === 0, { n: await shown('#furnList'), bad: await audit(A) });
+    check('"전체 보기"를 누르면 가구 21가지가 한 번에 다 보임', (await shown('#furnList')) === 21 && (await A.textContent('.more[data-list="furnList"]')) === '접기' && (await audit(A)).length === 0, { n: await shown('#furnList'), bad: await audit(A) });
     await A.screenshot({ path: path.join(__dirname, 'out', 'furn-open.png') });
     const vOpen = await T(A, () => { const W = window.__tree, v = W.view, s = W.screenOf(W.me.x, W.me.z, 0); return s.y < innerHeight - v.bottom; });
     check('목록을 펼쳐도 아바타가 판에 가려지지 않음', vOpen);
@@ -155,10 +155,10 @@ async function walkAndTrace(p, act) {
     check('가구 11가지를 모두 놓을 수 있음', (await items(A)).length === 11 && (await T(A, () => window.__tree.itemObjs)) === 11);
     await sleep(400);
     await A.screenshot({ path: path.join(__dirname, 'out', 'furn-room.png') });
-    const cap = await T(A, () => { const W = window.__tree; let k = 0; for (let j = 15; j >= 0 && W.S.items.size < 60; j--) for (let i = 0; i < 16 && W.S.items.size < 60; i++) W.dispatch({ t: 'put', id: 'fillfill' + (k++), k: 'giftR', i, j, r: 0 });
+    const cap = await T(A, () => { const W = window.__tree; let k = 0; for (let j = 15; j >= 0 && W.S.items.size < 100; j--) for (let i = 0; i < 16 && W.S.items.size < 100; i++) W.dispatch({ t: 'put', id: 'fillfill' + (k++), k: 'giftR', i, j, r: 0 });
       const free = []; for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) if (W.grid.free(i, j)) free.push([i, j]);
       return { n: W.S.items.size, free: free.length, more: W.dispatch({ t: 'put', id: 'onemore', k: 'plant', i: free[0][0], j: free[0][1], r: 0 }) }; });
-    check('가구는 60개까지만 놓임', cap.n === 60 && cap.more === false, cap);
+    check('가구는 100개까지만 놓임', cap.n === 100 && cap.more === false, cap);
     await T(A, () => { const W = window.__tree; for (const it of [...W.S.items.values()]) if (it.id.startsWith('fillfill')) W.dispatch({ t: 'del', id: it.id }); });
     check('규칙에 어긋난 변화는 받아들이지 않음', await T(A, () => { const W = window.__tree, n = W.S.items.size;
       const bad = [{ t: 'put', id: 'b1', k: 'nope', i: 0, j: 0, r: 0 }, { t: 'put', id: 'b2', k: 'sofa', i: 14, j: 0, r: 0 }, { t: 'put', id: 'b3', k: 'lamp', i: 1.5, j: 2, r: 0 }, { t: 'put', id: 'b4', k: 'lamp', i: 2, j: 12, r: 7 },
@@ -272,7 +272,7 @@ async function walkAndTrace(p, act) {
     await B.mouse.move(fb.x, fb.y); await B.mouse.wheel(0, 300); await sleep(200);
     check('PC 에서는 목록 위에서 휠을 굴리면 옆으로 넘어감', (await B.evaluate(() => document.getElementById('furnList').scrollLeft)) > 100);
     await B.click('.more[data-list="furnList"]'); await sleep(200);
-    check('PC 에서도 "전체 보기"로 가구 14가지가 다 보임', await B.evaluate(() => { const box = document.getElementById('furnList').getBoundingClientRect(); return [...document.querySelectorAll('#furnList .pick')].every((b) => { const c = b.getBoundingClientRect(); return c.left >= box.left - 1 && c.right <= box.right + 1 && c.bottom <= innerHeight; }); }));
+    check('PC 에서도 "전체 보기"로 가구 21가지가 다 보임', await B.evaluate(() => { const box = document.getElementById('furnList').getBoundingClientRect(); return [...document.querySelectorAll('#furnList .pick')].every((b) => { const c = b.getBoundingClientRect(); return c.left >= box.left - 1 && c.right <= box.right + 1 && c.bottom <= innerHeight; }); }));
     await B.reload(); await ready(B);
     await B.click('#tabs button[data-m="furn"]'); await sleep(200);
     check('펼쳐 둔 것은 다시 열어도 그대로', await B.evaluate(() => document.getElementById('furnList').classList.contains('open')));
@@ -308,7 +308,8 @@ async function walkAndTrace(p, act) {
     await N1.goto(BASE); await ready(N1);
     await N1.tap('#lookDone'); await sleep(300);
     const st0 = await T(N1, () => window.__tree.serialize());
-    check('처음 시작하는 방에는 놀 수 있는 가구 네 가지(벽난로·TV·다트판·오르골)가 놓여 있음', st0.items.length === 4 && ['dart', 'fire', 'music', 'tv'].every((k) => st0.items.some((it) => it[1] === k)) && (await T(N1, () => window.__tree.itemObjs)) === 4, st0.items);
+    check('처음 시작하는 방에는 놀 수 있는 가구(벽난로·TV·다트판·오르골)와 주방·방 가구가 놓여 있음', st0.items.length === 12 && ['dart', 'fire', 'music', 'tv', 'cake', 'counter', 'stove', 'fridge', 'bed', 'closet', 'stand'].every((k) => st0.items.some((it) => it[1] === k)) && (await T(N1, () => window.__tree.itemObjs)) === 12, st0.items);
+    check('기본 가구는 제 방에 놓여 있음 (주방 가구는 주방, 침대는 방)', st0.items.every((it) => (it[0].startsWith('base') ? it[2] < 20 : it[2] > 20)) && st0.items.find((it) => it[1] === 'cake')[3] < 9 && st0.items.find((it) => it[1] === 'bed')[3] > 9);
     check('기본 가구는 꾸민 것으로 치지 않음 (친구 방에 들어갈 때 친구 방을 덮지 않게)', st0.at === 0 && st0.sync === 0);
     check('기본 가구 자리는 걸어 들어갈 수 없고, 내 아바타는 빈칸에 서 있음', await T(N1, () => { const W = window.__tree; return !W.grid.free(6, 0) && !W.grid.free(0, 7) && !W.grid.free(11, 0) && !W.grid.free(15, 12) && W.grid.fits(W.me.x, W.me.z); }));
     await T(N1, () => window.__tree.setZoomMul(0)); await sleep(900);
@@ -322,11 +323,16 @@ async function walkAndTrace(p, act) {
     await T(N1, () => { const W = window.__tree; W.setMode('furn'); W.ghostPick('base2'); W.ghostMoveTo(2.75, 3.25); W.ghostDone(); });
     const moved = (await items(N1)).find((it) => it.id === 'base2');
     check('기본 가구도 옮길 수 있음', moved && moved.i === 13 && moved.j === 14 && (await T(N1, () => window.__tree.grid.free(11, 0))), moved);
-    await T(N1, () => { const W = window.__tree; for (const id of ['base0', 'base1', 'base2', 'base3']) { W.ghostPick(id); W.ghostRemove(); } });
+    await T(N1, () => { const W = window.__tree; for (const id of [...W.S.items.keys()]) { W.ghostPick(id); W.ghostRemove(); } });
     check('기본 가구도 치울 수 있음', (await items(N1)).length === 0);
     await sleep(500);
     await N1.reload(); await ready(N1);
     check('다 치운 뒤 다시 열어도 기본 가구가 다시 생기지 않음', (await items(N1)).length === 0);
+    // 거실만 있던 때에 꾸며 둔 방(v 1)을 열면: 꾸민 것은 그대로, 주방과 방의 기본 가구만 더해진다
+    await T(N1, () => localStorage.setItem('nolja-tree-room', JSON.stringify({ v: 1, at: 1700000000000, sync: 0, items: [['old1', 'sofa', 1, 6, 1], ['old2', 'lamp', 0, 15, 0]], orns: [['o1', 'red', 0.3, 1.2, 0.4]], lights: ['warm', 'on'], wall: 'sage', floor: 'walnut' })));
+    await N1.reload(); await ready(N1);
+    const mg = await T(N1, () => window.__tree.serialize());
+    check('예전에 꾸민 방을 열면 꾸민 것은 그대로이고 주방·방 가구가 더해짐', mg.items.length === 10 && mg.items.some((it) => it[0] === 'old1' && it[2] === 1 && it[3] === 6) && mg.items.some((it) => it[1] === 'cake') && !mg.items.some((it) => it[0].startsWith('base')) && mg.orns.length === 1 && mg.wall === 'sage' && mg.at === 1700000000000, mg.items.map((it) => it[0]));
     await ctx3.close();
 
     check('페이지 오류 없음', errors.length === 0, errors);
