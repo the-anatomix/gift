@@ -1,21 +1,21 @@
 // 거실: 바닥, 벽 네 면, 창, 가운데 트리. 벽은 카메라 쪽 두 면을 숨길 수 있게 따로 묶는다.
 import { THREE, M, put, rbox, cyl, ball } from './kit.js';
-import { N, CELL, HALF, cellOf } from './path.js';
+import { N, CELL, HALF } from './path.js';
+import { WALLS, FLOORS } from './catalog.js';
 
 export const WALL_H = 2.7;
 export const C = {
-  slab: 0xB98F66, wall: 0xF3E6D0, panel: 0xD8BE9A, base: 0x8A5F3F, white: 0xFFF8EA,
+  slab: 0xB98F66, base: 0x8A5F3F, white: 0xFFF8EA,
   rug: 0xC8443A, rugIn: 0xF3E2C3, night: 0x27335E, moon: 0xFFF2C2,
   pine: 0x2F7D56, pine2: 0x3A9163, trunk: 0x7A5137, pot: 0xC8443A, potRim: 0xF3E2C3,
   door: 0xA8754B, knob: 0xE7B441, frame: 0x7A5137,
 };
 
 // 나무 마루 무늬 (그림 한 장을 그려서 바닥에 입힌다)
-function floorTexture() {
+function floorTexture(tones) {
   const c = document.createElement('canvas');
   c.width = c.height = 512;
   const g = c.getContext('2d');
-  const tones = ['#D9B285', '#D2A978', '#DDB98E', '#CDA472'];
   const rows = 12, h = 512 / rows;
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -35,12 +35,13 @@ function floorTexture() {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(N * CELL / 3, N * CELL / 3);
   return t;
 }
 
 // 벽 한 면. 아래 턱(항상 보임)과 위쪽(숨길 수 있음)으로 나눈다.
 // side: 'n'(z = -HALF) 's'(z = +HALF) 'w'(x = -HALF) 'e'(x = +HALF)
-function wall(scene, side) {
+function wall(scene, side, mats) {
   const T = 0.14, L = N * CELL + T * 2;
   const g = new THREE.Group(), upper = new THREE.Group();
   g.add(upper); scene.add(g);
@@ -51,8 +52,8 @@ function wall(scene, side) {
   if (side === 'e') { g.position.x = off; g.rotation.y = -Math.PI / 2; }
   // 벽 안쪽 면이 +z 를 보도록 만든다
   put(rbox(L, 0.16, T, 0.03), C.base, 0, 0.08, 0, g);
-  put(rbox(L, WALL_H - 0.16, T, 0.04), C.wall, 0, 0.16 + (WALL_H - 0.16) / 2, 0, upper);
-  put(new THREE.BoxGeometry(L - T * 2, 0.62, 0.03), C.panel, 0, 0.16 + 0.31, T / 2, upper, false);
+  put(rbox(L, WALL_H - 0.16, T, 0.04), mats.wall, 0, 0.16 + (WALL_H - 0.16) / 2, 0, upper);
+  put(new THREE.BoxGeometry(L - T * 2, 0.62, 0.03), mats.panel, 0, 0.16 + 0.31, T / 2, upper, false);
   put(new THREE.BoxGeometry(L - T * 2, 0.05, 0.05), C.base, 0, 0.8, T / 2 + 0.01, upper, false);
   return { g, upper, front: T / 2 };
 }
@@ -99,7 +100,7 @@ function pictureOn(w, x) {
   put(new THREE.CircleGeometry(0.12, 3), new THREE.MeshBasicMaterial({ color: C.pine }), x + 0.2, 1.62, z + 0.064, w.upper, false).rotation.z = Math.PI / 2;
 }
 
-// 트리. 장식을 달 때 쓸 수 있게 층마다 치수를 남긴다.
+// 트리 치수. 장식과 전구가 이 값을 보고 겉면 자리를 구한다.
 export const TREE = {
   tiers: [ // y0 = 층 아랫면 높이, r = 아랫면 반지름, h = 층 높이
     { y0: 0.42, r: 1.08, h: 1.0 },
@@ -108,11 +109,21 @@ export const TREE = {
     { y0: 1.98, r: 0.44, h: 0.7 },
   ],
   top: 2.68,
-  reach: 1.15, // 이 반지름 안의 바닥 칸은 걸어 들어갈 수 없다
+  reach: 1.15, // 이 반지름 안의 바닥 칸은 걸어 들어갈 수도, 가구를 놓을 수도 없다
 };
+// 바닥 칸 (i, j) 가 트리 자리인지
+export function treeBlocked(i, j) {
+  return Math.hypot(-HALF + (i + 0.5) * CELL, -HALF + (j + 0.5) * CELL) < TREE.reach;
+}
+// 높이 y 에서 트리 겉면까지의 반지름 (층이 겹치는 곳은 바깥쪽 층)
+export function surfaceR(y) {
+  let r = 0;
+  for (const t of TREE.tiers) if (y >= t.y0 && y <= t.y0 + t.h) r = Math.max(r, t.r * (1 - (y - t.y0) / t.h));
+  return r;
+}
 
 function buildTree(scene) {
-  const g = new THREE.Group();
+  const g = new THREE.Group(), cones = [];
   scene.add(g);
   put(cyl(0.36, 0.3, 0.3, 14), C.pot, 0, 0.15, 0, g);
   put(cyl(0.39, 0.39, 0.06, 14), C.potRim, 0, 0.31, 0, g);
@@ -120,24 +131,25 @@ function buildTree(scene) {
   TREE.tiers.forEach((t, k) => {
     const m = put(new THREE.ConeGeometry(t.r, t.h, 11, 1), M(k % 2 ? C.pine2 : C.pine, true), 0, t.y0 + t.h / 2, 0, g);
     m.rotation.y = k * 0.5;
+    cones.push(m);
   });
-  return g;
+  return { g, cones };
 }
 
-export function buildRoom(scene, grid) {
+export function buildRoom(scene) {
   // 바닥
   put(rbox(N * CELL + 0.5, 0.24, N * CELL + 0.5, 0.08), C.slab, 0, -0.13, 0, scene);
-  const tex = floorTexture();
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(N * CELL / 3, N * CELL / 3);
-  const floor = put(new THREE.BoxGeometry(N * CELL, 0.02, N * CELL), new THREE.MeshLambertMaterial({ map: tex }), 0, -0.005, 0, scene, false);
+  const floorMat = new THREE.MeshLambertMaterial({ map: floorTexture(FLOORS[0].tones) });
+  put(new THREE.BoxGeometry(N * CELL, 0.02, N * CELL), floorMat, 0, -0.005, 0, scene, false);
 
-  // 러그
+  // 트리 밑 러그
   put(cyl(1.75, 1.75, 0.02, 40), C.rug, 0, 0.012, 0, scene, false);
   put(cyl(1.5, 1.5, 0.022, 40), C.rugIn, 0, 0.013, 0, scene, false);
   put(cyl(1.38, 1.38, 0.024, 40), C.rug, 0, 0.014, 0, scene, false);
 
-  // 벽
-  const walls = { n: wall(scene, 'n'), s: wall(scene, 's'), w: wall(scene, 'w'), e: wall(scene, 'e') };
+  // 벽 (벽지를 바꿀 수 있게 재질을 따로 둔다)
+  const mats = { wall: new THREE.MeshLambertMaterial({ color: WALLS[0].wall }), panel: new THREE.MeshLambertMaterial({ color: WALLS[0].panel }) };
+  const walls = { n: wall(scene, 'n', mats), s: wall(scene, 's', mats), w: wall(scene, 'w', mats), e: wall(scene, 'e', mats) };
   windowOn(walls.n, -2.1);
   windowOn(walls.n, 0.3);
   wreathOn(walls.n, 2.6);
@@ -149,11 +161,10 @@ export function buildRoom(scene, grid) {
   windowOn(walls.e, -1.6);
   pictureOn(walls.e, 1.4);
 
-  // 트리와 그 자리(걸어 들어갈 수 없는 칸)
   const tree = buildTree(scene);
-  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-    const x = -HALF + (i + 0.5) * CELL, z = -HALF + (j + 0.5) * CELL;
-    if (Math.hypot(x, z) < TREE.reach) grid.block(i, j);
-  }
-  return { walls, tree, floor, cellOf };
+  return {
+    walls, tree: tree.g, cones: tree.cones,
+    setWall(id) { const w = WALLS.find((x) => x.id === id) || WALLS[0]; mats.wall.color.setHex(w.wall); mats.panel.color.setHex(w.panel); },
+    setFloor(id) { const f = FLOORS.find((x) => x.id === id) || FLOORS[0]; const old = floorMat.map; floorMat.map = floorTexture(f.tones); floorMat.needsUpdate = true; if (old) old.dispose(); },
+  };
 }

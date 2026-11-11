@@ -22,9 +22,10 @@ const audit = (p) => p.evaluate(() => {
   for (const b of document.querySelectorAll('button, a')) {
     const r = b.getBoundingClientRect();
     if (!r.width || b.closest('[hidden]') || getComputedStyle(b).display === 'none') continue;
+    const sc = b.closest('.scroll'); // 옆으로 미는 목록 안의 단추는 목록 밖으로 나가 있어도 된다
     const name = (b.textContent || b.getAttribute('aria-label') || '').trim();
     if (r.width < 43.5 || r.height < 43.5) bad.push(`${name}: ${Math.round(r.width)}×${Math.round(r.height)}`);
-    if (r.left < 0 || r.top < 0 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5) bad.push(`${name}: 화면 밖`);
+    if (!sc && (r.left < 0 || r.top < 0 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5)) bad.push(`${name}: 화면 밖`);
   }
   return bad;
 });
@@ -50,7 +51,7 @@ async function walkAndTrace(p, act) {
     check('거실이 열리고 화면이 그려짐', (await A.evaluate(() => window.__tree.frames)) > 3 && !(await A.isVisible('#fallback')));
 
     // 캐릭터 고르기
-    check('처음 오면 캐릭터 고르기가 먼저 열림', (await A.isVisible('#look')) && !(await A.isVisible('#panel')) && (await A.evaluate(() => window.__tree.lookOpen)));
+    check('처음 오면 캐릭터 고르기가 먼저 열림', (await A.isVisible('#look')) && (await A.evaluate(() => window.__tree.lookOpen)));
     check('고르기 판의 버튼이 화면 안·44px 이상', (await audit(A)).length === 0, await audit(A));
     check('성별 2가지, 옷 3가지(평상복·산타·루돌프)', (await A.locator('#pickGender .chip').count()) === 2 && (await A.locator('#pickOutfit .chip').count()) === 3 && (await A.textContent('#pickOutfit')).includes('산타') && (await A.textContent('#pickOutfit')).includes('루돌프'));
     const meshes = () => A.evaluate(() => { let n = 0; window.__tree.me.root.traverse((o) => { if (o.isMesh) n++; }); return n; });
@@ -71,7 +72,7 @@ async function walkAndTrace(p, act) {
     }
     check('여섯 가지 조합을 모두 눌러도 오류 없음', errors.length === 0 && (await A.evaluate(() => window.__tree.look.outfit)) === 'rudolph', errors);
     await A.tap('#lookDone');
-    check('"다 골랐어요"를 누르면 판이 닫힘', !(await A.isVisible('#look')) && (await A.isVisible('#panel')));
+    check('"다 골랐어요"를 누르면 판이 닫히고 아래 탭이 남음', !(await A.isVisible('#look')) && (await A.isVisible('#tabs')) && (await A.evaluate(() => window.__tree.mode)) === null);
     check('버튼이 화면 안·44px 이상', (await audit(A)).length === 0, await audit(A));
 
     // 폰에서는 아바타를 따라가며 크게 보여 준다
@@ -152,11 +153,11 @@ async function walkAndTrace(p, act) {
     check('네 번 돌리면 처음 방향', (await A.evaluate(() => window.__tree.yawK)) === 0);
 
     // 고른 캐릭터를 기억한다
-    await A.tap('#lookOpen'); await A.tap('#pickGender .chip[data-v="f"]'); await A.tap('#pickOutfit .chip[data-v="santa"]'); await A.tap('#lookDone');
+    await A.tap('#tabs button[data-m="look"]'); await A.tap('#pickGender .chip[data-v="f"]'); await A.tap('#pickOutfit .chip[data-v="santa"]'); await A.tap('#lookDone');
     await A.reload();
     await until(() => A.evaluate(() => !!(window.__tree && window.__tree.frames > 3)));
     const lk2 = await A.evaluate(() => window.__tree.look);
-    check('다시 열면 고른 캐릭터 그대로, 고르기 판은 안 뜸', lk2.gender === 'f' && lk2.outfit === 'santa' && !(await A.isVisible('#look')) && (await A.isVisible('#panel')), lk2);
+    check('다시 열면 고른 캐릭터 그대로, 고르기 판은 안 뜸', lk2.gender === 'f' && lk2.outfit === 'santa' && !(await A.isVisible('#look')) && (await A.isVisible('#tabs')), lk2);
     await A.evaluate(() => localStorage.setItem('nolja-tree-look', '{"gender":"x","outfit":"<b>"}'));
     await A.reload();
     await until(() => A.evaluate(() => !!(window.__tree && window.__tree.frames > 3)));

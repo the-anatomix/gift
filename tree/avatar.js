@@ -147,7 +147,7 @@ export function makeAvatar(look) {
   root.add(ring);
 
   const A = {
-    root, look: null, path: [], moving: false, t: Math.random() * 6, blend: 0, face: 0,
+    root, look: null, path: [], onArrive: null, moving: false, t: Math.random() * 6, blend: 0, face: 0,
     get x() { return root.position.x; }, get z() { return root.position.z; },
     place(x, z) { root.position.set(x, 0, z); },
     mark(on) { ring.visible = on; },
@@ -181,6 +181,7 @@ export function makeAvatar(look) {
         if (s >= d - 1e-6) A.path.shift();
       }
       A.animate(dt, moved);
+      if (moved && !A.path.length && A.onArrive) { const f = A.onArrive; A.onArrive = null; f(); } // 다 걸어갔을 때 할 일
       return moved;
     },
 

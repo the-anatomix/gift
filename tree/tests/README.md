@@ -14,6 +14,7 @@ npx playwright install chromium
 
 ```bash
 node room.test.js     # 거실 · 걷기 · 길찾기 · 방 돌려 보기 · 크게 보기 · 캐릭터 고르기
+node decor.test.js    # 가구 놓기·옮기기·치우기 · 트리 장식과 전구 · 벽지와 바닥 · 저장
 ```
 
 결과는 줄마다 `통과` / `실패` 로 나오고, 화면 사진은 `out/` 에 남습니다(커밋하지 않음).

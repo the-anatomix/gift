@@ -37,8 +37,6 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 #bottom{position:absolute;left:0;right:0;bottom:0;padding:0 10px calc(8px + env(safe-area-inset-bottom));
   display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;z-index:3}
 #bottom>*{pointer-events:auto;width:100%;max-width:460px}
-#panel{background:rgba(255,252,245,.96);border:1.5px solid var(--line);border-radius:18px;padding:10px 12px;
-  box-shadow:0 6px 20px rgba(0,0,0,.25)}
 .row{display:flex;align-items:center;gap:8px}
 .hint{flex:1;min-width:0;font-size:13.5px;font-weight:600;line-height:1.4;color:var(--ink)}
 .hint small{display:block;font-weight:500;color:var(--sub);font-size:12.5px}
@@ -49,16 +47,32 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 #tools{display:flex;justify-content:flex-end;gap:8px;pointer-events:none !important}
 #tools .btn{pointer-events:auto;width:46px;height:46px;padding:0;border-radius:50%;font-size:19px;font-weight:800;
   background:rgba(255,252,245,.95);box-shadow:0 4px 12px rgba(0,0,0,.25)}
-#look{background:rgba(255,252,245,.97);border:1.5px solid var(--line);border-radius:18px;padding:12px;
+/* 탭을 누르면 그 위에 열리는 판 */
+.sheet{background:rgba(255,252,245,.97);border:1.5px solid var(--line);border-radius:18px;padding:10px 12px;
   box-shadow:0 6px 20px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:8px}
-#look[hidden],#panel[hidden]{display:none}
-#look h2{margin:0;font-size:15px;font-weight:900}
-#look .lab{flex:none;width:34px;font-size:12.5px;font-weight:700;color:var(--sub)}
+[hidden]{display:none !important}
+.sheet h2{margin:0;font-size:15px;font-weight:900;display:flex;justify-content:space-between;align-items:baseline}
+.sheet h2 small{font-size:12px;font-weight:600;color:var(--sub)}
+.lab{flex:none;width:40px;font-size:12.5px;font-weight:700;color:var(--sub)}
 .chip{flex:1;min-width:0;min-height:46px;padding:0 4px;border-radius:12px;border:1.5px solid var(--line);background:#fff;
-  font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
-.chip[aria-pressed=true]{background:var(--choc);border-color:var(--choc);color:#FFF4E0}
-.pc{display:none}
-@media (hover:hover) and (pointer:fine){ .pc{display:block} .touch{display:none} }
+  font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.chip[aria-pressed=true],.pick[aria-pressed=true]{background:var(--choc);border-color:var(--choc);color:#FFF4E0}
+/* 옆으로 미는 목록 */
+.scroll{display:flex;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:1px;margin:0 -2px;flex:1;min-width:0}
+.scroll::-webkit-scrollbar{display:none}
+.scroll .chip{flex:none;padding:0 12px}
+.pick{flex:none;width:64px;min-height:62px;padding:0;border-radius:12px;border:1.5px solid var(--line);background:#fff;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.pick b{font-size:24px;font-weight:400;line-height:1}
+.sw{flex:none;width:46px;height:46px;padding:0;border-radius:50%;border:2px solid rgba(43,29,20,.14);background:var(--c);cursor:pointer;
+  box-shadow:0 0 0 0 var(--choc);transition:box-shadow .15s}
+.sw[aria-pressed=true]{box-shadow:0 0 0 2px #fff,0 0 0 4.5px var(--choc)}
+#tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;background:rgba(255,252,245,.97);
+  border:1.5px solid var(--line);border-radius:18px;padding:4px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+#tabs button{min-height:50px;min-width:0;padding:0;border:0;border-radius:14px;background:none;font-size:12px;
+  font-weight:700;color:var(--sub);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+#tabs button b{font-size:19px;font-weight:400;line-height:1.1}
+#tabs button[aria-pressed=true]{background:var(--choc);color:#FFF4E0}
 
 #toast{position:absolute;left:50%;top:calc(64px + env(safe-area-inset-top));transform:translate(-50%,-8px);z-index:6;
   background:rgba(20,14,28,.88);color:#FFF4E0;font-size:13px;font-weight:600;padding:8px 14px;border-radius:999px;
@@ -94,21 +108,39 @@ button{font:inherit;color:inherit;touch-action:manipulation}
     <button type="button" class="btn" id="zin" aria-label="크게 보기">＋</button>
     <button type="button" class="btn" id="turn" aria-label="방을 돌려 보기">↻</button>
   </div>
-  <div id="look" hidden>
+  <div id="furn" class="sheet" hidden>
+    <div class="row" id="furnBar" hidden>
+      <div class="hint"><span id="furnName"></span><small>바닥을 눌러 자리를 정해요.</small></div>
+      <button type="button" class="btn" id="gTurn" aria-label="돌리기">↻</button>
+      <button type="button" class="btn" id="gDel">치우기</button>
+      <button type="button" class="btn" id="gCancel">취소</button>
+      <button type="button" class="btn main" id="gDone">놓기</button>
+    </div>
+    <div class="scroll" id="furnList" role="group" aria-label="가구 고르기"></div>
+    <div class="hint" id="furnHint"><small>고르면 방에 나타나요. 놓여 있는 가구를 누르면 옮기거나 치울 수 있어요.</small></div>
+  </div>
+  <div id="treeP" class="sheet" hidden>
+    <h2>트리 꾸미기 <small id="ornCount"></small></h2>
+    <div class="scroll" id="ornList" role="group" aria-label="장식 고르기"></div>
+    <div class="row"><span class="lab">전구</span><div class="scroll" id="lightList" role="group" aria-label="전구 색"></div></div>
+    <div class="row"><span class="lab">깜빡임</span><div class="row" id="blinkList" style="flex:1" role="group" aria-label="깜빡임"></div></div>
+  </div>
+  <div id="paint" class="sheet" hidden>
+    <div class="row"><span class="lab">벽지</span><div class="row" id="wallList" role="group" aria-label="벽지"></div></div>
+    <div class="row"><span class="lab">바닥</span><div class="row" id="floorList" role="group" aria-label="바닥"></div></div>
+  </div>
+  <div id="look" class="sheet" hidden>
     <h2>캐릭터 고르기</h2>
     <div class="row"><span class="lab">성별</span><div class="row" id="pickGender" style="flex:1" role="group" aria-label="성별"></div></div>
     <div class="row"><span class="lab">옷</span><div class="row" id="pickOutfit" style="flex:1" role="group" aria-label="옷"></div></div>
     <div class="row"><button type="button" class="btn main" id="lookDone" style="flex:1">다 골랐어요</button></div>
   </div>
-  <div id="panel">
-    <div class="row">
-      <div class="hint">
-        <span class="touch">바닥을 누르면 그 자리로 걸어가요.<small>두 손가락으로 벌리면 크게 보여요.</small></span>
-        <span class="pc">바닥을 누르거나 방향키(WASD)로 걸어요.<small>Q · E 로 방 돌리기, 휠로 크게·작게 보기.</small></span>
-      </div>
-      <button type="button" class="btn" id="lookOpen">캐릭터</button>
-    </div>
-  </div>
+  <nav id="tabs" aria-label="꾸미기">
+    <button type="button" data-m="furn"><b>🛋️</b>가구</button>
+    <button type="button" data-m="tree"><b>🎄</b>트리</button>
+    <button type="button" data-m="paint"><b>🎨</b>벽·바닥</button>
+    <button type="button" data-m="look"><b>🙂</b>캐릭터</button>
+  </nav>
 </div>
 <div id="loading">거실에 불을 켜는 중…</div>
 <div id="fallback" hidden>
