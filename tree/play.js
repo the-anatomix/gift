@@ -350,13 +350,16 @@ export function makePlay(K) {
   let topping = TOPPINGS[0].id;
   const cake = {
     start(c) {
-      K.setPose({ pos: world(c.g, 0, portrait() ? 2.5 : 2.0, portrait() ? 1.2 : 1.0), at: world(c.g, 0, 1.1, 0), fov: portrait() ? 64 : 40, inside: true }); // 세로 화면은 좌우가 좁아서 더 멀리, 더 넓게 본다
+      const sp = K.cakeSpot(c.id); // 케이크가 작업대 위에 있는지, 탁자 위에 있는지
+      c.spot = sp.id;
+      K.setPose({ pos: world(sp.g, 0, sp.top + (portrait() ? 1.36 : 0.86), portrait() ? 1.2 : 1.0), at: world(sp.g, 0, sp.top - 0.04, 0), fov: portrait() ? 64 : 40, inside: true }); // 세로 화면은 좌우가 좁아서 더 멀리, 더 넓게 본다
       cake.paint(c);
     },
     paint(c) {
       const k = K.cake(c.id), n = k.tops.filter((t) => t[0] === 'candle').length, edit = K.canEdit();
+      const carry = { label: '🎂 들고 가기', id: 'playCarry', fn: () => K.carry(c.id) };
       if (k.lit > 0) {
-        panel(`촛불 ${k.lit}개가 켜져 있어요 🕯️`, '다 같이 후~ 불어서 꺼 보세요.', [{ label: '후~ 불기', main: true, id: 'playGo', fn: () => K.op({ t: 'cakeBlow', id: c.id }) }, quit]);
+        panel(`촛불 ${k.lit}개가 켜져 있어요 🕯️`, '다 같이 후~ 불어서 꺼 보세요.', [{ label: '후~ 불기', main: true, id: 'playGo', fn: () => K.op({ t: 'cakeBlow', id: c.id }) }, ...(edit ? [carry] : []), quit]);
         return;
       }
       if (!edit) { panel('케이크', '구경하는 중에는 꾸밀 수 없어요. 촛불이 켜지면 같이 불 수 있어요.', [quit]); return; }
@@ -365,7 +368,7 @@ export function makePlay(K) {
         ...TOPPINGS.map((x) => ({ label: x.icon + ' ' + x.name, chip: true, id: 'top-' + x.id, on: topping === x.id, fn: () => { topping = x.id; cake.paint(c); } })),
         ...(n ? [{ label: '🕯️ 촛불 켜기', main: true, id: 'playGo', fn: () => K.op({ t: 'cakeLit', id: c.id, n }) }] : []),
         ...(k.tops.length ? [{ label: '다 치우기', id: 'playClear', fn: () => K.op({ t: 'cakeClear', id: c.id }) }] : []),
-        quit]);
+        carry, quit]);
     },
     tick() {},
     tap(c, px, py) {
@@ -387,6 +390,7 @@ export function makePlay(K) {
 
   return {
     get on() { return !!cur; }, get id() { return cur ? cur.id : null; }, get kind() { return cur ? cur.kind : null; },
+    get spot() { return cur ? cur.spot || cur.id : null; }, // 놀이가 벌어지는 가구 (탁자에 올려놓은 케이크면 그 탁자)
     // 놀이를 연다. id = 가구, kind = 그 가구의 놀이
     start(id, kind) {
       if (cur) this.stop();

@@ -195,6 +195,7 @@ export function makeAvatar(look) {
   const A = {
     root, look: null, path: [], onArrive: null, moving: false, t: Math.random() * 6, blend: 0, face: 0,
     doing: null, blink: Math.random() * 4, // doing = 하고 있는 행동 { id, t, sec }
+    hold: false, // 케이크를 들고 있는지 (두 팔을 앞으로 내민다)
     get acting() { return A.doing ? A.doing.id : null; },
     get parts() { return parts; },
     // 행동을 시작한다. 아는 행동이 아니면 false
@@ -266,6 +267,7 @@ export function makeAvatar(look) {
         for (const k of ['lx', 'ax', 'az']) { P[k][0] = mix(P[k][0], Q[k][0]); P[k][1] = mix(P[k][1], Q[k][1]); }
         for (const k of ['by', 'bx', 'bz', 'hx', 'hz', 'as']) P[k] = mix(P[k], Q[k]);
       }
+      if (A.hold) { P.ax = [-1.2, -1.2]; P.az = [0.16, -0.16]; P.as = 1.15; } // 무엇을 들고 있으면 두 팔은 그대로 앞으로
       for (const k of [0, 1]) { legs[k].rotation.x = P.lx[k]; arms[k].rotation.x = P.ax[k]; arms[k].rotation.z = P.az[k]; arms[k].scale.y = P.as; }
       // 숙일 때는 엉덩이가 제자리에 있게 몸을 조금 뒤로 뺀다
       body.position.set(0, P.by, -Math.sin(P.bx) * 0.27 * SIZE);

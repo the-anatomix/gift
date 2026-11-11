@@ -6,7 +6,7 @@ import { THREE } from './kit.js';
 import { Grid, NX, NZ, CELL, X0, Z0, X1, Z1, cellOf, centerOf } from './path.js';
 import { buildRoom, WALL_H, TREE, fixedCell, surfaceR } from './room.js';
 import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, FACES, ACTS, BODY_R, SPEED } from './avatar.js';
-import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER, STARTER_EAST } from './catalog.js';
+import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER, STARTER_EAST, CAKE } from './catalog.js';
 import { makeState, apply, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake } from './state.js';
 import { buildItem } from './furniture.js';
 import { buildOrnament, buildLights } from './decor.js';
@@ -134,6 +134,7 @@ function dropObj(map, id, parent, own) {
   const g = map.get(id);
   if (!g) return;
   parent.remove(g); map.delete(id);
+  if (g.userData.cake) g.add(g.userData.cake.root); // 손이나 탁자에 가 있던 케이크도 같이 치운다
   if (own) g.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); // 장식은 도형을 나눠 쓰므로 지우지 않는다
 }
 
@@ -154,12 +155,13 @@ function dispatch(op, from = 'me') {
   } else if (op.t.startsWith('cake')) {
     const k = S.cakes.get(op.id) || newCake();
     dressCake(itemObj.get(op.id), k);
+    if (op.t === 'cakeTake' || op.t === 'cakeDrop') seatCakes();
     if (from !== 'load') {
       play.refresh(op.id);
       if (wasLit > 0 && k.lit === 0 && op.t === 'cakeBlow') celebrate(); // 마지막 촛불이 꺼졌다
     }
   } else if (op.t === 'move') seat(itemObj.get(op.id), S.items.get(op.id));
-  else if (op.t === 'del') dropObj(itemObj, op.id, itemsG, true);
+  else if (op.t === 'del') { seatCakes(); dropObj(itemObj, op.id, itemsG, true); } // 치우는 탁자 위의 케이크는 먼저 작업대로 돌려놓는다
   else if (op.t === 'orn') {
     const g = buildOrnament(S.orns.get(op.id));
     g.userData.orn = op.id;
@@ -173,6 +175,8 @@ function dispatch(op, from = 'me') {
   dirty = true;
   if (from === 'load') return true;
   if (mode === 'play' && play.id === op.id && (op.t === 'del' || op.t === 'move')) setMode(null); // 놀던 가구를 친구가 옮기거나 치움
+  // 꾸미던 케이크를 누가 들고 갔거나, 케이크가 놓인 탁자를 옮기거나 치움
+  if (mode === 'play' && play.kind === 'cake' && (((op.t === 'cakeTake' || op.t === 'cakeDrop') && play.id === op.id) || ((op.t === 'del' || op.t === 'move') && play.spot === op.id))) setMode(null);
   S.at = Date.now();
   saveSoon();
   if (taken) ghostEnd(); else { if (ghost) ghostPaint(); paintPanels(); }
@@ -193,6 +197,8 @@ function loadRoom(data, fromPeer = false) {
   for (const op of ops(data)) dispatch(op, 'load');
   S.at = stampOf(data);
   S.sync = fromPeer ? S.at : syncOf(data);
+  if (!fromPeer) for (const c of S.cakes.values()) c.by = null; // 저장해 둔 방을 열 때는 아무도 케이크를 들고 있지 않다
+  seatCakes();
   rebuildGrid();
   paintPanels();
   dirty = true;
@@ -532,7 +538,7 @@ const okXZ = (x, z) => typeof x === 'number' && typeof z === 'number' && x >= X0
 function roomHash() {
   const d = serialize(S), byId = (a, b) => (a[0] < b[0] ? -1 : 1);
   // 케이크 장식은 올린 순서가 사람마다 다를 수 있어 자리 순으로 맞춰서 견준다
-  const cakes = d.cakes.map(([id, cream, lit, tops]) => [id, cream, lit, tops.map((t) => t.join(',')).sort()]).sort(byId);
+  const cakes = d.cakes.map(([id, cream, lit, tops, by, on]) => [id, cream, lit, tops.map((t) => t.join(',')).sort(), by || '', on || '']).sort(byId);
   const txt = JSON.stringify([d.items.sort(byId), d.orns.sort(byId), d.lights, d.wall, d.floor, cakes]);
   let h = 5381;
   for (let k = 0; k < txt.length; k++) h = ((h << 5) + h + txt.charCodeAt(k)) | 0;
@@ -563,6 +569,9 @@ function setPeer(id, lk, pos, pj) {
 function dropPeer(id) {
   const a = others.get(id);
   if (!a) return;
+  let had = false;
+  for (const c of S.cakes.values()) if (c.by === id) { c.by = null; had = true; } // 들고 있던 케이크는 작업대로 돌아간다
+  if (had) seatCakes();
   scene.remove(a.root);
   a.root.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
   others.delete(id);
@@ -597,6 +606,7 @@ const duo = makeDuo({
     const keep = new Set();
     for (const p of list.slice(0, 16)) if (p && okId(p.id) && p.id !== duo.me && setPeer(p.id, p.look, p.pos, p.pj)) keep.add(p.id);
     for (const id of [...others.keys()]) if (!keep.has(id)) dropPeer(id);
+    tidyCarry();
     stepAside();
   },
   peerJoin: (id, m) => setPeer(id, m.look, m.pos, m.pj) || { look: DEFAULT_LOOK, pos: [0, 0], pj: '' },
@@ -783,6 +793,7 @@ const DUO_TEXT = {
 function paintDuo() {
   const m = duo.mode;
   syncDoor(); paintPeople();
+  if (m !== 'on') tidyCarry(); // 끊겼거나 혼자가 됐으면 남이 들던 케이크는 작업대로
   let [main, sub, chip] = DUO_TEXT[m];
   if (m === 'on') {
     main = canEdit ? `${duo.count}명이 같이 있어요 👫` : `구경하는 중이에요 (${duo.count}명이 있어요)`;
@@ -847,6 +858,12 @@ const play = makePlay({
   canShare: () => duo.mode === 'on' && media.can,
   shareTv: (stream) => media.setTv(stream),
   cake: (id) => S.cakes.get(id) || newCake(),
+  // 케이크가 지금 놓인 곳: g = 작업대나 탁자, top = 그 가구에서 잰 케이크 윗면 높이
+  cakeSpot(id) {
+    const c = S.cakes.get(id), t = c && !c.by && c.on ? itemObj.get(c.on) : null;
+    return t ? { id: c.on, g: t, top: kindOf(S.items.get(c.on).k).holds + (CAKE.y - CAKE.base) * CAKE.onTable } : { id, g: itemObj.get(id), top: CAKE.y };
+  },
+  carry(id) { if (!dispatch({ t: 'cakeTake', id, by: duo.me })) { if (canEdit) toast(carried() ? '케이크는 한 번에 하나만 들 수 있어요' : '지금은 들 수 없어요'); return; } toast('케이크를 들었어요. 탁자나 작업대를 누르면 내려놓아요'); },
   canEdit: () => canEdit,
   op: (o) => dispatch(o),
   // 화면에서 누른 자리가 케이크 윗면의 어디인지
@@ -861,15 +878,77 @@ const play = makePlay({
   close: () => setMode(null),
 });
 // 놀 수 있는 가구를 누르면: 그 앞으로 걸어가서 놀이를 연다
-function startPlay(id) {
-  const it = S.items.get(id), kind = it && kindOf(it.k).play, g = itemObj.get(id);
-  if (!kind || !g) return false;
-  const open = () => { if (S.items.has(id) && mode === null) { setMode('play'); if (!play.start(id, kind)) setMode(null); } };
+// 가구 앞으로 걸어가서 then 을 한다 (이미 앞에 있거나 갈 수 없으면 바로)
+function approach(id, then) {
+  const it = S.items.get(id), g = itemObj.get(id);
   g.updateMatrixWorld();
   // 여럿이 같은 가구 앞에 모일 때 겹치지 않게 사람마다 조금씩 옆으로 선다
   const p = g.localToWorld(new THREE.Vector3(0.45 - 0.5 * ((mySlot + 1) >> 1) * (mySlot % 2 ? 1 : -1), 0, kindOf(it.k).d * CELL / 2 + 0.5));
-  if (Math.hypot(p.x - me.x, p.z - me.z) < 0.4 || !goTo(p.x, p.z)) open(); else me.onArrive = open;
+  if (Math.hypot(p.x - me.x, p.z - me.z) < 0.4 || !goTo(p.x, p.z)) then(); else me.onArrive = then;
+}
+// id = 누른 가구. cakeId 가 있으면 그 가구(탁자) 위에 놓인 케이크로 논다
+function startPlay(id, cakeId = null) {
+  const it = S.items.get(id), kind = cakeId ? 'cake' : it && kindOf(it.k).play, g = itemObj.get(id), pid = cakeId || id;
+  if (!kind || !g) return false;
+  approach(id, () => { if (S.items.has(id) && S.items.has(pid) && mode === null) { setMode('play'); if (!play.start(pid, kind)) setMode(null); } });
   return true;
+}
+
+/* ───────── 케이크 들고 다니기 ───────── */
+// 케이크는 작업대 위(기본), 누군가의 손(by), 탁자 위(on) 중 한 곳에 있다. 방의 상태라서 모두에게 같게 보인다.
+const carried = () => { for (const [id, c] of S.cakes) if (c.by === duo.me) return id; return null; }; // 내가 든 케이크
+const cakeOn = (tid) => { for (const [id, c] of S.cakes) if (c.on === tid && !c.by) return id; return null; };
+const avatarOf = (pid) => (pid === duo.me ? me : others.get(pid));
+// 케이크 모양을 지금 있어야 할 곳(작업대·손·탁자)에 붙인다
+function seatCakes() {
+  const held = new Set();
+  for (const [id, g] of itemObj) {
+    const cv = g.userData.cake;
+    if (!cv) continue;
+    const c = S.cakes.get(id), a = c && c.by ? avatarOf(c.by) : null, t = c && !c.by && c.on ? itemObj.get(c.on) : null;
+    let parent = g, y = 0, z = 0, sc = 1;
+    if (a) { parent = a.root; sc = CAKE.inHand; y = 0.64 - CAKE.base * sc; z = 0.43; held.add(a); }
+    else if (t) { parent = t; sc = CAKE.onTable; y = kindOf(S.items.get(c.on).k).holds - CAKE.base * sc; }
+    cv.root.userData.cakeRoot = true;
+    if (cv.root.parent !== parent) parent.add(cv.root);
+    cv.root.position.set(0, y, z); cv.root.scale.setScalar(sc);
+  }
+  for (const a of [me, ...others.values()]) a.hold = held.has(a);
+  for (const [id, g] of itemObj) if (g.userData.deco) g.userData.deco.visible = !cakeOn(id); // 케이크가 놓인 탁자의 소품은 치워 둔다
+  paintCarry();
+  dirty = true;
+}
+// 방에 없는 사람이 들고 있다고 적힌 케이크는 작업대로 돌려놓는다 (누가 나갔을 때, 연결이 끊겼을 때)
+function tidyCarry() {
+  const here = new Set([duo.me, ...others.keys()]);
+  for (const c of S.cakes.values()) if (c.by && !here.has(c.by)) c.by = null;
+  seatCakes();
+}
+function paintCarry() {
+  const el = $('carryP'), was = el.hidden;
+  el.hidden = !(carried() && mode === null);
+  if (was !== el.hidden) measure(false); // 아래 판 높이가 바뀌었다
+}
+function putDown(on) { const id = carried(); return !!id && dispatch({ t: 'cakeDrop', id, by: duo.me, on }); }
+$('carryBack').addEventListener('click', () => { if (putDown(null)) toast('케이크를 작업대에 돌려놓았어요'); });
+// 케이크와 얽힌 가구를 눌렀을 때. 여기서 처리했으면 true
+function cakeTap(id) {
+  const it = S.items.get(id), mine = carried();
+  if (!it) return false;
+  const holds = !!kindOf(it.k).holds;
+  if (mine) { // 들고 있을 때: 탁자나 그 케이크의 작업대를 누르면 가서 내려놓는다
+    if (id !== mine && !holds) return false;
+    if (holds && cakeOn(id)) { toast('그 탁자에는 이미 케이크가 있어요'); return true; }
+    approach(id, () => { if (carried() === mine && S.items.has(id) && putDown(id === mine ? null : id)) toast(id === mine ? '케이크를 작업대에 돌려놓았어요' : '케이크를 탁자에 올려놓았어요'); });
+    return true;
+  }
+  if (holds) { const cid = cakeOn(id); return !!cid && startPlay(id, cid); } // 탁자 위의 케이크로 논다 (촛불 켜기·불기, 다시 들기)
+  if (it.k === 'cake') {
+    const c = S.cakes.get(id);
+    if (c && c.by) { toast('친구가 케이크를 들고 다니는 중이에요'); return true; }
+    if (c && c.on) { toast('케이크는 탁자 위에 있어요. 탁자를 눌러 보세요'); return true; }
+  }
+  return false;
 }
 
 /* ───────── 누르기 ───────── */
@@ -907,7 +986,7 @@ function lift(e, ok) {
   if (!still) return;
   if (mode === 'door') { aimRay(e.clientX, e.clientY); if (outside.hitBell(ray)) ring(); return; } // 초인종
   if (mode === 'play') { play.tap(e.clientX, e.clientY); return; }
-  if (mode === null) { const id = pickItem(e.clientX, e.clientY); if (id && startPlay(id)) return; } // 놀 수 있는 가구
+  if (mode === null) { const id = pickItem(e.clientX, e.clientY); if (id && (cakeTap(id) || startPlay(id))) return; } // 케이크 내려놓기, 놀 수 있는 가구
   if (mode === 'tree') { treeTap(e.clientX, e.clientY); return; }
   if (mode === 'furn') { const id = pickItem(e.clientX, e.clientY); if (id) { ghostPick(id); return; } }
   const p = floorAt(e.clientX, e.clientY);
@@ -1054,7 +1133,7 @@ function setMode(m) {
   if (m === 'chat') { document.querySelector('#tabs button[data-m="chat"]').classList.remove('new'); const l = $('chatLog'); l.scrollTop = l.scrollHeight; }
   if (was === 'chat') $('chatIn').blur();
   if (was === 'look') store.set(LOOK_KEY, look);
-  paintPanels();
+  paintPanels(); paintCarry();
   dirty = true;
   measure(false);
   applyPov();
@@ -1232,7 +1311,7 @@ window.__duo = {
   get knocks() { return duo.knocks; }, get people() { return duo.people; }, get why() { return duo.why; }, get rang() { return duo.rang; },
   admit: (id) => duo.admit(id), deny: (id) => duo.deny(id), kick: (id) => duo.kick(id),
   get canEdit() { return canEdit; }, get count() { return duo.count; }, get me() { return duo.me; }, get editors() { return duo.editors; }, get slot() { return mySlot; },
-  get others() { return [...others].map(([id, a]) => ({ id, x: a.x, z: a.z, look: a.look, moving: a.moving, acting: a.acting })); },
+  get others() { return [...others].map(([id, a]) => ({ id, x: a.x, z: a.z, look: a.look, moving: a.moving, acting: a.acting, hold: a.hold })); },
   say, cleanSay, get bubbles() { return [...bubbles].filter(([, b]) => b.el.style.display !== 'none').map(([who, b]) => { const r = b.el.getBoundingClientRect(); return { who, text: b.el.textContent, x: r.left + r.width / 2, y: r.bottom }; }); },
   get chatLog() { return [...document.querySelectorAll('#chatLog .ln')].map((l) => l.textContent); },
   get other() { const a = others.values().next().value; return a ? { x: a.x, z: a.z, look: a.look, moving: a.moving } : null; },
@@ -1245,12 +1324,13 @@ window.__play = Object.assign(play.test, {
   open(id) { const it = S.items.get(id); if (mode !== null) setMode(null); setMode('play'); return play.start(id, kindOf(it.k).play); }, // 걷지 않고 바로 연다
   close: () => setMode(null), peerFx: (m) => play.peerFx(m),
 });
-Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose } });
+Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose }, id: { get: () => play.id }, spot: { get: () => play.spot } });
 window.__tree = {
   NX, NZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
   ghostNew, ghostPick, ghostMoveTo, ghostTurn, ghostDone, ghostCancel, ghostRemove, surfaceR, serialize: () => serialize(S),
   setZoomMul(m) { setZoomMul(m); },
-  doAct,
+  doAct, carried, putDown, cakeTap,
+  cakeAt(id) { const g = itemObj.get(id), cv = g && g.userData.cake, c = S.cakes.get(id), p = cv && cv.root.parent; return cv ? { by: (c && c.by) || null, on: (c && c.on) || null, where: p === g ? 'island' : p === me.root ? 'me' : p && p.userData.item ? 'item:' + p.userData.item : [...others].some(([, a]) => a.root === p) ? 'peer:' + [...others].find(([, a]) => a.root === p)[0] : '?', scale: cv.root.scale.x, deco: c && c.on && itemObj.get(c.on) && itemObj.get(c.on).userData.deco ? itemObj.get(c.on).userData.deco.visible : null } : null; },
   openLook(on) { if ((mode === 'look') !== on) setMode('look'); },
   // 트리 겉면의 한 점(높이 y, 둘레 각 a)이 화면에서 어디인지
   treePoint(y, a) { const r = surfaceR(y) * 0.93; return screenOf(Math.sin(a) * r, Math.cos(a) * r, y); },

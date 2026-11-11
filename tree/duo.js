@@ -200,7 +200,7 @@ export function makeDuo(K) {
     switch (m.t) {
       case 'op':
         if (!isObj(m.op)) return;
-        if ((!p.edit && m.op.t !== 'cakeBlow') || !K.peerOp(m.op)) link.send(stateMsg(pid), pid); // 구경하는 사람이 보냈거나(촛불 불기는 된다) 내 방에 들어맞지 않는 변화: 주인 방으로 되돌린다
+        if ((!p.edit && m.op.t !== 'cakeBlow') || (m.op.by !== undefined && m.op.by !== pid) || !K.peerOp(m.op)) link.send(stateMsg(pid), pid); // by 가 붙은 변화(케이크 들기)는 자기 이름으로만 할 수 있다 // 구경하는 사람이 보냈거나(촛불 불기는 된다) 내 방에 들어맞지 않는 변화: 주인 방으로 되돌린다
         else relay({ t: 'op', op: m.op }, pid);
         break;
       case 'sync': link.send(stateMsg(pid), pid); break;

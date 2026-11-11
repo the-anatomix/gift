@@ -5,7 +5,7 @@ export const FURNITURE = [
   { id: 'sofa', name: '소파', icon: '🛋️', w: 4, d: 2, solid: true },
   { id: 'chair', name: '안락의자', icon: '🪑', w: 2, d: 2, solid: true },
   { id: 'fire', name: '벽난로', icon: '🔥', w: 4, d: 2, solid: true, play: 'fire' },
-  { id: 'table', name: '탁자', icon: '☕', w: 3, d: 2, solid: true },
+  { id: 'table', name: '탁자', icon: '☕', w: 3, d: 2, solid: true, holds: 0.465 }, // holds = 케이크를 올려놓을 수 있는 윗면 높이
   { id: 'shelf', name: '책장', icon: '📚', w: 3, d: 1, solid: true },
   { id: 'giftR', name: '빨간 선물', icon: '🎁', w: 1, d: 1, solid: true },
   { id: 'giftG', name: '초록 선물', icon: '🎁', w: 1, d: 1, solid: true },
@@ -44,7 +44,7 @@ export const TOPPINGS = [
   { id: 'berry', name: '딸기', icon: '🍓' }, { id: 'cherry', name: '체리', icon: '🍒' }, { id: 'choco', name: '초콜릿', icon: '🍫' },
   { id: 'star', name: '별', icon: '⭐' }, { id: 'tree', name: '트리', icon: '🎄' }, { id: 'candle', name: '초', icon: '🕯️' },
 ];
-export const CAKE = { r: 0.3, y: 1.14, max: 40 };
+export const CAKE = { r: 0.3, y: 1.14, max: 40, base: 0.895, onTable: 0.9, inHand: 0.5 }; // base = 접시 바닥 높이, onTable·inHand = 탁자 위·손에 들었을 때의 크기
 
 // 다트판: 가운데 높이 y, 판 겉면 z(가구 기준), R = 점수가 나는 바깥 끝, out = 숫자가 적힌 테까지의 반지름.
 // nums = 맨 위부터 시계 방향으로 칸의 숫자. 고리는 R 에 대한 비율: 한가운데 50점, 그 둘레 25점,

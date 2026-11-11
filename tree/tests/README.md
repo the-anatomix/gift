@@ -21,6 +21,7 @@ node cake.test.js     # 케이크 만들기: 크림·장식·촛불 · 여럿이
 node door.test.js     # 초인종 입장: 집 밖 → 초인종 → 방장의 허락·돌려보내기 · 내보내기
 node chat.test.js     # 채팅: 말풍선 · 지난 말 목록 · 여러 명에게 전달 · 글 다듬기와 도배 막기
 node emote.test.js    # 표정과 행동: 표정 6가지 · 행동 6가지 · 1인칭에서 · 친구와 구경하는 사람에게 보이는지
+node carry.test.js    # 케이크 들고 다니기: 들기 · 탁자에 올려놓기 · 규칙 · 저장 · 여럿이 볼 때와 나갔을 때
 node duo.test.js      # 같이 꾸미기: 방 만들기·들어가기·서로 보이기·여러 명과 구경·끊김·다시 만나 맞추기 (같은 브라우저 안 통신)
 node duo.test.js --peer   # 위에 더해 로컬 PeerJS 브로커로 실제 WebRTC 데이터 채널까지
 node media.test.js    # 보이스와 TV 같이 보기 (로컬 PeerJS 브로커와 가짜 마이크로 실제 WebRTC 소리·영상)

@@ -13,6 +13,8 @@
 //   { t: 'cakeClear', id }           장식 다 치우기
 //   { t: 'cakeLit', id, n }          초 n 개에 불 켜기 (0 이면 다 끄기)
 //   { t: 'cakeBlow', id }            촛불 하나 불어서 끄기 (구경하는 사람도 할 수 있다)
+//   { t: 'cakeTake', id, by }        케이크를 든다 (by = 드는 사람. 한 사람이 하나만 든다)
+//   { t: 'cakeDrop', id, by, on }    내려놓는다 (on = 올려놓을 탁자 가구 id. 없으면 작업대로 돌아간다)
 import { NX, NZ } from './path.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, CREAMS, TOPPINGS, CAKE } from './catalog.js';
 
@@ -30,8 +32,10 @@ export function cellsOf(it) {
   return out;
 }
 
-// 케이크 하나의 상태. cream = 크림 색 번호, tops = [[장식, x, z], …], lit = 불이 켜진 초의 개수
-export const newCake = () => ({ cream: 0, tops: [], lit: 0 });
+// 케이크 하나의 상태. cream = 크림 색 번호, tops = [[장식, x, z], …], lit = 불이 켜진 초의 개수,
+// by = 들고 있는 사람(없으면 null), on = 올려놓은 탁자(없으면 null = 작업대 위)
+export const newCake = () => ({ cream: 0, tops: [], lit: 0, by: null, on: null });
+const okPid = (v) => typeof v === 'string' && /^[a-z0-9]{1,8}$/.test(v);
 export const candles = (c) => c.tops.filter((t) => t[0] === 'candle').length;
 // 그 가구(케이크 작업대)의 케이크. 아직 손대지 않았으면 make 일 때 새로 만든다.
 function cakeOf(S, id, make) {
@@ -86,7 +90,10 @@ export function apply(S, op, fixed) {
       S.items.set(it.id, it);
       return true;
     }
-    case 'del': S.cakes.delete(op.id); return S.items.delete(op.id);
+    case 'del':
+      S.cakes.delete(op.id);
+      for (const c of S.cakes.values()) if (c.on === op.id) c.on = null; // 치운 탁자 위의 케이크는 작업대로 돌아간다
+      return S.items.delete(op.id);
     case 'orn': {
       if (!okId(op.id) || S.orns.has(op.id) || S.orns.size >= MAX_ORNS || !has(ORNAMENTS, op.k)) return false;
       if (!okNum(op.x, -1.4, 1.4) || !okNum(op.z, -1.4, 1.4) || !okNum(op.y, 0.3, 3)) return false;
@@ -121,6 +128,27 @@ export function apply(S, op, fixed) {
       return true;
     }
     case 'cakeBlow': { const c = cakeOf(S, op.id, false); if (!c || c.lit <= 0) return false; c.lit--; return true; }
+    case 'cakeTake': {
+      if (!okPid(op.by)) return false;
+      for (const x of S.cakes.values()) if (x.by === op.by) return false; // 한 사람이 하나만 든다
+      const c = cakeOf(S, op.id, true);
+      if (!c || c.by) return false;
+      c.by = op.by; c.on = null;
+      return true;
+    }
+    case 'cakeDrop': {
+      const c = cakeOf(S, op.id, false);
+      if (!c || !c.by || c.by !== op.by) return false;
+      let on = null;
+      if (op.on !== undefined && op.on !== null) {
+        const t = S.items.get(op.on);
+        if (!t || !F[t.k].holds) return false;
+        for (const x of S.cakes.values()) if (x.on === op.on) return false; // 탁자 하나에 케이크 하나
+        on = op.on;
+      }
+      c.by = null; c.on = on;
+      return true;
+    }
     case 'wall': if (!has(WALLS, op.v)) return false; S.wall = op.v; return true;
     case 'floor': if (!has(FLOORS, op.v)) return false; S.floor = op.v; return true;
     default: return false;
@@ -133,7 +161,8 @@ export function serialize(S) {
     v: 2, at: S.at, sync: S.sync, // v 1 = 거실만 있던 때의 방, v 2 = 주방과 방이 붙은 집 (칸 번호는 같다)
     items: [...S.items.values()].map((o) => [o.id, o.k, o.i, o.j, o.r]),
     orns: [...S.orns.values()].map((o) => [o.id, o.k, o.x, o.y, o.z]),
-    cakes: [...S.cakes].map(([id, c]) => [id, c.cream, c.lit, c.tops.map((t) => [t[0], t[1], t[2]])]),
+    // 들고 있거나 탁자에 올려놓았을 때만 뒤에 [든 사람, 탁자] 가 붙는다
+    cakes: [...S.cakes].map(([id, c]) => [id, c.cream, c.lit, c.tops.map((t) => [t[0], t[1], t[2]]), ...(c.by || c.on ? [c.by || '', c.on || ''] : [])]),
     lights: [S.lights.set, S.lights.blink], wall: S.wall, floor: S.floor,
   };
 }
@@ -165,10 +194,12 @@ export function ops(data) {
   const rows = (a) => (Array.isArray(a) ? a.filter(Array.isArray) : []);
   for (const [id, k, i, j, r] of rows(data.items)) out.push({ t: 'put', id, k, i, j, r });
   for (const [id, k, x, y, z] of rows(data.orns)) out.push({ t: 'orn', id, k, x, y, z });
-  for (const [id, cream, lit, tops] of rows(data.cakes)) {
+  for (const [id, cream, lit, tops, by, on] of rows(data.cakes)) {
     out.push({ t: 'cakeCream', id, v: cream });
     for (const [k, x, z] of rows(tops)) out.push({ t: 'cakeTop', id, k, x, z });
     if (lit) out.push({ t: 'cakeLit', id, n: lit });
+    if (by) out.push({ t: 'cakeTake', id, by });
+    else if (on) out.push({ t: 'cakeTake', id, by: 'x' }, { t: 'cakeDrop', id, by: 'x', on }); // 탁자에 올려놓은 케이크
   }
   if (Array.isArray(data.lights)) out.push({ t: 'lights', set: data.lights[0], blink: data.lights[1] });
   out.push({ t: 'wall', v: data.wall }, { t: 'floor', v: data.floor });

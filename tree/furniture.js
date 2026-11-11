@@ -90,12 +90,13 @@ const B = {
   table(g) { // 3 × 2
     put(rbox(1.4, 0.07, 0.9, 0.03), WOOD, 0, 0.43, 0, g);
     for (const a of [-1, 1]) for (const b of [-1, 1]) put(cyl(0.04, 0.035, 0.4, 8), WOOD_D, 0.6 * a, 0.2, 0.36 * b, g);
-    put(cyl(0.17, 0.13, 0.025, 16), 0xFFFAF2, -0.32, 0.478, 0.02, g);
-    for (const [x, z] of [[-0.37, 0.0], [-0.27, 0.07], [-0.3, -0.05]]) put(cyl(0.045, 0.045, 0.02, 10), 0xC98A4B, x, 0.5, z, g, false);
-    put(cyl(0.06, 0.05, 0.11, 12), RED, 0.28, 0.52, 0.12, g);
-    put(cyl(0.05, 0.05, 0.01, 12), 0x6B4630, 0.28, 0.576, 0.12, g, false);
-    put(cyl(0.035, 0.035, 0.14, 10), CREAM, 0.45, 0.535, -0.2, g);
-    put(new THREE.ConeGeometry(0.02, 0.06, 6), lit(0xFFD166), 0.45, 0.635, -0.2, g, false);
+    const deco = new THREE.Group(); g.add(deco); g.userData.deco = deco; // 윗면의 소품 (케이크를 올려놓으면 숨긴다)
+    put(cyl(0.17, 0.13, 0.025, 16), 0xFFFAF2, -0.32, 0.478, 0.02, deco);
+    for (const [x, z] of [[-0.37, 0.0], [-0.27, 0.07], [-0.3, -0.05]]) put(cyl(0.045, 0.045, 0.02, 10), 0xC98A4B, x, 0.5, z, deco, false);
+    put(cyl(0.06, 0.05, 0.11, 12), RED, 0.28, 0.52, 0.12, deco);
+    put(cyl(0.05, 0.05, 0.01, 12), 0x6B4630, 0.28, 0.576, 0.12, deco, false);
+    put(cyl(0.035, 0.035, 0.14, 10), CREAM, 0.45, 0.535, -0.2, deco);
+    put(new THREE.ConeGeometry(0.02, 0.06, 6), lit(0xFFD166), 0.45, 0.635, -0.2, deco, false);
   },
   shelf(g) { // 3 × 1
     put(new THREE.BoxGeometry(1.45, 1.5, 0.04), WOOD_D, 0, 0.75, -0.19, g);
