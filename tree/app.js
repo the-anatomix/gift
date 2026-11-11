@@ -1264,6 +1264,7 @@ function frame(now) {
     if (p.t >= 1) pops.splice(k, 1);
   }
   bulbs.tick(clock);
+  if (room.tickDoors(dt, [me, ...others.values()])) dirty = true; // 방문: 누가 다가오면 열린다
   { const p = outside.tick(dt); if (p && outside.opening) pose = p; } // 문이 열려 걸어 들어가는 동안의 카메라 (다 들어간 뒤에는 건드리지 않는다)
   for (const id of S.cakes.keys()) { const c = S.cakes.get(id); if (c.lit > 0 && itemObj.has(id)) flicker(itemObj.get(id), clock); }
   placeBubbles();

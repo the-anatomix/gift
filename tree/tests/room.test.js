@@ -198,6 +198,30 @@ async function walkAndTrace(p, act) {
     await B.screenshot({ path: path.join(__dirname, 'out', 'room-pc.png') });
     await ctx2.close();
 
+    /* 방문: 다가가면 열리고 지나가면 닫힌다 */
+    const ctx3 = await browser.newContext({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true });
+    const D = await ctx3.newPage();
+    D.on('pageerror', (e) => { errors.push(e.message); });
+    await D.goto(BASE + '?ns=rd'); await until(() => D.evaluate(() => !!(window.__tree && window.__tree.frames > 3)), 20000);
+    if (await D.isVisible('#lookDone')) await D.click('#lookDone');
+    const doors = () => D.evaluate(() => window.__tree.room.doors.map((d) => d.open));
+    const still = () => until(() => D.evaluate(() => !window.__tree.me.moving && !window.__tree.me.path.length), 15000);
+    await D.evaluate(() => { window.__tree.me.stop(); window.__tree.me.place(0, 3); }); await sleep(500);
+    check('방으로 들어가는 문이 두 개(거실 쪽, 주방 쪽) 있고, 멀리 있을 때는 닫혀 있음', JSON.stringify(await doors()) === '[0,0]', await doors());
+    let seen = 0;
+    await D.evaluate(() => window.__tree.goTo(8, 3));
+    for (let k = 0; k < 120 && (await D.evaluate(() => window.__tree.me.x)) < 7.9; k++) { seen = Math.max(seen, (await doors())[0]); await sleep(50); }
+    await still();
+    const inBed = await D.evaluate(() => [window.__tree.me.x, window.__tree.me.z]);
+    check('거실에서 방으로 걸어가면 문이 열려서 지나갈 수 있음', seen > 0.9 && Math.hypot(inBed[0] - 8, inBed[1] - 3) < 0.3, { seen, inBed });
+    check('방 안으로 들어가 문에서 멀어지면 다시 닫힘', await until(async () => (await doors())[0] === 0, 4000), await doors());
+    await D.evaluate(() => { window.__tree.me.stop(); window.__tree.me.place(8.75, 0.2); });
+    check('주방 쪽 문도 다가가면 열림 (거실 쪽 문은 그대로 닫혀 있음)', await until(async () => (await doors())[1] === 1, 4000) && (await doors())[0] === 0, await doors());
+    await D.evaluate(() => { window.__tree.me.stop(); window.__tree.me.place(8.75, -2.5); });
+    check('멀어지면 닫힘', await until(async () => (await doors())[1] === 0, 4000));
+    check('내려다볼 때는 문짝 윗부분이 숨고(낮은 벽처럼), 1인칭에서는 다 보임', await D.evaluate(() => { const W = window.__tree, up = () => W.room.doors[0].leaf.children.filter((m) => m.visible).length; const a = up(); W.setPov(true); const b = up(); W.setPov(false); return a < b && up() === a; }));
+    await ctx3.close();
+
     check('페이지 오류 없음', errors.length === 0, errors);
   } finally {
     await browser.close(); server.close();
