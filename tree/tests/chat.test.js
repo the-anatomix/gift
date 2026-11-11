@@ -39,7 +39,7 @@ const audit = (p) => p.evaluate(() => {
   try {
     const vp = { viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true };
     const ctx = await browser.newContext(vp);
-    const A = await open(ctx, `${BASE}?net=bc&ns=ca`);
+    const A = await open(ctx, `${BASE}?net=bc&door=0&ns=ca`);
     check('아래 탭이 여섯 개(채팅 포함)이고 모두 화면 안·44px 이상', (await A.locator('#tabs button').count()) === 6 && (await A.isVisible('#tabs button[data-m="chat"]')) && (await audit(A)).length === 0, await audit(A));
     await A.tap('#tabs button[data-m="chat"]'); await sleep(300);
     check('채팅 탭을 누르면 입력칸과 보내기 단추가 나옴', (await A.isVisible('#chatIn')) && (await A.isVisible('#chatSend')) && (await A.textContent('#chatLog')).includes('아직 아무 말도') && (await audit(A)).length === 0, await audit(A));
@@ -65,8 +65,8 @@ const audit = (p) => p.evaluate(() => {
     await T(A, () => window.__duo.invite());
     await until(async () => (await T(A, () => window.__duo.mode)) === 'waiting');
     const room = (await T(A, () => window.__duo.inviteUrl())).split('#r=')[1], id = room.split('-')[0];
-    const B = await open(ctx, `${BASE}?net=bc&ns=cb#r=${room}`);
-    const C = await open(ctx, `${BASE}?net=bc&ns=cc#v=${id}`);
+    const B = await open(ctx, `${BASE}?net=bc&door=0&ns=cb#r=${room}`);
+    const C = await open(ctx, `${BASE}?net=bc&door=0&ns=cc#v=${id}`);
     await until(async () => (await T(A, () => window.__duo.count)) === 3 && (await T(B, () => window.__duo.others)).length === 2 && (await T(C, () => window.__duo.others)).length === 2, 20000);
     check('구경하는 사람에게도 채팅 탭이 있음 (탭 세 개)', (await C.isVisible('#tabs button[data-m="chat"]')) && (await T(C, () => [...document.querySelectorAll('#tabs button')].filter((x) => !x.hidden).length)) === 3 && (await audit(C)).length === 0, await audit(C));
     await A.fill('#chatIn', '다들 어서 와'); await A.tap('#chatSend');

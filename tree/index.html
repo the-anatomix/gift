@@ -103,6 +103,8 @@ button{font:inherit;color:inherit;touch-action:manipulation}
   background:#fff;color:var(--ink);user-select:text;-webkit-user-select:text;outline:none}
 #chatIn:focus{border-color:var(--choc)}
 #tabs button.live b{text-shadow:0 0 0 #2F9E6E;filter:drop-shadow(0 0 3px #2F9E6E)}
+#duoPeople{display:flex;flex-direction:column;gap:6px;max-height:150px;overflow-y:auto}
+#knock{gap:6px}
 #duoUrl{flex:1;min-width:0;min-height:44px;border:1.5px solid var(--line);border-radius:12px;padding:0 10px;font:inherit;font-size:13px;
   background:#fff;color:var(--ink);user-select:text;-webkit-user-select:text}
 
@@ -177,6 +179,14 @@ button{font:inherit;color:inherit;touch-action:manipulation}
     <div class="row"><span class="lab">옷</span><div class="row" id="pickOutfit" style="flex:1" role="group" aria-label="옷"></div></div>
     <div class="row"><button type="button" class="btn main" id="lookDone" style="flex:1">다 골랐어요</button></div>
   </div>
+  <div id="knock" class="sheet" hidden></div>
+  <div id="doorP" class="sheet" hidden>
+    <div class="hint"><span id="doorMain"></span><small id="doorSub"></small></div>
+    <div class="row">
+      <button type="button" class="btn main" id="bell" style="flex:1">🔔 초인종 누르기</button>
+      <button type="button" class="btn" id="doorHome" hidden>내 방으로 가기</button>
+    </div>
+  </div>
   <div id="playP" class="sheet" hidden>
     <div class="hint"><span id="playMain"></span><small id="playSub"></small></div>
     <div class="wrap" id="playBtns"></div>
@@ -191,6 +201,7 @@ button{font:inherit;color:inherit;touch-action:manipulation}
   </div>
   <div id="duoP" class="sheet" hidden>
     <div class="hint"><span id="duoMain"></span><small id="duoSub"></small></div>
+    <div id="duoPeopleRow" hidden><div id="duoPeople" hidden></div></div>
     <div class="row" id="duoUrlRow" hidden><input id="duoUrl" type="text" readonly aria-label="친구에게 보낼 링크"></div>
     <div class="row">
       <button type="button" class="btn main" id="duoInvite" style="flex:1">같이 꾸밀 친구 초대</button>

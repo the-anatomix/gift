@@ -44,7 +44,7 @@ const tapTop = async (p, dx, dz) => { const s = await T(p, (a) => window.__tree.
   try {
     const vp = { viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true };
     const ctx = await browser.newContext(vp);
-    const A = await open(ctx, `${BASE}?net=bc&ns=ka`);
+    const A = await open(ctx, `${BASE}?net=bc&door=0&ns=ka`);
     check('주방에 케이크 작업대를 놓을 수 있음', await T(A, () => window.__tree.dispatch({ t: 'put', id: 'ck', k: 'cake', i: 24, j: 4, r: 0 })) && (await drawn(A)) === 0);
     await T(A, () => window.__play.open('ck')); await sleep(700);
     check('케이크 만들기: 크림 4가지, 장식 6가지를 고를 수 있고 단추는 화면 안·44px 이상', (await A.locator('#playBtns [id^="cream-"]').count()) === 4 && (await A.locator('#playBtns [id^="top-"]').count()) === 6 && !(await A.isVisible('#playGo')) && (await audit(A)).length === 0, await audit(A));
@@ -98,8 +98,8 @@ const tapTop = async (p, dx, dz) => { const s = await T(p, (a) => window.__tree.
     await T(A, () => window.__duo.invite());
     await until(async () => (await T(A, () => window.__duo.mode)) === 'waiting');
     const room = (await T(A, () => window.__duo.inviteUrl())).split('#r=')[1], id = room.split('-')[0];
-    const B = await open(ctx, `${BASE}?net=bc&ns=kb#r=${room}`);
-    const C = await open(ctx, `${BASE}?net=bc&ns=kc#v=${id}`);
+    const B = await open(ctx, `${BASE}?net=bc&door=0&ns=kb#r=${room}`);
+    const C = await open(ctx, `${BASE}?net=bc&door=0&ns=kc#v=${id}`);
     await until(async () => (await T(A, () => window.__duo.count)) === 3 && (await T(B, () => window.__duo.others)).length === 2 && (await T(C, () => window.__duo.others)).length === 2, 20000);
     await T(A, () => window.__tree.dispatch({ t: 'cakeTop', id: 'ck', k: 'berry', x: 0.1, z: 0 }));
     check('내가 올린 장식이 다른 사람들 케이크에도 올라감', await until(async () => (await drawn(B)) === 1 && (await drawn(C)) === 1, 5000));

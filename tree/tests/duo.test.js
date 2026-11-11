@@ -48,7 +48,7 @@ async function suite(browser, label, query, twoContexts) {
   console.log(`\n── 둘이 같이 꾸미기 (${label}) ──`);
   const vp = { viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true };
   const ctxA = await browser.newContext(vp), ctxB = twoContexts ? await browser.newContext(vp) : ctxA;
-  const url = (ns, room) => `${BASE}?${query}&ns=${ns}&st=3000&rt=500&cap=4&ecap=3${room ? '#r=' + room : ''}`; // 검사에서는 정원 4명, 꾸미는 사람 3명
+  const url = (ns, room) => `${BASE}?${query}&door=0&ns=${ns}&st=3000&rt=500&cap=4&ecap=3${room ? '#r=' + room : ''}`; // 검사에서는 정원 4명, 꾸미는 사람 3명
 
   /* 방 만들기 */
   const A = await open(ctxA, url('a'));

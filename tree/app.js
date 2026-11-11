@@ -10,7 +10,8 @@ import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX
 import { makeState, apply, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake } from './state.js';
 import { buildItem } from './furniture.js';
 import { buildOrnament, buildLights } from './decor.js';
-import { makeDuo, ROOM_RE, CAP, ECAP } from './duo.js';
+import { makeDuo, ROOM_RE, CAP, ECAP, DOOR } from './duo.js';
+import { buildOutside } from './door.js';
 import { makePlay } from './play.js';
 import { dressCake, flicker, pickTop } from './cake.js';
 
@@ -60,22 +61,29 @@ scene.add(glow);
 // 저장 이름. ?ns=이름 은 자동 검사에서 한 브라우저 안의 두 사람을 가르는 데만 쓴다.
 const NS = (new URLSearchParams(location.search).get('ns') || '').replace(/[^a-z0-9]/g, '').slice(0, 8);
 const key = (k) => 'nolja-tree-' + k + (NS ? '.' + NS : '');
-const LOOK_KEY = key('look'), ROOM_KEY = key('room'), CUR_KEY = key('cur'), POV_KEY = key('pov');
+const LOOK_KEY = key('look'), ROOM_KEY = key('room'), CUR_KEY = key('cur'), POV_KEY = key('pov'), DEV_KEY = key('dev');
+// 기기마다 만든 이름: 방장이 들인 친구와 내보낸 사람을 가리는 데 쓴다
+let dev = store.get(DEV_KEY);
+if (typeof dev !== 'string' || !/^[a-z0-9]{6,24}$/.test(dev)) { dev = Array.from(crypto.getRandomValues(new Uint8Array(12)), (x) => 'abcdefghijkmnpqrstuvwxyz23456789'[x % 32]).join(''); store.set(DEV_KEY, dev); }
 // 같이 꾸미는 방: 주소의 #r=방이름-열쇠(같이 꾸미기) 또는 #v=방이름(구경).
 // cur = 이 기기가 지금 들어가 있는 방 { id, mine(내가 만든 방인지), key(꾸밀 수 있는 열쇠), view(구경으로 들어왔는지) }.
 // 방마다 따로 저장한다(혼자 꾸민 내 방은 ROOM_KEY, 같이 꾸미는 방은 ROOM_KEY-방이름). 구경하는 방은 저장하지 않는다.
 let cur = store.get(CUR_KEY);
 if (!cur || typeof cur !== 'object' || !ROOM_RE.test(cur.id || '')) cur = null;
-else cur = { id: cur.id, mine: cur.mine === true, key: typeof cur.key === 'string' ? cur.key : '', view: cur.view === true };
+else {
+  const devs = (a) => (Array.isArray(a) ? a.filter((x) => typeof x === 'string' && /^[a-z0-9]{6,24}$/.test(x)).slice(-60) : []);
+  // friends = 내가 방장일 때 들인 친구들, banned = 내보낸 사람들 (기기 이름)
+  cur = { id: cur.id, mine: cur.mine === true, key: typeof cur.key === 'string' ? cur.key : '', view: cur.view === true, friends: devs(cur.friends), banned: devs(cur.banned) };
+}
 {
   const m = /^#r=([a-z0-9]{6,20})(?:-([a-z0-9]{4,12}))?$/.exec(location.hash), v = /^#v=([a-z0-9]{6,20})$/.exec(location.hash);
   const id = m ? m[1] : v ? v[1] : null;
   if (id && (!cur || cur.id !== id)) { // 다른 방의 링크로 들어옴
     if (cur) store.del(ROOM_KEY + '-' + cur.id);
-    cur = { id, mine: false, key: m ? m[2] || '' : '', view: !m };
+    cur = { id, mine: false, key: m ? m[2] || '' : '', view: !m, friends: [], banned: [] };
     store.set(CUR_KEY, cur);
   } else if (m && cur && cur.view) { // 구경하던 방의 꾸미기 링크를 받음
-    cur = { id, mine: false, key: m[2] || '', view: false };
+    cur = { id, mine: false, key: m[2] || '', view: false, friends: cur.friends, banned: cur.banned };
     store.set(CUR_KEY, cur);
   }
   if (cur) history.replaceState(null, '', location.pathname + location.search + (cur.view ? '#v=' + cur.id : '#r=' + cur.id + (cur.key ? '-' + cur.key : ''))); // 들어가 있던 방으로
@@ -597,17 +605,114 @@ const duo = makeDuo({
     a.walk([[x, z]]);
     return true;
   },
-  peerFx(m) { if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false; play.peerFx(m); return true; },
+  peerFx(m) {
+    if (m && m.k === 'bell') { if (duo.role !== 'host') ding(false); return false; } // 초인종 소식은 방장만 전한다
+    if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false;
+    play.peerFx(m);
+    return true;
+  },
+  // 초인종과 입장
+  dev: () => dev,
+  isFriend: (d) => !!cur && cur.friends.includes(d),
+  banned: (d) => !!cur && cur.banned.includes(d),
+  friend(d) { if (cur && !cur.friends.includes(d)) { cur.friends.push(d); store.set(CUR_KEY, cur); } },
+  ban(d) { if (!cur) return; cur.friends = cur.friends.filter((x) => x !== d); if (!cur.banned.includes(d)) cur.banned.push(d); store.set(CUR_KEY, cur); },
+  bell: (again) => ding(again),
+  admitted() { // 문이 열렸다: 걸어 들어간 다음에 방에 들어선다
+    if (!outside.shown) { comeIn(); return; }
+    paintDoor('문이 열렸어요!', '');
+    outside.open(comeIn);
+  },
   peerSay(id, text) { const t = cleanSay(text); if (!t || !others.has(id)) return null; said(id, t); return t; },
   status: () => paintDuo(),
   toast: (m) => toast(m),
 });
 
+/* ───────── 초인종과 입장 ───────── */
+const outside = buildOutside(scene);
+let ac2 = null, lookLater = false;
+// 딩동 소리. again = 다시 누른 것(알림 글은 한 번만)
+function ding(again) {
+  if (!again) toast(duo.role === 'host' ? '딩동! 친구가 초인종을 눌렀어요' : '딩동! 누가 초인종을 눌렀어요');
+  try {
+    if (!ac2) ac2 = new (window.AudioContext || window.webkitAudioContext)();
+    if (ac2.state === 'suspended') ac2.resume().catch(() => {});
+    [[659.25, 0], [523.25, 0.32]].forEach(([f, at]) => {
+      const o = ac2.createOscillator(), g = ac2.createGain(), t0 = ac2.currentTime + at;
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.9);
+      o.connect(g); g.connect(ac2.destination); o.start(t0); o.stop(t0 + 1);
+    });
+  } catch (_) { /* 소리를 못 내도 알림 글은 보인다 */ }
+}
+function paintDoor(main, sub) {
+  $('doorMain').textContent = main; $('doorSub').textContent = sub;
+  const m = duo.mode;
+  $('bell').hidden = m !== 'door' || outside.opening;
+  $('bell').textContent = duo.rang ? '🔔 다시 누르기' : '🔔 초인종 누르기';
+  $('doorHome').hidden = !(m === 'denied' || (m === 'door' && duo.rang)) || outside.opening;
+  if (mode === 'door') measure(false);
+}
+// 문 앞 장면을 보이거나 걷는다. 연결 상태가 바뀔 때마다 불린다.
+function syncDoor() {
+  const m = duo.mode, at = DOOR && (m === 'door' || m === 'denied');
+  if (at && mode !== 'door') {
+    if (mode === 'look') lookLater = true; // 처음 온 사람의 캐릭터 고르기는 들어간 다음에 한다
+    if (mode !== null) setMode(null);
+    outside.show(true);
+    mode = 'door';
+    for (const k in PANELS) $(PANELS[k]).hidden = k !== 'door';
+    $('tabs').hidden = true; $('tools').hidden = true;
+    pose = outside.pose();
+    applyPov(); measure(false);
+  } else if (!at && mode === 'door' && !outside.opening) leaveDoor();
+  if (mode !== 'door' || outside.opening) return;
+  if (m === 'denied') paintDoor('지금은 들어갈 수 없어요', duo.why === 'kick' ? '방장이 방에서 내보냈어요.' : duo.why === 'ban' ? '이 방에는 다시 들어갈 수 없어요.' : '방장이 문을 열어 주지 않았어요.');
+  else if (duo.rang) paintDoor('딩동! 문을 열어 줄 때까지 기다려요', '방장이 문을 열어 주면 들어가요.');
+  else paintDoor('친구네 집 앞이에요', '초인종을 눌러 주세요.');
+}
+function leaveDoor() {
+  outside.show(false);
+  pose = null; mode = null;
+  for (const k in PANELS) $(PANELS[k]).hidden = true;
+  $('tabs').hidden = false; $('tools').hidden = false;
+  applyPov(); paintPanels(); measure(false);
+  dirty = true;
+}
+function ring() { if (duo.mode !== 'door' || outside.opening) return; ding(true); duo.knock(); syncDoor(); }
+// 문을 지나 방 안 현관 앞에 선다
+function comeIn() {
+  me.stop(); me.place(-2.2, 4.3); me.turnTo(0, -1); me.root.rotation.y = me.face;
+  fy = 0; fpitch = -0.05;
+  if (mode === 'door') leaveDoor();
+  duo.enter();
+  if (lookLater) { lookLater = false; setMode('look'); }
+}
+$('bell').addEventListener('click', ring);
+$('doorHome').addEventListener('click', () => leaveRoom());
+// 방장: 문 앞에서 기다리는 사람들과 방 안의 사람들
+function paintPeople() {
+  const box = $('knock'), list = $('duoPeople');
+  box.textContent = ''; list.textContent = '';
+  const row = (text, btns) => {
+    const r = document.createElement('div'), h = document.createElement('div');
+    r.className = 'row'; h.className = 'hint'; h.textContent = text; r.appendChild(h);
+    for (const [label, fn, main, id] of btns) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (main ? ' main' : ''); b.textContent = label; b.dataset.pid = id; b.addEventListener('click', fn); r.appendChild(b); }
+    return r;
+  };
+  for (const k of duo.knocks) box.appendChild(row(`🔔 ${k.want === 'view' ? '구경하러 온' : '같이 꾸미러 온'} 친구가 문 앞에 있어요`, [['들어오게 하기', () => duo.admit(k.id), true, k.id], ['돌려보내기', () => duo.deny(k.id), false, k.id]]));
+  const was = box.hidden;
+  box.hidden = !duo.knocks.length;
+  if (was !== box.hidden) measure(false); // 아래 판 높이가 바뀌었다
+  for (const p of duo.people) list.appendChild(row(`${nameOf(p.id)} · ${p.edit ? '같이 꾸미는 중' : '구경 중'}`, [['내보내기', () => duo.kick(p.id), false, p.id]]));
+  list.hidden = !duo.people.length;
+}
+
 // 친구 초대: 처음이면 지금 방을 같이 꾸미는 방으로 만들고, 링크를 보낸다. edit = 같이 꾸미기 링크(아니면 구경 링크)
 async function invite(edit = true) {
   if (!cur) {
     const id = duo.create();
-    cur = { id, mine: true, key: duo.key, view: false };
+    cur = { id, mine: true, key: duo.key, view: false, friends: [], banned: [] };
     store.set(CUR_KEY, cur);
     store.set(slot(), serialize(S));
     history.replaceState(null, '', location.pathname + location.search + '#r=' + id + '-' + cur.key);
@@ -639,9 +744,12 @@ const DUO_TEXT = {
   lost: ['연결이 끊겼어요', '방은 그대로예요. 혼자 이어서 꾸밀 수 있어요.', '연결 끊김'],
   full: ['이 방은 지금 꽉 찼어요', '', '방이 찼어요'],
   away: ['방 주인이 지금 없어요', '주인이 방을 열면 구경할 수 있어요. 가끔 다시 가 볼게요.', '주인 없음'],
+  door: ['친구네 집 앞이에요', '초인종을 눌러 주세요.', '문 앞'],
+  denied: ['들어갈 수 없어요', '', '들어갈 수 없음'],
 };
 function paintDuo() {
   const m = duo.mode;
+  syncDoor(); paintPeople();
   let [main, sub, chip] = DUO_TEXT[m];
   if (m === 'on') {
     main = canEdit ? `${duo.count}명이 같이 있어요 👫` : `구경하는 중이에요 (${duo.count}명이 있어요)`;
@@ -654,6 +762,7 @@ function paintDuo() {
   $('duoInviteV').hidden = !share;
   $('duoRetry').hidden = !(m === 'lost' || m === 'away');
   $('duoLeave').hidden = m === 'solo';
+  $('duoPeopleRow').hidden = !duo.people.length;
   $('duoLeave').textContent = cur && cur.mine ? '혼자 놀기' : '내 방으로 가기';
   if (!share) manualUrl = null;
   $('duoUrlRow').hidden = !manualUrl;
@@ -747,6 +856,7 @@ function lift(e, ok) {
   const still = ok && Math.hypot(e.clientX - t.x, e.clientY - t.y) <= 10;
   if (ghost) { if (still && usingEye()) ghostAt(e.clientX, e.clientY); return; } // 1인칭에서는 누른 자리로 가구가 온다
   if (!still) return;
+  if (mode === 'door') { aimRay(e.clientX, e.clientY); if (outside.hitBell(ray)) ring(); return; } // 초인종
   if (mode === 'play') { play.tap(e.clientX, e.clientY); return; }
   if (mode === null) { const id = pickItem(e.clientX, e.clientY); if (id && startPlay(id)) return; } // 놀 수 있는 가구
   if (mode === 'tree') { treeTap(e.clientX, e.clientY); return; }
@@ -877,8 +987,9 @@ if (window.visualViewport) {
 $('zin').addEventListener('click', () => zoomBy(1.35));
 $('zout').addEventListener('click', () => zoomBy(1 / 1.35));
 
-const PANELS = { furn: 'furn', tree: 'treeP', paint: 'paint', look: 'look', duo: 'duoP', play: 'playP', chat: 'chatP' };
+const PANELS = { furn: 'furn', tree: 'treeP', paint: 'paint', look: 'look', duo: 'duoP', play: 'playP', chat: 'chatP', door: 'doorP' };
 function setMode(m) {
+  if (mode === 'door') return; // 문 앞에서는 탭을 쓸 수 없다
   if (m === mode) m = null; // 같은 탭을 다시 누르면 닫는다
   if (ghost) ghostCancel();
   const was = mode;
@@ -1015,6 +1126,7 @@ function frame(now) {
     if (p.t >= 1) pops.splice(k, 1);
   }
   bulbs.tick(clock);
+  { const p = outside.tick(dt); if (p) pose = p; } // 문이 열려 걸어 들어가는 동안의 카메라
   for (const id of S.cakes.keys()) { const c = S.cakes.get(id); if (c.lit > 0 && itemObj.has(id)) flicker(itemObj.get(id), clock); }
   placeBubbles();
   play.tick(dt);
@@ -1052,8 +1164,11 @@ const loading = $('loading');
 if (loading) { loading.classList.add('done'); setTimeout(() => loading.remove(), 500); }
 
 // 자동 검사가 쓰는 창구
+window.__door = { get shown() { return outside.shown; }, get opening() { return outside.opening; }, ring, bellPoint: () => outside.bellPoint(), get dev() { return dev; } };
 window.__duo = {
   get mode() { return duo.mode; }, get role() { return duo.role; }, get room() { return duo.room; }, get mine() { return cur ? cur.mine : null; },
+  get knocks() { return duo.knocks; }, get people() { return duo.people; }, get why() { return duo.why; }, get rang() { return duo.rang; },
+  admit: (id) => duo.admit(id), deny: (id) => duo.deny(id), kick: (id) => duo.kick(id),
   get canEdit() { return canEdit; }, get count() { return duo.count; }, get me() { return duo.me; }, get editors() { return duo.editors; }, get slot() { return mySlot; },
   get others() { return [...others].map(([id, a]) => ({ id, x: a.x, z: a.z, look: a.look, moving: a.moving })); },
   say, cleanSay, get bubbles() { return [...bubbles].filter(([, b]) => b.el.style.display !== 'none').map(([who, b]) => { const r = b.el.getBoundingClientRect(); return { who, text: b.el.textContent, x: r.left + r.width / 2, y: r.bottom }; }); },
