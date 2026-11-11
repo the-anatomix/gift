@@ -49,7 +49,7 @@ export default function (kit) {
   function stopRun() { if (run) { run.fn = () => {}; run.done = null; run = null; } }
   function startBake() {
     stopRun();
-    phase = 'baking'; prog = 0; show();
+    phase = 'baking'; prog = 0; show(); kit.sfx('oven');
     const mine = run = kit.tween(BAKE_MS, (k) => {
       if (run !== mine) return;
       prog = k;
@@ -103,6 +103,7 @@ export default function (kit) {
         if (phase !== 'baking') return;
         stopRun(); lv = levelOf(Math.max(0, Math.min(1, d.out))); perf = Math.abs(d.out - BEST) <= BEST_TOL; phase = 'done'; show();
         for (const st of rackSticks) { const y = st.position.y; kit.tween(420, (k) => { st.position.y = y + 0.12 * (1 - kit.easeBack(k)); }); }
+        kit.sfx('ding');
         kit.judge(perf ? 2 : 1);
         if (kit.active() && !perf) kit.toast(LV[lv].name);
         kit.repaint();

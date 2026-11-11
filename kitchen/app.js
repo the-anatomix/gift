@@ -4,6 +4,7 @@ import * as THREE from './vendor/three.module.min.js';
 import { RoundedBoxGeometry } from './vendor/RoundedBoxGeometry.js';
 import { pickTheme, SITE } from './theme.js';
 import { stations as STATION_MODS } from './stations/index.js';
+import { sfx } from './sfx.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('c');
@@ -428,6 +429,7 @@ for (const id in STATION_MODS) {
     repaint: () => { if (S.station === id) { panelKey = ''; renderPanel(); refit(); } },
     setBiscuit: (hex) => { biscuitMat.color.setHex(hex); poke(); },
     judge: (v) => { if (S.station === id) judge(v); },
+    sfx: (name) => { if (S.station === id) sfx.play(name); },
     stick, restick, grades,
     go: (s) => dispatch({ t: 'go', s }),
   };
@@ -497,6 +499,7 @@ let judgeT = 0;
 function judge(v) {
   const j = $('judge');
   j.textContent = v === 2 ? 'PERFECT!' : 'GOOD'; j.className = v === 2 ? 'p' : 'g';
+  sfx.play(v === 2 ? 'perfect' : 'good');
   j.hidden = false; j.style.animation = 'none'; void j.offsetWidth; j.style.animation = '';
   clearTimeout(judgeT); judgeT = setTimeout(() => { j.hidden = true; }, 1100);
   // 제작 과정 사진: 판정이 난 자리의 화면을 잠시 뒤에 찍어 둔다 (자랑 카드용. 이 기기 메모리에만 있다)
@@ -785,6 +788,7 @@ function sprinkleAt(e, force) {
     sp: +(Math.random() * 6.283).toFixed(2), sc: +(0.85 + Math.random() * 0.4).toFixed(2),
     c: Math.floor(Math.random() * k.colors.length), st: drag.st, id: drag.st + '.' + (drag.n++),
   });
+  sfx.play('tick');
   return true;
 }
 function endDrag() {
@@ -794,6 +798,7 @@ function endDrag() {
     const from = tipY, len = d.len;
     if (len > 0.03) {
       dispatch({ t: 'coat', c: S.color, len: +len.toFixed(3) });
+      sfx.play('plop');
       judge(chocoGrade() === 2 ? 2 : 1);
       ripple(); if (!reduceMotion) drips(len);
     }
@@ -851,7 +856,7 @@ canvas.addEventListener('pointermove', (e) => {
     stick.position.y = tipY;
     const depth = SURF_Y - tipY;
     if (depth > drag.len) {
-      if (drag.len <= 0) ripple();
+      if (drag.len <= 0) { ripple(); sfx.play('dip'); }
       drag.len = depth;
     }
     poke();

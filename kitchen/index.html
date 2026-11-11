@@ -29,6 +29,7 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 #top .brand{font-weight:800;font-size:15px;letter-spacing:-.02em;display:flex;align-items:center;gap:6px}
 #top .tag{font-size:11px;font-weight:800;background:var(--choc);color:#FFF4E0;padding:2px 7px;border-radius:999px}
 #top .links{display:flex;gap:6px}
+#snd{pointer-events:auto;width:44px;height:44px;padding:0;border:1.5px solid var(--line);border-radius:50%;background:rgba(255,252,245,.85);font-size:17px;cursor:pointer}
 #top a{pointer-events:auto;min-height:44px;min-width:44px;padding:0 12px;display:inline-flex;align-items:center;
   font-size:13px;font-weight:700;color:var(--choc);text-decoration:none;background:rgba(255,252,245,.85);
   border:1.5px solid var(--line);border-radius:999px}
@@ -231,7 +232,7 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels,body.recv #top
 <div id="emos" aria-hidden="true"></div>
 <div id="top">
   <div class="brand">갓 구운 선물<span id="account" hidden></span></div>
-  <span class="links"><a href="../">2D 판</a><a href="../nolja/">놀자방 홈</a></span>
+  <span class="links"><button type="button" id="snd" aria-label="효과음 끄기">🔈</button><a href="../">2D 판</a><a href="../nolja/">놀자방 홈</a></span>
 </div>
 <div id="inapp" hidden>
   <p>앱 안 브라우저로 열렸어요.<small>여기서는 그림 공유나 "같이 굽기" 연결이 안 될 수 있어요. 기본 브라우저(사파리·크롬)에서 열면 다 돼요.</small></p>
@@ -352,5 +353,17 @@ window.__fallback = function () {
 <script type="module" src="./gift.js"></script>
 <script type="module" src="./brag.js"></script>
 <script type="module" src="./bgm.js"></script>
+<script type="module">
+  // 위쪽 소리 버튼: 효과음과 편지 음악을 함께 끄고 켠다
+  import { sfx } from './sfx.js';
+  import { bgm } from './bgm.js';
+  const b = document.getElementById('snd');
+  b.addEventListener('click', () => {
+    const off = !sfx.muted; sfx.setMuted(off); bgm.setMuted(off);
+    b.textContent = off ? '🔇' : '🔈'; b.setAttribute('aria-label', off ? '효과음 켜기' : '효과음 끄기');
+    const r = document.getElementById('rcSound'); if (r) r.textContent = off ? '🔇' : '🔈';
+    if (!off) sfx.play('tick');
+  });
+</script>
 </body>
 </html>

@@ -71,6 +71,7 @@ async function make(p, o) { // 네 자리를 정해진 정확도로 만든다
     await A.mouse.move(c.x + 50, c.y); await A.mouse.down();
     for (let i = 1; i <= 420 && (await A.evaluate(() => window.__kitchen.getState().x.dough.p)) < 1; i++) await A.mouse.move(c.x + Math.cos(i * 0.5) * 50, c.y + Math.sin(i * 0.5) * 34);
     await A.mouse.up();
+    check('효과음: 반죽을 문지르면 말랑한 소리', (await A.evaluate(() => window.__sfx.played.knead || 0)) >= 3);
     check('반죽: 손을 떼지 않고 끝까지 문지르면 완벽', (await q(A)).dough === 2, await A.evaluate(() => window.__kitchen.getState().x.dough));
     await st(A, 'dough', { reset: true });
     await A.mouse.move(c.x + 50, c.y); await A.mouse.down();

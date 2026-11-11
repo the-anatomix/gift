@@ -85,7 +85,7 @@ export default function (kit) {
     if (!kit.active()) { settle(); return; }
     kit.restick(650, () => {
       kit.tween(320, (k) => { lid.rotation.x = OPEN * (1 - kit.ease(k)); }, () => {
-        ribbon.visible = true; showSeal();
+        ribbon.visible = true; showSeal(); kit.sfx('pack');
         if (seal && kit.active()) kit.toast(TITLES[seal] + ' 등급을 받았어요!');
         kit.tween(300, (k) => { ribbon.scale.setScalar(Math.max(0.01, kit.easeBack(k))); });
         hop(3, () => {

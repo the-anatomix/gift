@@ -130,7 +130,7 @@ export default function (kit) {
     acc = Math.max(acc, p) + dist / (7 * Math.max(320, i.w)); // 화면 폭의 7배쯤 문지르면 완성 (폰에서 3~5초)
     acc = clamp01(acc);
     shown = Math.max(shown, acc);
-    press = 1; lean();
+    press = 1; lean(); kit.sfx('knead');
     lumps.rotation.y += dist * 0.012;
     draw(); syncPanel();
     const step = Math.floor(acc / STEP + 1e-6) * STEP;
