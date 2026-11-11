@@ -1,4 +1,4 @@
-// 갓 구운 선물 · 미니 주방 시안
+// 갓 구운 선물 · 미니 주방
 // 정적 파일만 사용한다. three.js 는 ./vendor 에 함께 들어 있다(MIT).
 import * as THREE from './vendor/three.module.min.js';
 import { RoundedBoxGeometry } from './vendor/RoundedBoxGeometry.js';
