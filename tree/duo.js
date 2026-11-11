@@ -7,7 +7,7 @@
 //   주인 → 손님  { t: 'admit' } / { t: 'deny', why }                 들어오세요 / 안 돼요 (why: 'no' 돌려보냄, 'ban' 내보낸 사람, 'kick' 지금 내보냄)
 //   손님 → 주인  { t: 'hello', state, look, pos, mine, want, key }   (허락받은 뒤) 들어오면서 내 방과 바라는 역할(want: 'edit' | 'view')을 알린다
 //   주인 → 손님  { t: 'state', state, you: { id, edit, slot }, peers }   정해진 방과 내 역할, 지금 있는 사람들 (다시 맞출 때도 이것)
-//   주인 → 손님  { t: 'join', id, look, pos } { t: 'gone', id }         다른 사람이 들어오고 나감
+//   주인 → 손님  { t: 'join', id, look, pos, pj } { t: 'gone', id }     다른 사람이 들어오고 나감 (pj = 그 사람의 PeerJS 이름: 소리·영상을 직접 걸 때 쓴다)
 //   서로         { t: 'op', op }                                        방의 변화 하나. 구경하는 사람이 보낸 것은 주인이 받지 않는다
 //   손님 → 주인  { t: 'sync' }                                          방이 달라진 것 같으니 통째로 다시 달라
 //   서로         { t: 'look', look } { t: 'pos', x, z } { t: 'fx', k, v } { t: 'say', text }   주인이 전해 줄 때는 누구 것인지 id 를 붙인다
@@ -186,10 +186,10 @@ export function makeDuo(K) {
       p.hello = true;
       const adopted = p.edit && isObj(m.state) && K.preferPeer(m.state, m.mine === true);
       if (adopted) K.adopt(m.state);
-      const info = K.peerJoin(pid, m);
+      const info = K.peerJoin(pid, { look: m.look, pos: m.pos, pj: link.remote(pid) });
       link.send(stateMsg(pid), pid);
       if (adopted) for (const o of others(pid)) link.send(stateMsg(o), o);
-      if (first) relay({ t: 'join', id: pid, look: info.look, pos: info.pos }, pid);
+      if (first) relay({ t: 'join', id: pid, look: info.look, pos: info.pos, pj: info.pj }, pid);
       K.synced();
       count = peers.size + 1;
       if (first) K.toast(p.edit ? '친구가 들어왔어요!' : '친구가 구경하러 왔어요!');
@@ -276,6 +276,9 @@ export function makeDuo(K) {
     get canEdit() { return canEdit; }, get count() { return count; }, get key() { return key; }, get me() { return myId; },
     get editors() { return role === 'host' ? editors() : 0; },
     get why() { return why; }, get rang() { return rang; },
+    // 소리와 영상을 직접 주고받는 데 쓰는 내 PeerJS (방 안에 들어와 있을 때만)
+    peer() { return link && mode === 'on' ? link.peer() : null; },
+    pj() { return link ? link.pj() : ''; },
     // 주인: 문 앞에서 기다리는 사람들 / 방 안에 있는 사람들
     get knocks() { return role === 'host' ? [...peers].filter(([, p]) => p.asked && !p.ok).map(([id, p]) => ({ id, want: p.want })) : []; },
     get people() { return role === 'host' ? [...peers].filter(([, p]) => p.hello).map(([id, p]) => ({ id, edit: p.edit })) : []; },

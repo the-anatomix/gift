@@ -9,7 +9,7 @@
 // cb = { role(r), close(why), full(),
 //        open(), msg(m)                    손님: 주인과 이어짐 / 주인이 보낸 말
 //        join(pid), leave(pid), msg(m, pid)  주인: 손님이 들어옴·나감 / 그 손님이 보낸 말 }
-// 돌려주는 값 = { send(m, to), drop(to), close() }   주인은 to(pid)가 없으면 모두에게
+// 돌려주는 값 = { send(m, to), drop(to), close(), peer(), pj(), remote(pid) }   주인은 to(pid)가 없으면 모두에게
 
 const PREFIX = 'nolja-tree-';
 
@@ -81,6 +81,8 @@ async function peerRoom(room, cb, opt) {
       for (const pid of to ? [to] : [...conns.keys()]) { const c = conns.get(pid); conns.delete(pid); if (c) { try { c.close(); } catch (_) { /* 무시 */ } } }
     },
     close() { closed = true; conn = null; conns.clear(); if (peer) { try { peer.destroy(); } catch (_) { /* 무시 */ } } },
+    // 소리와 영상을 직접 주고받을 때 쓴다(media.js): 내 PeerJS, 내 PeerJS 이름, 손님 pid 의 PeerJS 이름
+    peer: () => (closed ? null : peer), pj: () => (peer && peer.id) || '', remote: (pid) => { const c = conns.get(pid); return c ? c.peer : ''; },
   };
   try { await loadScript('./vendor/peerjs.min.js'); } catch (e) { fail('load'); return handle; }
   if (!closed) asHost();
@@ -130,6 +132,7 @@ function bcRoom(room, cb, opt) {
       for (const [chan, pid] of [...pids]) if (!to || pid === to) pids.delete(chan);
     },
     close() { bye(); closed = true; removeEventListener('pagehide', bye); ch.close(); },
+    peer: () => null, pj: () => '', remote: () => '', // 이 연결로는 소리와 영상을 보낼 수 없다
   };
 }
 

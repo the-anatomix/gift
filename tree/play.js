@@ -114,12 +114,33 @@ export function makePlay(K) {
   TV_MAT.map = tex; TV_MAT.needsUpdate = true;
   const flakes = Array.from({ length: 46 }, (_, k) => ({ x: (k * 97) % 480, y: (k * 53) % 270, r: 1 + (k % 3), s: 14 + (k % 5) * 7 }));
   let video = null, url = null, sound = false, wantPlay = false, tvT = 0;
+  let rv = null, rvFrom = null;      // 친구가 보내 주는 TV 영상과 보내는 사람
   const hasVideo = () => !!video && video.readyState >= 2 && video.videoWidth > 0;
+  const hasRemote = () => !!rv && rv.readyState >= 2 && rv.videoWidth > 0;
+  const watching = () => !!cur && cur.kind === 'tv';
+  // 소리는 TV 를 보고 있고 소리를 켰을 때만 난다. 내 동영상이 있으면 그것을, 없으면 친구 것을 듣는다.
+  function applySound() {
+    if (video) video.muted = !(sound && watching());
+    if (rv) rv.muted = !(sound && watching() && !video);
+  }
+  // 내 동영상을 방 사람들에게 보낸다: TV 그림판을 영상으로, 동영상의 소리를 붙여서
+  let sharing = false;
+  function share() {
+    if (!video || !K.canShare()) { if (sharing) { sharing = false; K.shareTv(null); } return; }
+    if (sharing || !hasVideo()) return;
+    try {
+      const st = scr.captureStream(15);
+      try { const vs = video.captureStream ? video.captureStream() : video.mozCaptureStream ? video.mozCaptureStream() : null; const at = vs && vs.getAudioTracks()[0]; if (at) st.addTrack(at); } catch (_) { /* 소리를 못 붙이면 화면만 보낸다 */ }
+      sharing = true;
+      K.shareTv(st);
+    } catch (_) { sharing = false; }
+  }
   function drawScreen(dt) {
-    if (hasVideo()) {
-      const s = Math.min(480 / video.videoWidth, 270 / video.videoHeight), w = video.videoWidth * s, h = video.videoHeight * s;
+    const src = hasVideo() ? video : hasRemote() ? rv : null; // 내 동영상이 먼저, 없으면 친구가 보내 주는 것
+    if (src) {
+      const s = Math.min(480 / src.videoWidth, 270 / src.videoHeight), w = src.videoWidth * s, h = src.videoHeight * s;
       sc.fillStyle = '#000'; sc.fillRect(0, 0, 480, 270);
-      try { sc.drawImage(video, (480 - w) / 2, (270 - h) / 2, w, h); } catch (_) { /* 아직 그릴 수 없으면 건너뛴다 */ }
+      try { sc.drawImage(src, (480 - w) / 2, (270 - h) / 2, w, h); } catch (_) { /* 아직 그릴 수 없으면 건너뛴다 */ }
     } else {
       const g = sc.createLinearGradient(0, 0, 0, 270);
       g.addColorStop(0, '#1B2550'); g.addColorStop(1, '#3A4A86');
@@ -157,10 +178,11 @@ export function makePlay(K) {
       video.loop = true; video.playsInline = true; video.muted = true; video.preload = 'auto';
       video.setAttribute('playsinline', ''); video.setAttribute('webkit-playsinline', '');
       video.addEventListener('error', () => { if (video && video.src) K.toast('이 동영상은 재생할 수 없어요'); });
+      video.addEventListener('loadeddata', () => share());
     }
     if (url) URL.revokeObjectURL(url);
     url = URL.createObjectURL(blob);
-    video.src = url; video.muted = !(sound && cur && cur.kind === 'tv');
+    video.src = url; applySound();
     tryPlay();
     if (keep) db('readwrite', (s) => s.put(blob, FILE));
     if (cur && cur.kind === 'tv') tv.paint(cur);
@@ -170,6 +192,7 @@ export function makePlay(K) {
     if (video) { video.pause(); video.removeAttribute('src'); video.load(); }
     if (url) { URL.revokeObjectURL(url); url = null; }
     video = null;
+    share(); applySound();
     db('readwrite', (s) => s.delete(FILE));
     if (cur && cur.kind === 'tv') tv.paint(cur);
   }
@@ -181,19 +204,20 @@ export function makePlay(K) {
       const fov = portrait() ? 58 : 38, hf = Math.atan(Math.tan(fov * Math.PI / 360) * K.aspect());
       const d = clamp((TV.w / 2 / 0.82) / Math.tan(hf), 1.5, 4.2);
       K.setPose({ pos: world(c.g, 0, TV.y + 0.05, d), at: world(c.g, 0, TV.y, 0), fov, inside: true });
-      if (video) { video.muted = !sound; tryPlay(); }
+      applySound(); tryPlay(); if (rv) rv.play().catch(() => {});
       tv.paint(c);
     },
     paint(c) {
-      const on = !!video;
-      panel(on ? 'TV · 내가 넣은 동영상' : 'TV · 눈 내리는 밤', on ? '이 기기에 저장돼서 다음에도 계속 나와요. 친구 화면에는 안 보여요.' : '동영상을 넣으면 TV 에서 계속 나와요.',
+      const on = !!video, far = !on && !!rv;
+      panel(on ? 'TV · 내가 넣은 동영상' : far ? 'TV · 친구가 넣은 동영상' : 'TV · 눈 내리는 밤',
+        on ? (K.canShare() ? '같이 있는 사람들 TV 에도 나와요. 이 기기에 저장돼서 다음에도 계속 나와요.' : '이 기기에 저장돼서 다음에도 계속 나와요.') : far ? '친구가 보내 주는 영상이에요.' : '동영상을 넣으면 TV 에서 계속 나와요. 같이 있는 사람들도 볼 수 있어요.',
         [{ label: on ? '다른 동영상' : '동영상 넣기', main: true, id: 'playGo', fn: () => file.click() },
-          ...(on ? [{ label: sound ? '🔊 소리 끄기' : '🔇 소리 켜기', id: 'playSound', fn: () => { sound = !sound; video.muted = !sound; tryPlay(); tv.paint(c); } },
-            { label: '빼기', id: 'playDrop', fn: () => clearVideo() }] : []),
+          ...(on || far ? [{ label: sound ? '🔊 소리 끄기' : '🔇 소리 켜기', id: 'playSound', fn: () => { sound = !sound; applySound(); tryPlay(); if (rv) rv.play().catch(() => {}); tv.paint(c); } }] : []),
+          ...(on ? [{ label: '빼기', id: 'playDrop', fn: () => clearVideo() }] : []),
           { label: '그만 보기', id: 'playQuit', fn: () => K.close() }]);
     },
     tick() {}, tap() {},
-    stop() { if (video) video.muted = true; }, // 방을 꾸밀 때는 소리 없이 화면만 나온다
+    stop() { setTimeout(applySound, 0); }, // 방을 꾸밀 때는 소리 없이 화면만 나온다
   };
 
   /* ───────── 벽난로: 마시멜로 굽기 ───────── */
@@ -334,7 +358,7 @@ export function makePlay(K) {
   const KINDS = { dart, tv, fire, music, cake };
   // 화면을 처음 누를 때: 막혀 있던 동영상·소리를 다시 튼다 (브라우저는 누르기 전에는 소리를 못 내게 한다)
   addEventListener('pointerdown', () => {
-    if (wantPlay && video) { wantPlay = false; tryPlay(); }
+    if (wantPlay) { wantPlay = false; if (video) tryPlay(); if (rv) rv.play().catch(() => {}); }
     if (wantSong && ac) { wantSong = false; ac.resume().catch(() => {}); }
   }, true);
   db('readonly', (s) => s.get(FILE)).then((b) => { if (b instanceof Blob && !video) setVideo(b, false); });
@@ -362,6 +386,21 @@ export function makePlay(K) {
       if (K.hasKind('tv')) { tvT += dt; if (tvT > 0.06) { drawScreen(tvT); tvT = 0; } }
     },
     tap(px, py) { if (cur) KINDS[cur.kind].tap(cur, px, py); },
+    // 친구가 TV 영상을 보내기 시작했거나(stream) 그만뒀다(null)
+    remoteTv(stream, from) {
+      if (!stream) { if (rvFrom !== from) return; if (rv) { rv.pause(); rv.srcObject = null; } rv = null; rvFrom = null; }
+      else {
+        if (!rv) { rv = document.createElement('video'); rv.playsInline = true; rv.muted = true; rv.setAttribute('playsinline', ''); }
+        rv.srcObject = stream; rvFrom = from;
+        applySound();
+        const p = rv.play(); if (p && p.catch) p.catch(() => { wantPlay = true; });
+      }
+      if (watching()) tv.paint(cur);
+    },
+    // 연결이 이어졌을 때: 내가 넣어 둔 동영상을 방 사람들에게 보내기 시작한다
+    reshare() { share(); },
+    // 연결이 끊겼을 때: 다시 이어지면 새로 보내야 한다
+    unshare() { sharing = false; },
     // 방 상태가 바뀌었을 때(누가 케이크를 꾸몄을 때) 판을 다시 그린다
     refresh(id) { if (cur && cur.id === id && KINDS[cur.kind].paint) KINDS[cur.kind].paint(cur); },
     // 친구가 한 것
@@ -381,6 +420,7 @@ export function makePlay(K) {
       get topping() { return topping; }, set topping(v) { topping = v; if (cur && cur.kind === 'cake') cake.paint(cur); },
       get song() { return song ? song.id : null; }, get audio() { return ac ? ac.state : null; },
       get video() { return video ? { ready: video.readyState, w: video.videoWidth, muted: video.muted, paused: video.paused } : null; },
+      get remote() { return rv ? { ready: rv.readyState, w: rv.videoWidth, muted: rv.muted, from: rvFrom } : null; },
       throwAt(x, y) { if (cur && cur.kind === 'dart') dart.shoot(cur, [x, y]); },
       setHeat(h) { if (cur && cur.kind === 'fire') { cur.heat = h; fire.color(cur); } },
       setVideo, clearVideo, setSong, verdict: toast2,

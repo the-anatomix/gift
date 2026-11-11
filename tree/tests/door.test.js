@@ -92,7 +92,7 @@ const audit = (p) => p.evaluate(() => {
     await A.tap('#tabs button[data-m="duo"]'); await sleep(300);
     check('방장의 같이 판에 방 안 사람 목록과 "내보내기" 단추가 있음', (await A.locator('#duoPeople .row').count()) === 1 && (await A.textContent('#duoPeople')).includes('같이 꾸미는 중') && (await A.textContent('#duoPeople button')) === '내보내기' && (await audit(A)).length === 0, await audit(A));
     await B.tap('#tabs button[data-m="duo"]'); await sleep(200);
-    check('손님에게는 내보내기 단추가 없음', !(await B.isVisible('#duoPeople')));
+    check('손님에게도 방 안 사람 목록은 보이지만 내보내기 단추는 없음', (await B.locator('#duoPeople .row').count()) === 1 && (await B.locator('#duoPeople button').count()) === 0);
     await A.screenshot({ path: path.join(__dirname, 'out', 'door-people.png') });
     await A.tap('#duoPeople button');
     check('방장이 내보내면 그 사람은 방에서 나가고 안내를 봄', await until(async () => (await mode(B)) === 'denied', 6000) && (await T(B, () => window.__duo.why)) === 'kick' && (await B.textContent('#doorSub')).includes('내보냈어요') && await until(async () => (await T(A, () => window.__duo.others.length)) === 0 && (await mode(A)) === 'waiting', 6000));

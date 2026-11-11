@@ -22,6 +22,7 @@ node door.test.js     # 초인종 입장: 집 밖 → 초인종 → 방장의 �
 node chat.test.js     # 채팅: 말풍선 · 지난 말 목록 · 여러 명에게 전달 · 글 다듬기와 도배 막기
 node duo.test.js      # 같이 꾸미기: 방 만들기·들어가기·서로 보이기·여러 명과 구경·끊김·다시 만나 맞추기 (같은 브라우저 안 통신)
 node duo.test.js --peer   # 위에 더해 로컬 PeerJS 브로커로 실제 WebRTC 데이터 채널까지
+node media.test.js    # 보이스와 TV 같이 보기 (로컬 PeerJS 브로커와 가짜 마이크로 실제 WebRTC 소리·영상)
 ```
 
 결과는 줄마다 `통과` / `실패` 로 나오고, 화면 사진은 `out/` 에 남습니다(커밋하지 않음).

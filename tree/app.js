@@ -12,6 +12,7 @@ import { buildItem } from './furniture.js';
 import { buildOrnament, buildLights } from './decor.js';
 import { makeDuo, ROOM_RE, CAP, ECAP, DOOR } from './duo.js';
 import { buildOutside } from './door.js';
+import { makeMedia } from './media.js';
 import { makePlay } from './play.js';
 import { dressCake, flicker, pickTop } from './cake.js';
 
@@ -543,17 +544,20 @@ function okLook(lk) {
 }
 const okId = (id) => typeof id === 'string' && /^[a-z0-9]{1,8}$/.test(id);
 // 한 사람의 아바타를 만들거나 고친다. 돌려주는 값 = 받아들인 { look, pos }
-function setPeer(id, lk, pos) {
+const okPj = (v) => typeof v === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v);
+function setPeer(id, lk, pos, pj) {
   if (!okId(id)) return null;
   const c = okLook(lk);
   let a = others.get(id);
   if (!a) { a = makeAvatar(c || DEFAULT_LOOK); a.place(-1.75, 2.25); a.turnTo(1, 1); a.root.rotation.y = a.face; scene.add(a.root); others.set(id, a); }
   else if (c) a.setLook(c);
   if (Array.isArray(pos) && okXZ(pos[0], pos[1])) { a.stop(); a.place(pos[0], pos[1]); }
+  if (okPj(pj)) a.pj = pj; // 소리·영상을 직접 걸 때 쓰는 이름
   sentX = Infinity; // 내 자리도 다시 알린다
   if (ghost) ghostPaint();
   dirty = true;
-  return { look: a.look, pos: [r3(a.x), r3(a.z)] };
+  media.refresh();
+  return { look: a.look, pos: [r3(a.x), r3(a.z)], pj: a.pj || '' };
 }
 function dropPeer(id) {
   const a = others.get(id);
@@ -563,6 +567,7 @@ function dropPeer(id) {
   others.delete(id);
   dirty = true;
   if (ghost) ghostPaint();
+  media.refresh();
 }
 // 누군가와 같은 자리에 겹쳐 서 있으면 내가 옆으로 비켜선다
 function stepAside() {
@@ -585,15 +590,15 @@ const duo = makeDuo({
   setRole(edit, slot) { canEdit = edit; mySlot = slot; paintRole(); },
   peerCount: () => others.size,
   // 주인이 새로 온 사람에게 알려 줄 명단 (그 사람 빼고, 나 포함)
-  roster: (except) => [{ id: 'h', look, pos: [r3(me.x), r3(me.z)] }, ...[...others].filter(([id]) => id !== except).map(([id, a]) => ({ id, look: a.look, pos: [r3(a.x), r3(a.z)] }))],
+  roster: (except) => [{ id: 'h', look, pos: [r3(me.x), r3(me.z)], pj: duo.pj() }, ...[...others].filter(([id]) => id !== except).map(([id, a]) => ({ id, look: a.look, pos: [r3(a.x), r3(a.z)], pj: a.pj || '' }))],
   // 손님이 받은 명단대로 맞춘다
   setRoster(list) {
     const keep = new Set();
-    for (const p of list.slice(0, 16)) if (p && okId(p.id) && p.id !== duo.me && setPeer(p.id, p.look, p.pos)) keep.add(p.id);
+    for (const p of list.slice(0, 16)) if (p && okId(p.id) && p.id !== duo.me && setPeer(p.id, p.look, p.pos, p.pj)) keep.add(p.id);
     for (const id of [...others.keys()]) if (!keep.has(id)) dropPeer(id);
     stepAside();
   },
-  peerJoin: (id, m) => setPeer(id, m.look, m.pos) || { look: DEFAULT_LOOK, pos: [0, 0] },
+  peerJoin: (id, m) => setPeer(id, m.look, m.pos, m.pj) || { look: DEFAULT_LOOK, pos: [0, 0], pj: '' },
   peerGone: (id) => dropPeer(id),
   peersGone() { for (const id of [...others.keys()]) dropPeer(id); },
   peerOp: (op) => dispatch(op, 'peer'),
@@ -627,6 +632,24 @@ const duo = makeDuo({
   status: () => paintDuo(),
   toast: (m) => toast(m),
 });
+
+/* ───────── 보이스와 TV 같이 보기 (사람끼리 직접 주고받는 소리와 영상) ───────── */
+const media = makeMedia({
+  peer: () => duo.peer(),
+  targets: () => [...others].map(([id, a]) => ({ id, pj: a.pj || '' })),
+  whoIs: (pj) => { for (const [id, a] of others) if (a.pj === pj) return id; return null; },
+  voice: () => paintPeople(),
+  tv: (stream, id) => play.remoteTv(stream, id),
+  toast: (m) => toast(m),
+});
+function paintMic() {
+  const b = $('mic'), can = duo.mode === 'on' && media.can;
+  b.hidden = !can;
+  b.setAttribute('aria-pressed', String(media.micOn));
+  b.setAttribute('aria-label', media.micOn ? '마이크 끄기' : '마이크 켜기');
+  if (!can && media.micOn) media.setMic(false);
+}
+$('mic').addEventListener('click', async () => { const on = await media.setMic(!media.micOn); paintMic(); toast(on ? '마이크를 켰어요. 방 사람들에게 목소리가 들려요' : '마이크를 껐어요'); });
 
 /* ───────── 초인종과 입장 ───────── */
 const outside = buildOutside(scene);
@@ -704,8 +727,16 @@ function paintPeople() {
   const was = box.hidden;
   box.hidden = !duo.knocks.length;
   if (was !== box.hidden) measure(false); // 아래 판 높이가 바뀌었다
-  for (const p of duo.people) list.appendChild(row(`${nameOf(p.id)} · ${p.edit ? '같이 꾸미는 중' : '구경 중'}`, [['내보내기', () => duo.kick(p.id), false, p.id]]));
-  list.hidden = !duo.people.length;
+  const role = new Map(duo.people.map((p) => [p.id, p.edit])), talking = new Set(media.voices);
+  for (const id of others.keys()) {
+    const btns = [];
+    if (talking.has(id)) btns.push([media.isMuted(id) ? '🔊 소리 켜기' : '🔇 소리 끄기', () => { media.mute(id, !media.isMuted(id)); paintPeople(); }, false, id]);
+    if (duo.role === 'host') btns.push(['내보내기', () => duo.kick(id), false, id]);
+    list.appendChild(row(`${nameOf(id)}${talking.has(id) ? ' 🎤' : ''}${role.has(id) ? (role.get(id) ? ' · 같이 꾸미는 중' : ' · 구경 중') : ''}`, btns));
+  }
+  list.hidden = !others.size;
+  $('duoPeopleRow').hidden = !others.size;
+  if (mode === 'duo') measure(false);
 }
 
 // 친구 초대: 처음이면 지금 방을 같이 꾸미는 방으로 만들고, 링크를 보낸다. edit = 같이 꾸미기 링크(아니면 구경 링크)
@@ -762,7 +793,8 @@ function paintDuo() {
   $('duoInviteV').hidden = !share;
   $('duoRetry').hidden = !(m === 'lost' || m === 'away');
   $('duoLeave').hidden = m === 'solo';
-  $('duoPeopleRow').hidden = !duo.people.length;
+  paintMic();
+  if (m === 'on') { media.refresh(); play.reshare(); } else if (m !== 'door') { media.stop(); play.unshare(); }
   $('duoLeave').textContent = cur && cur.mine ? '혼자 놀기' : '내 방으로 가기';
   if (!share) manualUrl = null;
   $('duoUrlRow').hidden = !manualUrl;
@@ -799,6 +831,9 @@ const play = makePlay({
   itemObj: (id) => itemObj.get(id),
   hasKind: (k) => { for (const it of S.items.values()) if (it.k === k) return true; return false; },
   aspect: () => eye.aspect,
+  // 내가 넣은 TV 영상을 방 사람들에게 보낸다 (null 이면 그만)
+  canShare: () => duo.mode === 'on' && media.can,
+  shareTv: (stream) => media.setTv(stream),
   cake: (id) => S.cakes.get(id) || newCake(),
   canEdit: () => canEdit,
   op: (o) => dispatch(o),
@@ -1164,6 +1199,7 @@ const loading = $('loading');
 if (loading) { loading.classList.add('done'); setTimeout(() => loading.remove(), 500); }
 
 // 자동 검사가 쓰는 창구
+window.__media = { get can() { return media.can; }, get micOn() { return media.micOn; }, get tvOn() { return media.tvOn; }, get voices() { return media.voices; }, get tvFrom() { return media.tvFrom; }, isMuted: (id) => media.isMuted(id), audioOf: (id) => media.audioOf(id), setMic: (on) => media.setMic(on) };
 window.__door = { get shown() { return outside.shown; }, get opening() { return outside.opening; }, ring, bellPoint: () => outside.bellPoint(), get dev() { return dev; } };
 window.__duo = {
   get mode() { return duo.mode; }, get role() { return duo.role; }, get room() { return duo.room; }, get mine() { return cur ? cur.mine : null; },
