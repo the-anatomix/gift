@@ -3,8 +3,8 @@
 // 2단계: 가구 놓기·옮기기, 벽지·바닥, 트리 장식과 전구
 // 정적 파일만 쓴다.
 import { THREE } from './kit.js';
-import { Grid, HALF, N, CELL, cellOf } from './path.js';
-import { buildRoom, WALL_H, TREE, treeBlocked, surfaceR } from './room.js';
+import { Grid, NX, NZ, CELL, X0, Z0, X1, Z1, cellOf, centerOf } from './path.js';
+import { buildRoom, WALL_H, TREE, fixedCell, surfaceR } from './room.js';
 import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, BODY_R, SPEED } from './avatar.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER } from './catalog.js';
 import { makeState, apply, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins } from './state.js';
@@ -42,12 +42,13 @@ const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 90);
 /* ───────── 조명: 따뜻한 저녁 거실 ───────── */
 scene.add(new THREE.HemisphereLight(0xFFEFD8, 0xB98F66, 1.35));
 const sun = new THREE.DirectionalLight(0xFFDDB0, 1.9);
-sun.position.set(2.5, 9, 4.5);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-const SH = HALF + 1.2;
+// 해는 집 한가운데를 비춘다. 그림자는 집 전체를 덮는다.
+const CX = (X0 + X1) / 2, CZ = (Z0 + Z1) / 2, SH = Math.max(X1 - X0, Z1 - Z0) / 2 + 1.5;
+sun.position.set(CX + 2.5, 9, CZ + 4.5); sun.target.position.set(CX, 0, CZ); scene.add(sun.target);
 sun.shadow.camera.left = -SH; sun.shadow.camera.right = SH; sun.shadow.camera.top = SH; sun.shadow.camera.bottom = -SH;
-sun.shadow.camera.near = 1; sun.shadow.camera.far = 22;
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 30;
 sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02; sun.shadow.radius = 5;
 scene.add(sun);
 const glow = new THREE.PointLight(0xFFC27A, 1.6, 6, 1.6); // 트리 둘레의 은은한 빛. 전구를 켜면 더 밝아진다
@@ -106,17 +107,17 @@ const saveSoon = () => { clearTimeout(saveK); if (cur && cur.view) return; saveK
 // 걸을 수 있는 칸을 다시 계산한다 (트리 + 놓인 가구)
 function rebuildGrid() {
   grid.b.fill(0);
-  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) if (treeBlocked(i, j)) grid.block(i, j);
+  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) if (fixedCell(i, j)) grid.block(i, j);
   for (const it of S.items.values()) if (kindOf(it.k).solid) for (const [i, j] of cellsOf(it)) grid.block(i, j);
   if (!grid.fits(me.x, me.z, BODY_R)) { // 내 자리에 가구가 놓였으면 가까운 빈칸으로 비켜선다
     const [i, j] = cellOf(me.x, me.z), c = grid.nearestFree(i, j, me.x, me.z);
-    if (c) me.place(-HALF + (c[0] + 0.5) * CELL, -HALF + (c[1] + 0.5) * CELL);
+    if (c) me.place(...centerOf(c[0], c[1]));
   }
   if (me.path.length) { const [tx, tz] = me.path[me.path.length - 1]; const f = me.onArrive; me.stop(); if (goTo(tx, tz)) me.onArrive = f; }
 }
 function seat(g, it) {
   const [w, d] = footprint(it.k, it.r);
-  g.position.set((it.i + w / 2) * CELL - HALF, 0, (it.j + d / 2) * CELL - HALF);
+  g.position.set(X0 + (it.i + w / 2) * CELL, 0, Z0 + (it.j + d / 2) * CELL);
   g.rotation.y = it.r * Math.PI / 2;
 }
 function dropObj(map, id, parent, own) {
@@ -131,7 +132,7 @@ function dispatch(op, from = 'me') {
   if (from === 'me' && !canEdit) { toast('구경하는 중에는 꾸밀 수 없어요'); return false; }
   // 내가 들고 있는 가구를 친구가 옮기거나 치웠으면 손에서 내려놓는다
   const taken = from === 'peer' && ghost && ghost.id && op && ghost.id === op.id && (op.t === 'del' || op.t === 'move');
-  if (!apply(S, op, treeBlocked)) return false;
+  if (!apply(S, op, fixedCell)) return false;
   if (taken) ghost = null;
   if (op.t === 'put') {
     const g = buildItem(op.k);
@@ -188,7 +189,7 @@ let pinT = 0;
 const ELEV = 0.62;               // 내려다보는 각도 (라디안)
 const LOOK_Y = 0.95;
 const TARGET_PXU = 58;           // 처음 배율: 방 1 이 화면에서 이만큼(px)은 되게. 방 전체가 이보다 크게 들어오면 전체를 보여 준다
-const Z_MAX = 4;                 // 방 전체 보기의 몇 배까지 당길 수 있는지
+const Z_MAX = 6;                 // 방 전체 보기의 몇 배까지 당길 수 있는지
 let yawK = 0;                    // 0~3, 90도씩
 let yaw = Math.PI / 4;           // 지금 각도 (돌릴 때 부드럽게 따라간다)
 const yawOf = (k) => Math.PI / 4 + k * Math.PI / 2;
@@ -200,8 +201,8 @@ const vR = new THREE.Vector3(), vU = new THREE.Vector3(), vF = new THREE.Vector3
 
 function aimCamera(a) {
   const ch = Math.cos(ELEV);
-  camera.position.set(Math.sin(a) * ch * 34, LOOK_Y + Math.sin(ELEV) * 34, Math.cos(a) * ch * 34);
-  camera.lookAt(0, LOOK_Y, 0);
+  camera.position.set(CX + Math.sin(a) * ch * 40, LOOK_Y + Math.sin(ELEV) * 40, CZ + Math.cos(a) * ch * 40); // 집 한가운데를 중심으로 돈다
+  camera.lookAt(CX, LOOK_Y, CZ);
   camera.updateMatrixWorld();
 }
 
@@ -209,11 +210,10 @@ function aimCamera(a) {
 function measure(snap = true) {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
-  aimCamera(yawOf(0));
+  aimCamera(yawOf(yawK)); // 집이 정사각형이 아니라서 보는 방향마다 차지하는 범위가 다르다
   camera.matrixWorld.extractBasis(vR, vU, vF);
   let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
-  const E = HALF + 0.3;
-  for (const x of [-E, E]) for (const z of [-E, E]) for (const y of [-0.25, Math.max(WALL_H, TREE.top) + 0.15]) {
+  for (const x of [X0 - 0.3, X1 + 0.3]) for (const z of [Z0 - 0.3, Z1 + 0.3]) for (const y of [-0.25, Math.max(WALL_H, TREE.top) + 0.15]) {
     vP.set(x, y, z).sub(camera.position);
     const u = vP.dot(vR), v = vP.dot(vU);
     u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v);
@@ -223,6 +223,7 @@ function measure(snap = true) {
   view.bottom = h - $('bottom').getBoundingClientRect().top + 6;
   view.sFit = Math.max((u1 - u0) / Math.max(60, w - 12), (v1 - v0) / Math.max(60, h - view.top - view.bottom));
   view.zDef = clamp(TARGET_PXU * view.sFit, 1, Z_MAX);
+  if (view.zDef < 1.25) view.zDef = 1; // 집 전체가 거의 그 크기로 들어오면 전체를 보여 준다
   setZoomMul(view.zMul);
   aimCamera(yaw);
   if (snap) view.snap = true;
@@ -279,6 +280,7 @@ function updateView(dt) {
 function showWalls() {
   dirty = true;
   room.ceil.visible = usingEye();
+  for (const m of room.inner) m.visible = usingEye(); // 방 사이 벽의 윗부분
   if (usingEye()) { for (const k in room.walls) room.walls[k].upper.visible = true; return; } // 1인칭에서는 네 면과 천장이 다 보인다
   const dx = Math.sin(yaw), dz = Math.cos(yaw);
   room.walls.w.upper.visible = dx > 0.02;
@@ -292,6 +294,7 @@ function turnView(dir = 1) {
   if (usingEye()) { if (!pose) fy += dir * Math.PI / 4; return; } // 1인칭에서는 고개를 돌린다
   yawK = (yawK + dir + 4) % 4;
   toast(['앞에서', '오른쪽에서', '뒤에서', '왼쪽에서'][yawK] + ' 보는 중');
+  measure(false);
   if (mode === 'tree') standByTree();
 }
 const faceCamera = () => me.turnTo(Math.sin(yawOf(yawK)), Math.cos(yawOf(yawK)));
@@ -363,7 +366,7 @@ function aimRay(px, py) {
 function floorAt(px, py, inside = true) {
   aimRay(px, py);
   if (!ray.ray.intersectPlane(ground, hit)) return null;
-  if (inside && (Math.abs(hit.x) > HALF || Math.abs(hit.z) > HALF)) return null;
+  if (inside && (hit.x < X0 || hit.x > X1 || hit.z < Z0 || hit.z > Z1)) return null;
   return { x: hit.x, z: hit.z };
 }
 function screenOf(x, z, y = 0) {
@@ -396,9 +399,9 @@ function myCells() {
 function findSpot(k, r) {
   const [w, d] = footprint(k, r), avoid = myCells();
   let best = null, bestD = Infinity;
-  for (let j = 0; j <= N - d; j++) for (let i = 0; i <= N - w; i++) {
-    const dist = Math.hypot((i + w / 2) * CELL - HALF - me.x, (j + d / 2) * CELL - HALF - me.z);
-    if (dist < bestD && canPlace(S, { k, i, j, r }, treeBlocked, null, avoid)) { bestD = dist; best = [i, j]; }
+  for (let j = 0; j <= NZ - d; j++) for (let i = 0; i <= NX - w; i++) {
+    const dist = Math.hypot(X0 + (i + w / 2) * CELL - me.x, Z0 + (j + d / 2) * CELL - me.z);
+    if (dist < bestD && canPlace(S, { k, i, j, r }, fixedCell, null, avoid)) { bestD = dist; best = [i, j]; }
   }
   return best;
 }
@@ -406,7 +409,7 @@ function ghostPaint() {
   const [w, d] = footprint(ghost.k, ghost.r);
   seat(ghost.g, ghost);
   ghost.g.position.y = 0.1;
-  ghost.ok = canPlace(S, ghost, treeBlocked, ghost.id, myCells());
+  ghost.ok = canPlace(S, ghost, fixedCell, ghost.id, myCells());
   plate.visible = true;
   plate.scale.set(w * CELL, 1, d * CELL);
   plate.position.x = ghost.g.position.x; plate.position.z = ghost.g.position.z;
@@ -431,8 +434,8 @@ function ghostPick(id) {
 }
 function ghostMoveTo(x, z) {
   const [w, d] = footprint(ghost.k, ghost.r);
-  ghost.i = clamp(Math.round((x + HALF) / CELL - w / 2), 0, N - w);
-  ghost.j = clamp(Math.round((z + HALF) / CELL - d / 2), 0, N - d);
+  ghost.i = clamp(Math.round((x - X0) / CELL - w / 2), 0, NX - w);
+  ghost.j = clamp(Math.round((z - Z0) / CELL - d / 2), 0, NZ - d);
   ghostPaint();
 }
 function ghostTurn() {
@@ -440,7 +443,7 @@ function ghostTurn() {
   const [w0, d0] = footprint(ghost.k, ghost.r), cx = ghost.i + w0 / 2, cz = ghost.j + d0 / 2;
   ghost.r = (ghost.r + 1) % 4;
   const [w, d] = footprint(ghost.k, ghost.r);
-  ghost.i = clamp(Math.round(cx - w / 2), 0, N - w); ghost.j = clamp(Math.round(cz - d / 2), 0, N - d);
+  ghost.i = clamp(Math.round(cx - w / 2), 0, NX - w); ghost.j = clamp(Math.round(cz - d / 2), 0, NZ - d);
   ghostPaint();
 }
 function ghostEnd() { ghost = null; plate.visible = false; dirty = true; paintPanels(); measure(false); }
@@ -504,7 +507,7 @@ const others = new Map();         // 다른 사람들의 아바타 (이름 → �
 let canEdit = !(cur && cur.view), mySlot = 0; // 내가 꾸밀 수 있는지(구경이면 false), 트리 옆에서 내 자리
 let sentAt = 0, sentX = Infinity, sentZ = Infinity; // 친구에게 마지막으로 알린 내 자리
 let manualUrl = null;             // 공유도 복사도 안 되는 브라우저에서 직접 복사하게 보여 줄 링크
-const okPos = (v) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= HALF;
+const okXZ = (x, z) => typeof x === 'number' && typeof z === 'number' && x >= X0 && x <= X1 && z >= Z0 && z <= Z1; // 집 안의 자리인지 (NaN 은 걸러진다)
 // 방의 지문: 두 사람의 방이 같은지 견주는 짧은 글자 (놓은 순서가 달라도 같은 방이면 같게 나온다)
 function roomHash() {
   const d = serialize(S), byId = (a, b) => (a[0] < b[0] ? -1 : 1);
@@ -526,7 +529,7 @@ function setPeer(id, lk, pos) {
   let a = others.get(id);
   if (!a) { a = makeAvatar(c || DEFAULT_LOOK); a.place(-1.75, 2.25); a.turnTo(1, 1); a.root.rotation.y = a.face; scene.add(a.root); others.set(id, a); }
   else if (c) a.setLook(c);
-  if (Array.isArray(pos) && okPos(pos[0]) && okPos(pos[1])) { a.stop(); a.place(pos[0], pos[1]); }
+  if (Array.isArray(pos) && okXZ(pos[0], pos[1])) { a.stop(); a.place(pos[0], pos[1]); }
   sentX = Infinity; // 내 자리도 다시 알린다
   if (ghost) ghostPaint();
   dirty = true;
@@ -577,7 +580,7 @@ const duo = makeDuo({
   peerLook(id, lk) { const c = okLook(lk), a = others.get(id); if (!a || !c) return null; a.setLook(c); dirty = true; return c; },
   peerPos(id, x, z) {
     const a = others.get(id);
-    if (!a || !okPos(x) || !okPos(z)) return false;
+    if (!a || !okXZ(x, z)) return false;
     if (Math.hypot(x - a.x, z - a.z) > 3) a.place(x, z); // 너무 멀어졌으면 바로 옮긴다
     a.walk([[x, z]]);
     return true;
@@ -662,7 +665,7 @@ const play = makePlay({
   aspect: () => eye.aspect,
   // 놀이 중 카메라 자리. inside = 방 안으로 당겨 둔다(벽 뒤로 나가지 않게)
   setPose(p) {
-    if (p && p.inside) { const L = HALF - 0.25; p.pos[0] = clamp(p.pos[0], -L, L); p.pos[2] = clamp(p.pos[2], -L, L); }
+    if (p && p.inside) { p.pos[0] = clamp(p.pos[0], X0 + 0.25, X1 - 0.25); p.pos[2] = clamp(p.pos[2], Z0 + 0.25, Z1 - 0.25); }
     pose = p; applyPov(); dirty = true;
   },
   fx: (m) => duo.fx(m),
@@ -750,8 +753,8 @@ function keyWalk(dt) {
   let dx = -Math.sin(ya) * f + Math.cos(ya) * r, dz = -Math.cos(ya) * f - Math.sin(ya) * r;
   const len = Math.hypot(dx, dz); dx /= len; dz /= len;
   me.turnTo(dx, dz);
-  const step = SPEED * push * dt, lim = HALF - BODY_R;
-  const nx = clamp(me.x + dx * step, -lim, lim), nz = clamp(me.z + dz * step, -lim, lim);
+  const step = SPEED * push * dt;
+  const nx = clamp(me.x + dx * step, X0 + BODY_R, X1 - BODY_R), nz = clamp(me.z + dz * step, Z0 + BODY_R, Z1 - BODY_R);
   const ox = me.x, oz = me.z;
   if (grid.fits(nx, nz, BODY_R)) me.place(nx, nz);
   else if (grid.fits(nx, me.z, BODY_R)) me.place(nx, me.z);
@@ -1029,12 +1032,13 @@ window.__play = Object.assign(play.test, {
 });
 Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose } });
 window.__tree = {
-  N, CELL, HALF, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
+  NX, NZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
   ghostNew, ghostPick, ghostMoveTo, ghostTurn, ghostDone, ghostCancel, ghostRemove, surfaceR, serialize: () => serialize(S),
   setZoomMul(m) { setZoomMul(m); },
   openLook(on) { if ((mode === 'look') !== on) setMode('look'); },
   // 트리 겉면의 한 점(높이 y, 둘레 각 a)이 화면에서 어디인지
   treePoint(y, a) { const r = surfaceR(y) * 0.93; return screenOf(Math.sin(a) * r, Math.cos(a) * r, y); },
+  snapView() { view.snap = true; updateView(0); }, // 화면이 자리를 잡는 움직임을 바로 끝낸다 (검사에서 누를 자리를 구하기 전에)
   setPov, lookTo(dx, dz) { fy = Math.atan2(-dx, -dz); }, get pov() { return fp ? 'fp' : 'iso'; }, get eyeOn() { return usingEye(); }, get meShown() { return me.root.visible; },
   get look3() { return { fy, fpitch, x: eye.position.x, y: eye.position.y, z: eye.position.z }; },
   get yaw() { return yaw; }, get mode() { return mode; }, get tool() { return tool; }, set tool(v) { tool = v; paintPanels(); },

@@ -1,19 +1,21 @@
 // 바닥 격자와 길찾기. 화면과 상관없는 계산만 둔다.
-// 방은 가로세로 N 칸, 한 칸은 CELL. 방 한가운데가 (0, 0) 이다.
-export const N = 16;
+// 집 전체는 가로 NX 칸, 세로 NZ 칸이고 한 칸은 CELL. 칸 (0, 0) 의 모서리가 (X0, Z0) 이다.
+// 거실은 칸 (0~19, 0~17) 이고 트리는 (0, 0) 자리(칸 8과 9 사이)에 있다. 동쪽에 주방과 방이 붙어 있다(방 배치는 room.js).
 export const CELL = 0.5;
-export const HALF = (N * CELL) / 2;
+export const NX = 30, NZ = 18;
+export const X0 = -4, Z0 = -4;
+export const X1 = X0 + NX * CELL, Z1 = Z0 + NZ * CELL;
 
-export const cellOf = (x, z) => [Math.floor((x + HALF) / CELL), Math.floor((z + HALF) / CELL)];
-export const centerOf = (i, j) => [-HALF + (i + 0.5) * CELL, -HALF + (j + 0.5) * CELL];
+export const cellOf = (x, z) => [Math.floor((x - X0) / CELL), Math.floor((z - Z0) / CELL)];
+export const centerOf = (i, j) => [X0 + (i + 0.5) * CELL, Z0 + (j + 0.5) * CELL];
 
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 
 export class Grid {
-  constructor() { this.b = new Uint8Array(N * N); }
-  inside(i, j) { return i >= 0 && j >= 0 && i < N && j < N; }
-  free(i, j) { return this.inside(i, j) && !this.b[j * N + i]; }
-  block(i, j, v = true) { if (this.inside(i, j)) this.b[j * N + i] = v ? 1 : 0; }
+  constructor() { this.b = new Uint8Array(NX * NZ); }
+  inside(i, j) { return i >= 0 && j >= 0 && i < NX && j < NZ; }
+  free(i, j) { return this.inside(i, j) && !this.b[j * NX + i]; }
+  block(i, j, v = true) { if (this.inside(i, j)) this.b[j * NX + i] = v ? 1 : 0; }
   freeAt(x, z) { const [i, j] = cellOf(x, z); return this.free(i, j); }
 
   // (x, z) 에 몸 반지름 r 인 아바타가 설 수 있는지
@@ -26,7 +28,7 @@ export class Grid {
     if (this.free(i, j)) return [i, j];
     const [tx, tz] = centerOf(i, j);
     let best = null, bestD = Infinity;
-    for (let b = 0; b < N; b++) for (let a = 0; a < N; a++) {
+    for (let b = 0; b < NZ; b++) for (let a = 0; a < NX; a++) {
       if (!this.free(a, b)) continue;
       const [cx, cz] = centerOf(a, b);
       const d = Math.hypot(cx - tx, cz - tz) + 0.15 * Math.hypot(cx - fx, cz - fz);
@@ -50,8 +52,8 @@ export class Grid {
   // A* (대각선은 양옆 칸이 모두 비었을 때만). 칸 목록을 돌려준다. 길이 없으면 null.
   cells(si, sj, ti, tj) {
     if (!this.free(si, sj) || !this.free(ti, tj)) return null;
-    const id = (i, j) => j * N + i;
-    const g = new Float32Array(N * N).fill(Infinity), from = new Int16Array(N * N).fill(-1), done = new Uint8Array(N * N);
+    const id = (i, j) => j * NX + i;
+    const g = new Float32Array(NX * NZ).fill(Infinity), from = new Int16Array(NX * NZ).fill(-1), done = new Uint8Array(NX * NZ);
     const h = (i, j) => { const dx = Math.abs(i - ti), dz = Math.abs(j - tj); return Math.max(dx, dz) + 0.4142 * Math.min(dx, dz); };
     const open = [[h(si, sj), si, sj]];
     g[id(si, sj)] = 0;
@@ -63,7 +65,7 @@ export class Grid {
       done[id(i, j)] = 1;
       if (i === ti && j === tj) {
         const out = [];
-        for (let c = id(i, j); c !== -1; c = from[c]) out.push([c % N, Math.floor(c / N)]);
+        for (let c = id(i, j); c !== -1; c = from[c]) out.push([c % NX, Math.floor(c / NX)]);
         return out.reverse();
       }
       for (const [dx, dz] of DIRS) {
@@ -80,7 +82,7 @@ export class Grid {
   // (sx, sz) 에서 (tx, tz) 쪽으로 걸어갈 꺾이는 점 목록. 막힌 곳을 누르면 그 옆 빈칸까지 간다.
   route(sx, sz, tx, tz) {
     const [si, sj] = cellOf(sx, sz);
-    let [ti, tj] = cellOf(Math.max(-HALF + 1e-3, Math.min(HALF - 1e-3, tx)), Math.max(-HALF + 1e-3, Math.min(HALF - 1e-3, tz)));
+    let [ti, tj] = cellOf(Math.max(X0 + 1e-3, Math.min(X1 - 1e-3, tx)), Math.max(Z0 + 1e-3, Math.min(Z1 - 1e-3, tz)));
     let exact = this.free(ti, tj);
     if (!exact) { const n = this.nearestFree(ti, tj, sx, sz); if (!n) return null; [ti, tj] = n; }
     const cells = this.cells(si, sj, ti, tj);

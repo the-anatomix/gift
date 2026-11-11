@@ -37,7 +37,7 @@ async function walkAndTrace(p, act) {
   await sleep(150);
   await idle(p);
   return p.evaluate(() => { const T = window.__tree; clearInterval(T._tk);
-    return { n: T._trace.length, inTree: T._trace.filter(([x, z]) => !T.grid.freeAt(x, z)).length, out: T._trace.filter(([x, z]) => Math.abs(x) > T.HALF || Math.abs(z) > T.HALF).length }; });
+    return { n: T._trace.length, inTree: T._trace.filter(([x, z]) => !T.grid.freeAt(x, z)).length, out: T._trace.filter(([x, z]) => x < T.box.x0 || x > T.box.x1 || z < T.box.z0 || z > T.box.z1).length }; });
 }
 
 (async () => {
@@ -104,7 +104,7 @@ async function walkAndTrace(p, act) {
     for (let k = 0; k < 8; k++) await A.tap('#zout');
     await until(() => A.evaluate(() => window.__tree.view.settled), 4000); await sleep(400);
     const fitOk = () => A.evaluate(() => { const T = window.__tree, H = T.HALF, v = T.view;
-      const pts = []; for (const x of [-H, H]) for (const z of [-H, H]) for (const y of [0, 2.7]) pts.push(T.screenOf(x, z, y));
+      const pts = []; for (const x of [T.box.x0, T.box.x1]) for (const z of [T.box.z0, T.box.z1]) for (const y of [0, 2.7]) pts.push(T.screenOf(x, z, y));
       return pts.every((s) => s.x >= 0 && s.x <= innerWidth && s.y >= v.top - 7 && s.y <= innerHeight - v.bottom + 7); });
     check('－ 를 끝까지 누르면 방 전체가 위 막대와 아래 판 사이에 들어옴', (await A.evaluate(() => window.__tree.view.whole)) && (await fitOk()));
     await A.screenshot({ path: path.join(__dirname, 'out', 'room-phone-whole.png') });
@@ -176,7 +176,7 @@ async function walkAndTrace(p, act) {
     const B = await open(ctx2, BASE);
     await sleep(300);
     await B.click('#lookDone'); await sleep(600);
-    check('PC 에서는 처음부터 방 전체가 화면 안', (await B.evaluate(() => window.__tree.view.whole)) && await B.evaluate(() => { const T = window.__tree, H = T.HALF; for (const x of [-H, H]) for (const z of [-H, H]) for (const y of [0, 2.7]) { const s = T.screenOf(x, z, y); if (s.x < 0 || s.x > innerWidth || s.y < 0 || s.y > innerHeight) return false; } return true; }));
+    check('PC 에서는 처음부터 방 전체가 화면 안', (await B.evaluate(() => window.__tree.view.whole)) && await B.evaluate(() => { const T = window.__tree, H = T.HALF; for (const x of [T.box.x0, T.box.x1]) for (const z of [T.box.z0, T.box.z1]) for (const y of [0, 2.7]) { const s = T.screenOf(x, z, y); if (s.x < 0 || s.x > innerWidth || s.y < 0 || s.y > innerHeight) return false; } return true; }));
     const b0 = await pos(B);
     const sy0 = (await B.evaluate(() => window.__tree.screenOf(window.__tree.me.x, window.__tree.me.z))).y;
     await B.keyboard.down('ArrowUp'); await sleep(500); await B.keyboard.up('ArrowUp'); await sleep(200);

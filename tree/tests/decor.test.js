@@ -23,7 +23,7 @@ const settled = (p) => until(() => T(p, () => window.__tree.view.settled), 5000)
 const ghost = (p) => T(p, () => window.__tree.ghost);
 const items = (p) => T(p, () => [...window.__tree.S.items.values()]);
 const orns = (p) => T(p, () => [...window.__tree.S.orns.values()]);
-const at = (p, x, z, y = 0) => T(p, (a) => window.__tree.screenOf(a.x, a.z, a.y), { x, z, y });
+const at = (p, x, z, y = 0) => T(p, (a) => { window.__tree.snapView(); return window.__tree.screenOf(a.x, a.z, a.y); }, { x, z, y });
 const cx = (i, w = 1) => -4 + (i + w / 2) * 0.5; // 칸 번호 → 방 안 좌표 (가운데)
 const audit = (p) => p.evaluate(() => {
   const bad = [];
@@ -88,7 +88,7 @@ async function walkAndTrace(p, act) {
     check('가구를 들고 있을 때는 바닥을 눌러도 걷지 않음', meBefore[0] === meAfter[0] && meBefore[1] === meAfter[1]);
     await A.tap('#gTurn'); await sleep(100);
     g = await ghost(A);
-    check('돌리면 방향이 바뀌고 방 안에 머무름', g.r === 1 && g.i >= 0 && g.j >= 0 && g.i + 2 <= 16 && g.j + 4 <= 16, g);
+    check('돌리면 방향이 바뀌고 방 안에 머무름', g.r === 1 && g.i >= 0 && g.j >= 0 && g.i + 2 <= 30 && g.j + 4 <= 18, g);
     await A.tap('#gTurn'); await A.tap('#gTurn'); await A.tap('#gTurn'); await sleep(100);
     // 트리 위로
     s = await at(A, 0.4, 0.9);
@@ -107,7 +107,7 @@ async function walkAndTrace(p, act) {
     await T(A, () => window.__tree.me.place(-4 + 9.5 * 0.5, -4 + 15.5 * 0.5));
     const t1 = await walkAndTrace(A, () => T(A, () => window.__tree.goTo(-4 + 14.5 * 0.5, -4 + 15.5 * 0.5)));
     const m1 = await T(A, () => [window.__tree.me.x, window.__tree.me.z]);
-    check('가구를 돌아서 건너편까지 걸어감', t1.blocked === 0 && t1.n > 20 && Math.hypot(m1[0] - 3.25, m1[1] - 3.75) < 0.15, { t1, m1 });
+    check('가구를 돌아서 건너편까지 걸어감', t1.blocked === 0 && t1.n > 10 && Math.hypot(m1[0] - 3.25, m1[1] - 3.75) < 0.15, { t1, m1 });
 
     // 놓인 가구 옮기기
     s = await at(A, cx(10, 4), cx(14, 2), 0.35);

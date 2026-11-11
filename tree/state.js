@@ -7,7 +7,7 @@
 //   { t: 'ornDel', id }            트리 장식 떼기
 //   { t: 'lights', set, blink }    전구 색 묶음과 깜빡임
 //   { t: 'wall', v } / { t: 'floor', v }
-import { N } from './path.js';
+import { NX, NZ } from './path.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS } from './catalog.js';
 
 const F = Object.fromEntries(FURNITURE.map((f) => [f.id, f]));
@@ -38,13 +38,13 @@ export function canPlace(S, it, fixed, ignoreId = null, avoid = []) {
   if (!f || !isInt(it.i) || !isInt(it.j) || ![0, 1, 2, 3].includes(it.r)) return false;
   const mine = new Set();
   for (const [i, j] of cellsOf(it)) {
-    if (i < 0 || j < 0 || i >= N || j >= N || fixed(i, j)) return false;
+    if (i < 0 || j < 0 || i >= NX || j >= NZ || fixed(i, j)) return false;
     if (f.solid && avoid.some(([a, b]) => a === i && b === j)) return false;
-    mine.add(j * N + i);
+    mine.add(j * NX + i);
   }
   for (const o of S.items.values()) {
     if (o.id === ignoreId || F[o.k].solid !== f.solid) continue;
-    for (const [i, j] of cellsOf(o)) if (mine.has(j * N + i)) return false;
+    for (const [i, j] of cellsOf(o)) if (mine.has(j * NX + i)) return false;
   }
   return true;
 }
@@ -90,7 +90,7 @@ export function apply(S, op, fixed) {
 // 저장용 모양. 다시 열 때는 ops() 로 풀어서 apply 에 하나씩 넣는다.
 export function serialize(S) {
   return {
-    v: 1, at: S.at, sync: S.sync,
+    v: 2, at: S.at, sync: S.sync, // v 1 = 거실만 있던 때의 방, v 2 = 주방과 방이 붙은 집 (칸 번호는 같다)
     items: [...S.items.values()].map((o) => [o.id, o.k, o.i, o.j, o.r]),
     orns: [...S.orns.values()].map((o) => [o.id, o.k, o.x, o.y, o.z]),
     lights: [S.lights.set, S.lights.blink], wall: S.wall, floor: S.floor,
@@ -98,7 +98,7 @@ export function serialize(S) {
 }
 // 저장된 방이나 친구가 보낸 방의 때 표시. 모양이 이상하거나 터무니없는 값이면 0(꾸민 적 없음)으로 본다.
 function stamp(data, k) {
-  if (!data || typeof data !== 'object' || data.v !== 1 || !Array.isArray(data.items) || !Array.isArray(data.orns)) return 0;
+  if (!data || typeof data !== 'object' || (data.v !== 1 && data.v !== 2) || !Array.isArray(data.items) || !Array.isArray(data.orns)) return 0;
   return okNum(data[k], 0, Date.now() + 600000) ? data[k] : 0;
 }
 export const stampOf = (data) => stamp(data, 'at');
@@ -120,7 +120,7 @@ export function guestWins(g, h) {
 
 export function ops(data) {
   const out = [];
-  if (!data || typeof data !== 'object' || data.v !== 1) return out;
+  if (!data || typeof data !== 'object' || (data.v !== 1 && data.v !== 2)) return out;
   const rows = (a) => (Array.isArray(a) ? a.filter(Array.isArray) : []);
   for (const [id, k, i, j, r] of rows(data.items)) out.push({ t: 'put', id, k, i, j, r });
   for (const [id, k, x, y, z] of rows(data.orns)) out.push({ t: 'orn', id, k, x, y, z });
