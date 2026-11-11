@@ -7,9 +7,10 @@ import { Grid, HALF, N, CELL, cellOf } from './path.js';
 import { buildRoom, WALL_H, TREE, treeBlocked, surfaceR } from './room.js';
 import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, BODY_R, SPEED } from './avatar.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS } from './catalog.js';
-import { makeState, apply, canPlace, footprint, cellsOf, kindOf, serialize, ops } from './state.js';
+import { makeState, apply, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins } from './state.js';
 import { buildItem } from './furniture.js';
 import { buildOrnament, buildLights } from './decor.js';
+import { makeDuo, ROOM_RE } from './duo.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('c');
@@ -17,6 +18,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (_) { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* 기억하지 못해도 논다 */ } },
+  del(k) { try { localStorage.removeItem(k); } catch (_) { /* 무시 */ } },
 };
 
 /* ───────── 렌더러 ───────── */
@@ -52,7 +54,23 @@ glow.position.set(0, 1.3, 0);
 scene.add(glow);
 
 /* ───────── 방, 아바타, 방 상태 ───────── */
-const LOOK_KEY = 'nolja-tree-look', ROOM_KEY = 'nolja-tree-room';
+// 저장 이름. ?ns=이름 은 자동 검사에서 한 브라우저 안의 두 사람을 가르는 데만 쓴다.
+const NS = (new URLSearchParams(location.search).get('ns') || '').replace(/[^a-z0-9]/g, '').slice(0, 8);
+const key = (k) => 'nolja-tree-' + k + (NS ? '.' + NS : '');
+const LOOK_KEY = key('look'), ROOM_KEY = key('room'), CUR_KEY = key('cur');
+// 같이 꾸미는 방: 주소의 #r=방이름. cur = 이 기기가 지금 들어가 있는 방 { id, mine(내가 만든 방인지) }.
+// 방마다 따로 저장한다(혼자 꾸민 내 방은 ROOM_KEY, 같이 꾸미는 방은 ROOM_KEY-방이름).
+let cur = store.get(CUR_KEY);
+if (!cur || typeof cur !== 'object' || !ROOM_RE.test(cur.id || '')) cur = null;
+{
+  const m = /^#r=([a-z0-9]{6,20})$/.exec(location.hash);
+  if (m && (!cur || cur.id !== m[1])) { // 다른 방의 링크로 들어옴
+    if (cur) store.del(ROOM_KEY + '-' + cur.id);
+    cur = { id: m[1], mine: false };
+    store.set(CUR_KEY, cur);
+  } else if (!m && cur) history.replaceState(null, '', location.pathname + location.search + '#r=' + cur.id); // 들어가 있던 방으로
+}
+const slot = () => (cur ? ROOM_KEY + '-' + cur.id : ROOM_KEY);
 const savedLook = store.get(LOOK_KEY);
 let look = savedLook ? cleanLook(savedLook) : DEFAULT_LOOK;
 
@@ -75,13 +93,17 @@ const newId = () => myTag + (seq++).toString(36);
 
 let dirty = true;                // 그림자를 다시 그려야 하는지
 let saveK = 0;
-const saveSoon = () => { clearTimeout(saveK); saveK = setTimeout(() => store.set(ROOM_KEY, serialize(S)), 300); };
+const saveSoon = () => { clearTimeout(saveK); saveK = setTimeout(() => store.set(slot(), serialize(S)), 300); };
 
 // 걸을 수 있는 칸을 다시 계산한다 (트리 + 놓인 가구)
 function rebuildGrid() {
   grid.b.fill(0);
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) if (treeBlocked(i, j)) grid.block(i, j);
   for (const it of S.items.values()) if (kindOf(it.k).solid) for (const [i, j] of cellsOf(it)) grid.block(i, j);
+  if (!grid.fits(me.x, me.z, BODY_R)) { // 내 자리에 가구가 놓였으면 가까운 빈칸으로 비켜선다
+    const [i, j] = cellOf(me.x, me.z), c = grid.nearestFree(i, j, me.x, me.z);
+    if (c) me.place(-HALF + (c[0] + 0.5) * CELL, -HALF + (c[1] + 0.5) * CELL);
+  }
   if (me.path.length) { const [tx, tz] = me.path[me.path.length - 1]; const f = me.onArrive; me.stop(); if (goTo(tx, tz)) me.onArrive = f; }
 }
 function seat(g, it) {
@@ -96,9 +118,12 @@ function dropObj(map, id, parent, own) {
   if (own) g.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); // 장식은 도형을 나눠 쓰므로 지우지 않는다
 }
 
-// 방의 모든 변화는 여기를 지난다 (3단계에서 상대에게 보내는 것도 여기서 한다)
-function dispatch(op, quiet = false) {
+// 방의 모든 변화는 여기를 지난다. from = 'me'(내가 함) | 'peer'(친구가 함) | 'load'(저장된 방을 여는 중)
+function dispatch(op, from = 'me') {
+  // 내가 들고 있는 가구를 친구가 옮기거나 치웠으면 손에서 내려놓는다
+  const taken = from === 'peer' && ghost && ghost.id && op && ghost.id === op.id && (op.t === 'del' || op.t === 'move');
   if (!apply(S, op, treeBlocked)) return false;
+  if (taken) ghost = null;
   if (op.t === 'put') {
     const g = buildItem(op.k);
     g.userData.item = op.id;
@@ -110,15 +135,36 @@ function dispatch(op, quiet = false) {
     const g = buildOrnament(S.orns.get(op.id));
     g.userData.orn = op.id;
     ornG.add(g); ornObj.set(op.id, g);
-    if (!quiet) { g.scale.setScalar(0.01); pops.push({ g, t: 0 }); }
+    if (from !== 'load') { g.scale.setScalar(0.01); pops.push({ g, t: 0 }); }
   } else if (op.t === 'ornDel') dropObj(ornObj, op.id, ornG, false);
   else if (op.t === 'lights') { bulbs.set(S.lights.set, S.lights.blink); glow.intensity = bulbs.on ? 2.6 : 1.6; }
   else if (op.t === 'wall') room.setWall(S.wall);
   else if (op.t === 'floor') room.setFloor(S.floor);
   if (op.t === 'put' || op.t === 'move' || op.t === 'del') rebuildGrid();
   dirty = true;
-  if (!quiet) { saveSoon(); paintPanels(); }
+  if (from === 'load') return true;
+  S.at = Date.now();
+  saveSoon();
+  if (taken) ghostEnd(); else { if (ghost) ghostPaint(); paintPanels(); }
+  if (from === 'me') duo.op(op);
   return true;
+}
+
+// 방을 통째로 바꾼다 (저장된 방을 열 때, 친구의 방을 받아올 때). fromPeer = 친구에게서 받은 방(받는 순간 둘이 같다)
+function loadRoom(data, fromPeer = false) {
+  if (ghost) ghostCancel();
+  for (const id of [...itemObj.keys()]) dropObj(itemObj, id, itemsG, true);
+  for (const id of [...ornObj.keys()]) dropObj(ornObj, id, ornG, false);
+  pops.length = 0;
+  Object.assign(S, makeState());
+  bulbs.set(S.lights.set, S.lights.blink); glow.intensity = 1.6;
+  room.setWall(S.wall); room.setFloor(S.floor);
+  for (const op of ops(data)) dispatch(op, 'load');
+  S.at = stampOf(data);
+  S.sync = fromPeer ? S.at : syncOf(data);
+  rebuildGrid();
+  paintPanels();
+  dirty = true;
 }
 
 // 누른 자리 표시
@@ -273,11 +319,11 @@ const plate = new THREE.Mesh(new THREE.BoxGeometry(1, 0.02, 1), new THREE.MeshBa
 plate.visible = false; plate.position.y = 0.05;
 scene.add(plate);
 
-// 아바타가 서 있는 칸들 (가구로 덮지 않게)
+// 나와 친구가 서 있는 칸들 (가구로 사람을 덮지 않게)
 function myCells() {
   const out = [];
-  for (const dx of [-BODY_R, BODY_R]) for (const dz of [-BODY_R, BODY_R]) {
-    const c = cellOf(me.x + dx, me.z + dz);
+  for (const a of other ? [me, other] : [me]) for (const dx of [-BODY_R, BODY_R]) for (const dz of [-BODY_R, BODY_R]) {
+    const c = cellOf(a.x + dx, a.z + dz);
     if (!out.some(([i, j]) => i === c[0] && j === c[1])) out.push(c);
   }
   return out;
@@ -338,6 +384,7 @@ function ghostDone() {
   if (!ghost) return;
   if (!ghost.ok) { toast('여기에는 놓을 수 없어요'); return; }
   const { k, i, j, r, id, g } = ghost;
+  ghost = null;
   if (id) dispatch({ t: 'move', id, i, j, r });
   else { scene.remove(g); g.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); dispatch({ t: 'put', id: newId(), k, i, j, r }); }
   ghostEnd();
@@ -364,9 +411,9 @@ function pickItem(px, py) {
 
 /* ───────── 트리 꾸미기 ───────── */
 let tool = ORNAMENTS[0].id; // 고른 장식. 'cut' 이면 떼기
-// 트리 옆(화면에서 오른쪽 앞)에 가서 선다. 트리를 가리지 않는 자리.
+// 트리 옆(화면에서 오른쪽 앞)에 가서 선다. 트리를 가리지 않는 자리. 손님으로 들어온 사람은 왼쪽 앞에 선다(둘이 겹치지 않게).
 function standByTree() {
-  const a = yawOf(yawK) + 1.0;
+  const a = yawOf(yawK) + (duo.role === 'guest' ? -1.0 : 1.0);
   if (goTo(Math.sin(a) * 1.95, Math.cos(a) * 1.95)) me.onArrive = () => me.turnTo(-me.x, -me.z);
   else me.turnTo(-me.x, -me.z);
 }
@@ -385,6 +432,118 @@ function treeTap(px, py) {
   const p = hits[0].point;
   dispatch({ t: 'orn', id: newId(), k: tool, x: r3(p.x), y: r3(p.y), z: r3(p.z) });
 }
+
+/* ───────── 둘이 같이 ───────── */
+let other = null;                 // 친구 아바타
+let sentAt = 0, sentX = Infinity, sentZ = Infinity; // 친구에게 마지막으로 알린 내 자리
+let manualUrl = null;             // 공유도 복사도 안 되는 브라우저에서 직접 복사하게 보여 줄 링크
+const okPos = (v) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= HALF;
+// 방의 지문: 두 사람의 방이 같은지 견주는 짧은 글자 (놓은 순서가 달라도 같은 방이면 같게 나온다)
+function roomHash() {
+  const d = serialize(S), byId = (a, b) => (a[0] < b[0] ? -1 : 1);
+  const txt = JSON.stringify([d.items.sort(byId), d.orns.sort(byId), d.lights, d.wall, d.floor]);
+  let h = 5381;
+  for (let k = 0; k < txt.length; k++) h = ((h << 5) + h + txt.charCodeAt(k)) | 0;
+  return (h >>> 0).toString(36) + '.' + d.items.length + '.' + d.orns.length;
+}
+// 친구가 보낸 생김새가 아는 값일 때만 받는다 (아니면 null)
+function okLook(lk) {
+  const c = cleanLook(lk);
+  return lk && typeof lk === 'object' && c.gender === lk.gender && c.outfit === lk.outfit ? c : null;
+}
+function setPeer(lk, pos) {
+  const c = okLook(lk);
+  if (!other) { other = makeAvatar(c || DEFAULT_LOOK); other.place(-1.75, 2.25); other.turnTo(1, 1); other.root.rotation.y = other.face; scene.add(other.root); }
+  else if (c) other.setLook(c);
+  if (Array.isArray(pos) && okPos(pos[0]) && okPos(pos[1])) { other.stop(); other.place(pos[0], pos[1]); }
+  // 같은 자리에 겹쳐 서 있으면 들어온 쪽이 옆으로 비켜선다
+  if (duo.role === 'guest' && Math.hypot(me.x - other.x, me.z - other.z) < 0.6) goTo(other.x - 1.0, other.z + 0.5);
+  sentX = Infinity; // 내 자리도 다시 알린다
+  if (ghost) ghostPaint();
+  dirty = true;
+}
+const duo = makeDuo({
+  snapshot: () => ({ state: serialize(S), look, pos: [r3(me.x), r3(me.z)], mine: !!(cur && cur.mine) }),
+  hash: roomHash,
+  // 손님이 가져온 방을 쓸지 (주인이 묻는다)
+  preferPeer: (state, mine) => guestWins({ at: stampOf(state), sync: syncOf(state), mine }, { at: S.at, sync: S.sync, mine: !!(cur && cur.mine) }),
+  adopt(state) { loadRoom(state, true); saveSoon(); },
+  synced() { if (S.sync !== S.at) { S.sync = S.at; saveSoon(); } }, // 지금 둘의 방이 같다
+  hasPeer: () => !!other,
+  peerJoin(m) { setPeer(m.look, m.pos); },
+  peerOp: (op) => dispatch(op, 'peer'),
+  peerLook(lk) { const c = okLook(lk); if (other && c) { other.setLook(c); dirty = true; } },
+  peerPos(x, z) {
+    if (!other || !okPos(x) || !okPos(z)) return;
+    if (Math.hypot(x - other.x, z - other.z) > 3) other.place(x, z); // 너무 멀어졌으면 바로 옮긴다
+    other.walk([[x, z]]);
+  },
+  peerGone() {
+    if (!other) return;
+    scene.remove(other.root);
+    other.root.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    other = null; dirty = true;
+    if (ghost) ghostPaint();
+  },
+  status: () => paintDuo(),
+  toast: (m) => toast(m),
+});
+
+// 친구 초대: 처음이면 지금 방을 같이 꾸미는 방으로 만들고, 링크를 보낸다
+async function invite() {
+  if (!cur) {
+    const id = duo.create();
+    cur = { id, mine: true };
+    store.set(CUR_KEY, cur);
+    store.set(slot(), serialize(S));
+    history.replaceState(null, '', location.pathname + location.search + '#r=' + id);
+  }
+  const url = duo.inviteUrl();
+  manualUrl = null;
+  try { if (navigator.share) { await navigator.share({ title: '트리 같이 꾸미기', text: '우리 트리 같이 꾸미자 🎄 눌러서 들어와', url }); return; } }
+  catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(url); toast('링크를 복사했어요. 친구에게 붙여 보내세요'); return; } catch (_) { /* 아래로 */ }
+  manualUrl = url; paintDuo();
+}
+// 방에서 나가기: 내가 만든 방이면 지금 모습 그대로 혼자 이어서 꾸미고, 친구 방이면 내 방으로 돌아간다
+function leaveRoom() {
+  if (!cur) return;
+  clearTimeout(saveK);
+  if (cur.mine) store.set(ROOM_KEY, serialize(S));
+  store.del(slot()); store.del(CUR_KEY);
+  cur = null;
+  duo.leave();
+  history.replaceState(null, '', location.pathname + location.search);
+  location.reload();
+}
+const DUO_TEXT = {
+  solo: ['친구랑 같이 꾸미기', '링크를 보내면 친구가 이 방에 들어와요. 딱 두 명까지.', ''],
+  connecting: ['연결하는 중…', '', '연결 중'],
+  waiting: ['친구를 기다리는 중이에요', '링크를 받은 친구가 들어오면 바로 같이 꾸며요. 방은 계속 저장돼요.', '친구 기다리는 중'],
+  on: ['친구와 같이 꾸미는 중이에요 👫', '서로 놓은 것이 바로 보여요.', '같이 노는 중'],
+  lost: ['연결이 끊겼어요', '방은 그대로예요. 혼자 이어서 꾸밀 수 있어요.', '연결 끊김'],
+  full: ['이 방에는 이미 두 명이 있어요', '', '방이 찼어요'],
+};
+function paintDuo() {
+  const m = duo.mode, [main, sub, chip] = DUO_TEXT[m];
+  $('duoMain').textContent = main; $('duoSub').textContent = sub;
+  $('duoInvite').hidden = !(m === 'solo' || m === 'waiting');
+  $('duoInvite').textContent = m === 'solo' ? '친구 초대하기' : '링크 다시 보내기';
+  $('duoRetry').hidden = m !== 'lost';
+  $('duoLeave').hidden = m === 'solo';
+  $('duoLeave').textContent = cur && cur.mine ? '혼자 놀기' : '내 방으로 가기';
+  if (m !== 'waiting') manualUrl = null;
+  $('duoUrlRow').hidden = !manualUrl;
+  if (manualUrl) $('duoUrl').value = manualUrl;
+  const net = $('net');
+  net.hidden = !chip; net.textContent = chip; net.dataset.m = m;
+  document.querySelector('#tabs button[data-m="duo"]').classList.toggle('live', m === 'on');
+  if (mode === 'duo') measure(false);
+}
+$('duoInvite').addEventListener('click', invite);
+$('duoRetry').addEventListener('click', () => duo.retry());
+$('duoLeave').addEventListener('click', leaveRoom);
+$('duoUrl').addEventListener('focus', (e) => e.target.select());
 
 /* ───────── 누르기 ───────── */
 // 손가락 하나를 거의 움직이지 않고 뗐을 때가 "누르기". 두 손가락은 크게·작게 보기.
@@ -468,7 +627,7 @@ $('turn').addEventListener('click', () => turnView(1));
 $('zin').addEventListener('click', () => zoomBy(1.35));
 $('zout').addEventListener('click', () => zoomBy(1 / 1.35));
 
-const PANELS = { furn: 'furn', tree: 'treeP', paint: 'paint', look: 'look' };
+const PANELS = { furn: 'furn', tree: 'treeP', paint: 'paint', look: 'look', duo: 'duoP' };
 function setMode(m) {
   if (m === mode) m = null; // 같은 탭을 다시 누르면 닫는다
   if (ghost) ghostCancel();
@@ -549,6 +708,7 @@ function setLook(patch) {
   me.setLook(look);
   paintPanels();
   store.set(LOOK_KEY, look);
+  duo.look(look);
   dirty = true;
 }
 
@@ -582,6 +742,12 @@ function frame(now) {
   const byKey = keyWalk(dt);
   const moved = byKey ? (me.animate(dt, true), true) : me.step(dt);
   if (moved || me.blend > 0.01) dirty = true;
+  if (other && (other.step(dt) || other.blend > 0.01)) dirty = true;
+  // 내 자리를 친구에게 알린다 (1초에 열 번까지, 움직였을 때만)
+  if (duo.mode === 'on' && clock - sentAt > 0.1 && (Math.abs(me.x - sentX) > 0.004 || Math.abs(me.z - sentZ) > 0.004)) {
+    sentAt = clock; sentX = me.x; sentZ = me.z;
+    duo.pos(r3(me.x), r3(me.z));
+  }
   updateView(dt);
 
   if (pinT > 0) { pinT = Math.max(0, pinT - dt * (me.path.length ? 0.6 : 3)); pin.material.opacity = Math.min(1, pinT * 1.4) * 0.9; pin.scale.setScalar(1 + (1 - pinT) * 0.5); }
@@ -600,24 +766,26 @@ function frame(now) {
 }
 
 /* ───────── 시작 ───────── */
-rebuildGrid();
-for (const op of ops(store.get(ROOM_KEY))) dispatch(op, true); // 지난번에 꾸민 방
-if (!grid.fits(me.x, me.z, BODY_R)) { // 내 자리에 가구가 있으면 가까운 빈칸으로
-  const [i, j] = cellOf(me.x, me.z), c = grid.nearestFree(i, j, me.x, me.z);
-  if (c) me.place(-HALF + (c[0] + 0.5) * CELL, -HALF + (c[1] + 0.5) * CELL);
-}
+loadRoom(store.get(slot())); // 지난번에 꾸민 방
 addEventListener('resize', () => measure());
 addEventListener('orientationchange', () => setTimeout(measure, 200));
 faceCamera(); me.root.rotation.y = me.face; // 처음에는 화면 쪽을 본다
 showWalls();
 paintPanels();
 if (savedLook) measure(); else setMode('look'); // 처음 온 사람은 캐릭터부터 고른다
+addEventListener('hashchange', () => location.reload()); // 다른 방 링크를 열면 새로 시작한다
+if (cur) duo.start(cur.id); else paintDuo();
 view.snap = true; updateView(0);
 requestAnimationFrame(frame);
 const loading = $('loading');
 if (loading) { loading.classList.add('done'); setTimeout(() => loading.remove(), 500); }
 
-// 자동 검사와 다음 단계(둘이 같이)가 쓰는 창구
+// 자동 검사가 쓰는 창구
+window.__duo = {
+  get mode() { return duo.mode; }, get role() { return duo.role; }, get room() { return duo.room; }, get mine() { return cur ? cur.mine : null; },
+  get other() { return other ? { x: other.x, z: other.z, look: other.look, moving: other.moving } : null; },
+  inviteUrl: () => duo.inviteUrl(), invite, leaveRoom, hash: roomHash, feed: (m) => duo.feed(m),
+};
 window.__tree = {
   N, CELL, HALF, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
   ghostNew, ghostPick, ghostMoveTo, ghostTurn, ghostDone, ghostCancel, ghostRemove, surfaceR, serialize: () => serialize(S),

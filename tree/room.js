@@ -162,9 +162,10 @@ export function buildRoom(scene) {
   pictureOn(walls.e, 1.4);
 
   const tree = buildTree(scene);
+  let floorId = FLOORS[0].id;
   return {
     walls, tree: tree.g, cones: tree.cones,
     setWall(id) { const w = WALLS.find((x) => x.id === id) || WALLS[0]; mats.wall.color.setHex(w.wall); mats.panel.color.setHex(w.panel); },
-    setFloor(id) { const f = FLOORS.find((x) => x.id === id) || FLOORS[0]; const old = floorMat.map; floorMat.map = floorTexture(f.tones); floorMat.needsUpdate = true; if (old) old.dispose(); },
+    setFloor(id) { const f = FLOORS.find((x) => x.id === id) || FLOORS[0]; if (f.id === floorId) return; floorId = f.id; const old = floorMat.map; floorMat.map = floorTexture(f.tones); floorMat.needsUpdate = true; if (old) old.dispose(); },
   };
 }

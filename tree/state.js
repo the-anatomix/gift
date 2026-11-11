@@ -25,7 +25,9 @@ export function cellsOf(it) {
 }
 
 export function makeState() {
-  return { items: new Map(), orns: new Map(), lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id };
+  // at = 마지막으로 꾸민 때(ms, 한 번도 안 꾸몄으면 0).
+  // sync = 친구의 방과 똑같다고 마지막으로 확인했을 때의 at (한 번도 맞춘 적 없으면 0). at > sync 면 헤어진 뒤 혼자 꾸민 것이다.
+  return { items: new Map(), orns: new Map(), lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id, at: 0, sync: 0 };
 }
 
 // 그 자리에 놓을 수 있는지. fixed(i, j) = 트리처럼 처음부터 막힌 칸. ignoreId = 옮기는 중인 자기 자신.
@@ -88,12 +90,34 @@ export function apply(S, op, fixed) {
 // 저장용 모양. 다시 열 때는 ops() 로 풀어서 apply 에 하나씩 넣는다.
 export function serialize(S) {
   return {
-    v: 1,
+    v: 1, at: S.at, sync: S.sync,
     items: [...S.items.values()].map((o) => [o.id, o.k, o.i, o.j, o.r]),
     orns: [...S.orns.values()].map((o) => [o.id, o.k, o.x, o.y, o.z]),
     lights: [S.lights.set, S.lights.blink], wall: S.wall, floor: S.floor,
   };
 }
+// 저장된 방이나 친구가 보낸 방의 때 표시. 모양이 이상하거나 터무니없는 값이면 0(꾸민 적 없음)으로 본다.
+function stamp(data, k) {
+  if (!data || typeof data !== 'object' || data.v !== 1 || !Array.isArray(data.items) || !Array.isArray(data.orns)) return 0;
+  return okNum(data[k], 0, Date.now() + 600000) ? data[k] : 0;
+}
+export const stampOf = (data) => stamp(data, 'at');
+export const syncOf = (data) => Math.min(stamp(data, 'sync'), stamp(data, 'at'));
+
+// 둘이 만났을 때 손님의 방을 쓸지(true), 주인의 방을 쓸지(false).
+// g, h = { at, sync, mine } (mine = 이 방을 만든 사람인지)
+//   처음 온 기기(sync 0)는 상대의 방을 받는다. 둘 다 처음이면 방을 만든 사람 것.
+//   헤어진 뒤 한쪽만 혼자 꾸몄으면 그쪽 것. 둘 다 혼자 꾸몄으면 더 최근 것. 아무도 안 꾸몄으면 주인 것.
+export function guestWins(g, h) {
+  const gNew = !g.sync, hNew = !h.sync;
+  if (gNew && hNew) return !!g.mine && !h.mine;
+  if (gNew) return false;
+  if (hNew) return true;
+  const gAlone = g.at > g.sync, hAlone = h.at > h.sync;
+  if (gAlone !== hAlone) return gAlone;
+  return gAlone && g.at > h.at;
+}
+
 export function ops(data) {
   const out = [];
   if (!data || typeof data !== 'object' || data.v !== 1) return out;

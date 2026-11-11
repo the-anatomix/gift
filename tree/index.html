@@ -23,7 +23,9 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 #top{position:absolute;left:0;right:0;top:0;padding:calc(8px + env(safe-area-inset-top)) 12px 0;
   display:flex;align-items:center;justify-content:space-between;pointer-events:none}
 #top .brand{font-weight:800;font-size:15px;letter-spacing:-.02em;display:flex;align-items:center;gap:6px;color:#FFF4E0}
-#top .tag{font-size:11px;font-weight:800;background:var(--accent);color:#fff;padding:2px 7px;border-radius:999px}
+#top .tag{font-size:11px;font-weight:800;background:#8A7868;color:#fff;padding:2px 7px;border-radius:999px}
+#top .tag[data-m=on]{background:#2F9E6E}
+#top .tag[data-m=waiting],#top .tag[data-m=connecting]{background:#C9902B}
 #top a{pointer-events:auto;min-height:44px;min-width:44px;padding:0 12px;display:inline-flex;align-items:center;
   font-size:13px;font-weight:700;color:var(--choc);text-decoration:none;background:rgba(255,252,245,.92);
   border:1.5px solid var(--line);border-radius:999px}
@@ -73,12 +75,15 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 .sw{flex:none;width:46px;height:46px;padding:0;border-radius:50%;border:2px solid rgba(43,29,20,.14);background:var(--c);cursor:pointer;
   box-shadow:0 0 0 0 var(--choc);transition:box-shadow .15s}
 .sw[aria-pressed=true]{box-shadow:0 0 0 2px #fff,0 0 0 4.5px var(--choc)}
-#tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;background:rgba(255,252,245,.97);
+#tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;background:rgba(255,252,245,.97);
   border:1.5px solid var(--line);border-radius:18px;padding:4px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
 #tabs button{min-height:50px;min-width:0;padding:0;border:0;border-radius:14px;background:none;font-size:12px;
   font-weight:700;color:var(--sub);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
 #tabs button b{font-size:19px;font-weight:400;line-height:1.1}
 #tabs button[aria-pressed=true]{background:var(--choc);color:#FFF4E0}
+#tabs button.live b{text-shadow:0 0 0 #2F9E6E;filter:drop-shadow(0 0 3px #2F9E6E)}
+#duoUrl{flex:1;min-width:0;min-height:44px;border:1.5px solid var(--line);border-radius:12px;padding:0 10px;font:inherit;font-size:13px;
+  background:#fff;color:var(--ink);user-select:text;-webkit-user-select:text}
 
 #toast{position:absolute;left:50%;top:calc(64px + env(safe-area-inset-top));transform:translate(-50%,-8px);z-index:6;
   background:rgba(20,14,28,.88);color:#FFF4E0;font-size:13px;font-weight:600;padding:8px 14px;border-radius:999px;
@@ -100,7 +105,7 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 <body>
 <canvas id="c" aria-label="크리스마스 트리가 있는 3D 거실" tabindex="-1"></canvas>
 <div id="top">
-  <div class="brand">트리 같이 꾸미기<span class="tag">만드는 중</span></div>
+  <div class="brand">트리 같이 꾸미기<span class="tag" id="net" hidden></span></div>
   <a href="../nolja/">놀자방 홈</a>
 </div>
 <div id="inapp" hidden>
@@ -147,11 +152,21 @@ button{font:inherit;color:inherit;touch-action:manipulation}
     <div class="row"><span class="lab">옷</span><div class="row" id="pickOutfit" style="flex:1" role="group" aria-label="옷"></div></div>
     <div class="row"><button type="button" class="btn main" id="lookDone" style="flex:1">다 골랐어요</button></div>
   </div>
+  <div id="duoP" class="sheet" hidden>
+    <div class="hint"><span id="duoMain"></span><small id="duoSub"></small></div>
+    <div class="row" id="duoUrlRow" hidden><input id="duoUrl" type="text" readonly aria-label="친구에게 보낼 링크"></div>
+    <div class="row">
+      <button type="button" class="btn main" id="duoInvite" style="flex:1">친구 초대하기</button>
+      <button type="button" class="btn main" id="duoRetry" style="flex:1" hidden>다시 연결</button>
+      <button type="button" class="btn" id="duoLeave" hidden>혼자 놀기</button>
+    </div>
+  </div>
   <nav id="tabs" aria-label="꾸미기">
     <button type="button" data-m="furn"><b>🛋️</b>가구</button>
     <button type="button" data-m="tree"><b>🎄</b>트리</button>
     <button type="button" data-m="paint"><b>🎨</b>벽·바닥</button>
     <button type="button" data-m="look"><b>🙂</b>캐릭터</button>
+    <button type="button" data-m="duo"><b>👫</b>같이</button>
   </nav>
 </div>
 <div id="loading">거실에 불을 켜는 중…</div>
