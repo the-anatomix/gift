@@ -2,7 +2,7 @@
 import { THREE, M, put, rbox, cyl, ball } from './kit.js';
 import { N, CELL, HALF, cellOf } from './path.js';
 
-export const WALL_H = 2.5;
+export const WALL_H = 2.7;
 export const C = {
   slab: 0xB98F66, wall: 0xF3E6D0, panel: 0xD8BE9A, base: 0x8A5F3F, white: 0xFFF8EA,
   rug: 0xC8443A, rugIn: 0xF3E2C3, night: 0x27335E, moon: 0xFFF2C2,
@@ -128,7 +128,7 @@ export function buildRoom(scene, grid) {
   // 바닥
   put(rbox(N * CELL + 0.5, 0.24, N * CELL + 0.5, 0.08), C.slab, 0, -0.13, 0, scene);
   const tex = floorTexture();
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(2, 2);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(N * CELL / 3, N * CELL / 3);
   const floor = put(new THREE.BoxGeometry(N * CELL, 0.02, N * CELL), new THREE.MeshLambertMaterial({ map: tex }), 0, -0.005, 0, scene, false);
 
   // 러그
@@ -138,12 +138,16 @@ export function buildRoom(scene, grid) {
 
   // 벽
   const walls = { n: wall(scene, 'n'), s: wall(scene, 's'), w: wall(scene, 'w'), e: wall(scene, 'e') };
-  windowOn(walls.n, -0.9);
-  wreathOn(walls.n, 1.5);
-  windowOn(walls.w, 0.9);
-  pictureOn(walls.w, -1.4);
-  doorOn(walls.s, 1.2);
-  pictureOn(walls.e, 0.6);
+  windowOn(walls.n, -2.1);
+  windowOn(walls.n, 0.3);
+  wreathOn(walls.n, 2.6);
+  windowOn(walls.w, 1.9);
+  pictureOn(walls.w, -0.2);
+  pictureOn(walls.w, -2.4);
+  doorOn(walls.s, 2.2);
+  pictureOn(walls.s, -1.2);
+  windowOn(walls.e, -1.6);
+  pictureOn(walls.e, 1.4);
 
   // 트리와 그 자리(걸어 들어갈 수 없는 칸)
   const tree = buildTree(scene);

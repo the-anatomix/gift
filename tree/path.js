@@ -1,6 +1,6 @@
 // 바닥 격자와 길찾기. 화면과 상관없는 계산만 둔다.
 // 방은 가로세로 N 칸, 한 칸은 CELL. 방 한가운데가 (0, 0) 이다.
-export const N = 12;
+export const N = 16;
 export const CELL = 0.5;
 export const HALF = (N * CELL) / 2;
 

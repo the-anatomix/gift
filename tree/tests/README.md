@@ -13,7 +13,7 @@ npx playwright install chromium
 ## 실행
 
 ```bash
-node room.test.js     # 거실 · 걷기 · 길찾기 · 방 돌려 보기 · 폰 화면
+node room.test.js     # 거실 · 걷기 · 길찾기 · 방 돌려 보기 · 크게 보기 · 캐릭터 고르기
 ```
 
 결과는 줄마다 `통과` / `실패` 로 나오고, 화면 사진은 `out/` 에 남습니다(커밋하지 않음).

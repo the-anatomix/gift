@@ -1,4 +1,4 @@
-// 거실 · 걷기 검사. 실행: cd tree/tests && node room.test.js
+// 거실 · 걷기 · 캐릭터 고르기 검사. 실행: cd tree/tests && node room.test.js
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8161, BASE = `http://localhost:${PORT}/tree/`;
@@ -48,28 +48,76 @@ async function walkAndTrace(p, act) {
     const A = await open(ctx, BASE);
     await sleep(400);
     check('거실이 열리고 화면이 그려짐', (await A.evaluate(() => window.__tree.frames)) > 3 && !(await A.isVisible('#fallback')));
+
+    // 캐릭터 고르기
+    check('처음 오면 캐릭터 고르기가 먼저 열림', (await A.isVisible('#look')) && !(await A.isVisible('#panel')) && (await A.evaluate(() => window.__tree.lookOpen)));
+    check('고르기 판의 버튼이 화면 안·44px 이상', (await audit(A)).length === 0, await audit(A));
+    check('성별 2가지, 옷 3가지(평상복·산타·루돌프)', (await A.locator('#pickGender .chip').count()) === 2 && (await A.locator('#pickOutfit .chip').count()) === 3 && (await A.textContent('#pickOutfit')).includes('산타') && (await A.textContent('#pickOutfit')).includes('루돌프'));
+    const meshes = () => A.evaluate(() => { let n = 0; window.__tree.me.root.traverse((o) => { if (o.isMesh) n++; }); return n; });
+    const n0 = await meshes();
+    await A.tap('#pickGender .chip[data-v="m"]');
+    await A.tap('#pickOutfit .chip[data-v="santa"]');
+    await sleep(200);
+    const lk = await A.evaluate(() => window.__tree.look);
+    check('남자 · 산타를 누르면 아바타가 바로 바뀜', lk.gender === 'm' && lk.outfit === 'santa' && (await meshes()) !== n0 && (await A.getAttribute('#pickOutfit .chip[data-v="santa"]', 'aria-pressed')) === 'true', lk);
+    await until(() => A.evaluate(() => window.__tree.view.settled), 4000);
+    await A.screenshot({ path: path.join(__dirname, 'out', 'look-phone.png') });
+    const inUse = () => A.evaluate(() => { const T = window.__tree, v = T.view, a = T.screenOf(T.me.x, T.me.z, 0), b = T.screenOf(T.me.x, T.me.z, 1.45);
+      return { ok: b.y >= v.top - 1 && a.y <= innerHeight - v.bottom + 1 && a.x > 20 && a.x < innerWidth - 20, tall: a.y - b.y }; });
+    const u1 = await inUse();
+    check('고르는 동안 아바타가 판에 가려지지 않고 크게 보임', u1.ok && u1.tall > 90, u1);
+    for (const g of ['f', 'm']) for (const o of ['basic', 'santa', 'rudolph']) {
+      await A.tap(`#pickGender .chip[data-v="${g}"]`); await A.tap(`#pickOutfit .chip[data-v="${o}"]`); await sleep(120);
+    }
+    check('여섯 가지 조합을 모두 눌러도 오류 없음', errors.length === 0 && (await A.evaluate(() => window.__tree.look.outfit)) === 'rudolph', errors);
+    await A.tap('#lookDone');
+    check('"다 골랐어요"를 누르면 판이 닫힘', !(await A.isVisible('#look')) && (await A.isVisible('#panel')));
     check('버튼이 화면 안·44px 이상', (await audit(A)).length === 0, await audit(A));
-    const fitOk = await A.evaluate(() => { const T = window.__tree, H = T.HALF, top = document.getElementById('top').getBoundingClientRect().bottom, bottom = document.getElementById('bottom').getBoundingClientRect().top;
-      const pts = []; for (const x of [-H, H]) for (const z of [-H, H]) for (const y of [0, 2.5]) pts.push(T.screenOf(x, z, y));
-      return pts.every((s) => s.x >= 0 && s.x <= innerWidth && s.y >= top && s.y <= bottom); });
-    check('방 전체가 위 막대와 아래 판 사이에 들어옴', fitOk);
+
+    // 폰에서는 아바타를 따라가며 크게 보여 준다
+    await until(() => A.evaluate(() => window.__tree.view.settled), 4000);
+    await sleep(500);
+    const v0 = await A.evaluate(() => window.__tree.view), u2 = await inUse();
+    check('폰 처음 배율: 방을 당겨서 아바타가 크게 보임', !v0.whole && v0.pxu > 50 && u2.ok && u2.tall > 60, { v0, u2 });
     check('아바타가 처음에 빈칸에 서 있음', await A.evaluate(() => window.__tree.grid.fits(window.__tree.me.x, window.__tree.me.z)));
     await A.screenshot({ path: path.join(__dirname, 'out', 'room-phone.png') });
-
-    // 바닥을 눌러 걷기
+    // 가까운 바닥을 눌러 걷기
     const start = await pos(A);
-    const tgt = { x: 2.3, z: -1.6 };
-    const s = await A.evaluate((t) => window.__tree.screenOf(t.x, t.z), tgt);
-    await A.touchscreen.tap(s.x, s.y);
+    const near = { x: start.x + 1.2, z: start.z - 0.4 };
+    const sn = await A.evaluate((t) => window.__tree.screenOf(t.x, t.z), near);
+    await A.touchscreen.tap(sn.x, sn.y);
     check('바닥을 누르면 걷기 시작', await until(async () => (await pos(A)).moving, 2000));
     await idle(A);
+    const en = await pos(A);
+    check('누른 자리까지 걸어감', Math.hypot(en.x - near.x, en.z - near.z) < 0.15, en);
+    // 멀리 걸어가도 화면이 따라온다
+    await A.evaluate(() => window.__tree.goTo(-3.4, -3.2)); await sleep(150); await idle(A); await sleep(900);
+    const u3 = await inUse();
+    check('방 반대편 구석까지 걸어가도 아바타가 화면 안에 있음', u3.ok, u3);
+
+    // 크게·작게 보기
+    await A.tap('#zin'); await until(() => A.evaluate(() => window.__tree.view.settled), 4000);
+    const v1 = await A.evaluate(() => window.__tree.view);
+    check('＋ 를 누르면 더 크게 보임', v1.pxu > v0.pxu * 1.2, { a: v0.pxu, b: v1.pxu });
+    for (let k = 0; k < 8; k++) await A.tap('#zout');
+    await until(() => A.evaluate(() => window.__tree.view.settled), 4000); await sleep(400);
+    const fitOk = () => A.evaluate(() => { const T = window.__tree, H = T.HALF, v = T.view;
+      const pts = []; for (const x of [-H, H]) for (const z of [-H, H]) for (const y of [0, 2.7]) pts.push(T.screenOf(x, z, y));
+      return pts.every((s) => s.x >= 0 && s.x <= innerWidth && s.y >= v.top - 7 && s.y <= innerHeight - v.bottom + 7); });
+    check('－ 를 끝까지 누르면 방 전체가 위 막대와 아래 판 사이에 들어옴', (await A.evaluate(() => window.__tree.view.whole)) && (await fitOk()));
+    await A.screenshot({ path: path.join(__dirname, 'out', 'room-phone-whole.png') });
+
+    // 아래부터는 방 전체 보기에서 확인한다
+    const tgt = { x: 3.2, z: -2.4 };
+    const s = await A.evaluate((t) => window.__tree.screenOf(t.x, t.z), tgt);
+    await A.touchscreen.tap(s.x, s.y); await sleep(150); await idle(A);
     const end = await pos(A);
-    check('누른 자리까지 걸어감', Math.hypot(end.x - tgt.x, end.z - tgt.z) < 0.15 && Math.hypot(end.x - start.x, end.z - start.z) > 1, end);
+    check('방 전체 보기에서도 누른 자리까지 걸어감', Math.hypot(end.x - tgt.x, end.z - tgt.z) < 0.15, end);
 
     // 트리 건너편으로: 돌아서 간다
-    const t1 = await walkAndTrace(A, () => A.evaluate(() => window.__tree.goTo(-2.3, 1.2)));
+    const t1 = await walkAndTrace(A, () => A.evaluate(() => window.__tree.goTo(-3.1, 2.4)));
     const e1 = await pos(A);
-    check('트리 건너편까지 감', Math.hypot(e1.x + 2.3, e1.z - 1.2) < 0.15, e1);
+    check('트리 건너편까지 감', Math.hypot(e1.x + 3.1, e1.z - 2.4) < 0.15, e1);
     check('가는 길에 트리 자리를 밟지 않음', t1.n > 20 && t1.inTree === 0 && t1.out === 0, t1);
 
     // 트리를 누르면 그 옆까지만
@@ -80,7 +128,7 @@ async function walkAndTrace(p, act) {
 
     // 방 밖(벽·빈 곳)을 누르면 그대로
     const before = await pos(A);
-    await A.touchscreen.tap(187, 120); await sleep(400);
+    await A.touchscreen.tap(187, 110); await sleep(400);
     const after = await pos(A);
     check('방 밖을 누르면 움직이지 않음', Math.hypot(after.x - before.x, after.z - before.z) < 0.01);
 
@@ -91,16 +139,29 @@ async function walkAndTrace(p, act) {
     await until(() => A.evaluate(() => !window.__tree.turning), 5000);
     const w1 = await A.evaluate(() => window.__tree.walls);
     check('돌려 보면 보이는 벽 두 면이 바뀜', (await A.evaluate(() => window.__tree.yawK)) === 1 && Object.values(w1).filter(Boolean).length === 2 && (w1.n !== w0.n || w1.w !== w0.w), w1);
-    await sleep(300);
+    await sleep(500);
+    check('돌린 뒤에도 방 전체가 화면 안', await fitOk());
     await A.screenshot({ path: path.join(__dirname, 'out', 'room-phone-turned.png') });
     // 돌린 뒤에도 누른 자리로 간다
-    const tgt2 = { x: 1.8, z: 2.2 };
+    const tgt2 = { x: 2.8, z: 3.2 };
     const s2 = await A.evaluate((t) => window.__tree.screenOf(t.x, t.z), tgt2);
     await A.touchscreen.tap(s2.x, s2.y); await sleep(150); await idle(A);
     const e3 = await pos(A);
     check('방을 돌린 뒤에도 누른 자리로 감', Math.hypot(e3.x - tgt2.x, e3.z - tgt2.z) < 0.15, e3);
     for (let k = 0; k < 3; k++) { await A.tap('#turn'); await until(() => A.evaluate(() => !window.__tree.turning), 5000); }
     check('네 번 돌리면 처음 방향', (await A.evaluate(() => window.__tree.yawK)) === 0);
+
+    // 고른 캐릭터를 기억한다
+    await A.tap('#lookOpen'); await A.tap('#pickGender .chip[data-v="f"]'); await A.tap('#pickOutfit .chip[data-v="santa"]'); await A.tap('#lookDone');
+    await A.reload();
+    await until(() => A.evaluate(() => !!(window.__tree && window.__tree.frames > 3)));
+    const lk2 = await A.evaluate(() => window.__tree.look);
+    check('다시 열면 고른 캐릭터 그대로, 고르기 판은 안 뜸', lk2.gender === 'f' && lk2.outfit === 'santa' && !(await A.isVisible('#look')) && (await A.isVisible('#panel')), lk2);
+    await A.evaluate(() => localStorage.setItem('nolja-tree-look', '{"gender":"x","outfit":"<b>"}'));
+    await A.reload();
+    await until(() => A.evaluate(() => !!(window.__tree && window.__tree.frames > 3)));
+    const lk3 = await A.evaluate(() => window.__tree.look);
+    check('저장된 값이 이상하면 기본 캐릭터로 열림', lk3.gender === 'f' && lk3.outfit === 'basic', lk3);
 
     // 낮은 화질로 내려가도 계속 그려짐
     const f0 = await A.evaluate(() => { window.__tree.lowerQuality(); return window.__tree.frames; });
@@ -112,6 +173,8 @@ async function walkAndTrace(p, act) {
     const ctx2 = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const B = await open(ctx2, BASE);
     await sleep(300);
+    await B.click('#lookDone'); await sleep(600);
+    check('PC 에서는 처음부터 방 전체가 화면 안', (await B.evaluate(() => window.__tree.view.whole)) && await B.evaluate(() => { const T = window.__tree, H = T.HALF; for (const x of [-H, H]) for (const z of [-H, H]) for (const y of [0, 2.7]) { const s = T.screenOf(x, z, y); if (s.x < 0 || s.x > innerWidth || s.y < 0 || s.y > innerHeight) return false; } return true; }));
     const b0 = await pos(B);
     const sy0 = (await B.evaluate(() => window.__tree.screenOf(window.__tree.me.x, window.__tree.me.z))).y;
     await B.keyboard.down('ArrowUp'); await sleep(500); await B.keyboard.up('ArrowUp'); await sleep(200);
@@ -122,11 +185,14 @@ async function walkAndTrace(p, act) {
     const t3 = await walkAndTrace(B, async () => { await B.keyboard.down('KeyW'); await sleep(2500); await B.keyboard.up('KeyW'); });
     check('방향키로 트리를 뚫고 지나갈 수 없음', t3.inTree === 0 && t3.out === 0, t3);
     // 벽 쪽으로 계속 걸어도 방 밖으로 나가지 않는다
-    const t4 = await walkAndTrace(B, async () => { await B.keyboard.down('KeyD'); await sleep(3000); await B.keyboard.up('KeyD'); });
+    const t4 = await walkAndTrace(B, async () => { await B.keyboard.down('KeyD'); await sleep(3500); await B.keyboard.up('KeyD'); });
     check('방향키로 방 밖으로 나갈 수 없음', t4.out === 0 && t4.inTree === 0, t4);
+    const p0 = (await B.evaluate(() => window.__tree.view)).pxu;
+    await B.mouse.move(640, 400); await B.mouse.wheel(0, -400);
+    await until(() => B.evaluate(() => window.__tree.view.settled), 4000);
+    check('휠을 올리면 크게 보임', (await B.evaluate(() => window.__tree.view)).pxu > p0 * 1.2);
     await B.keyboard.press('KeyE'); await until(() => B.evaluate(() => !window.__tree.turning), 5000);
     check('E 키로 방을 돌려 봄', (await B.evaluate(() => window.__tree.yawK)) === 1);
-    check('PC 에서도 방 전체가 화면 안', await B.evaluate(() => { const T = window.__tree, H = T.HALF; for (const x of [-H, H]) for (const z of [-H, H]) for (const y of [0, 2.5]) { const s = T.screenOf(x, z, y); if (s.x < 0 || s.x > innerWidth || s.y < 0 || s.y > innerHeight) return false; } return true; }));
     await B.screenshot({ path: path.join(__dirname, 'out', 'room-pc.png') });
     await ctx2.close();
 

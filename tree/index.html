@@ -46,6 +46,17 @@ button{font:inherit;color:inherit;touch-action:manipulation}
   background:#fff;font-size:13px;font-weight:700;cursor:pointer}
 .btn:active{transform:scale(.96)}
 .btn.main{background:var(--choc);border-color:var(--choc);color:#FFF4E0}
+#tools{display:flex;justify-content:flex-end;gap:8px;pointer-events:none !important}
+#tools .btn{pointer-events:auto;width:46px;height:46px;padding:0;border-radius:50%;font-size:19px;font-weight:800;
+  background:rgba(255,252,245,.95);box-shadow:0 4px 12px rgba(0,0,0,.25)}
+#look{background:rgba(255,252,245,.97);border:1.5px solid var(--line);border-radius:18px;padding:12px;
+  box-shadow:0 6px 20px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:8px}
+#look[hidden],#panel[hidden]{display:none}
+#look h2{margin:0;font-size:15px;font-weight:900}
+#look .lab{flex:none;width:34px;font-size:12.5px;font-weight:700;color:var(--sub)}
+.chip{flex:1;min-width:0;min-height:46px;padding:0 4px;border-radius:12px;border:1.5px solid var(--line);background:#fff;
+  font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
+.chip[aria-pressed=true]{background:var(--choc);border-color:var(--choc);color:#FFF4E0}
 .pc{display:none}
 @media (hover:hover) and (pointer:fine){ .pc{display:block} .touch{display:none} }
 
@@ -78,13 +89,24 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="bottom">
+  <div id="tools">
+    <button type="button" class="btn" id="zout" aria-label="작게 보기">－</button>
+    <button type="button" class="btn" id="zin" aria-label="크게 보기">＋</button>
+    <button type="button" class="btn" id="turn" aria-label="방을 돌려 보기">↻</button>
+  </div>
+  <div id="look" hidden>
+    <h2>캐릭터 고르기</h2>
+    <div class="row"><span class="lab">성별</span><div class="row" id="pickGender" style="flex:1" role="group" aria-label="성별"></div></div>
+    <div class="row"><span class="lab">옷</span><div class="row" id="pickOutfit" style="flex:1" role="group" aria-label="옷"></div></div>
+    <div class="row"><button type="button" class="btn main" id="lookDone" style="flex:1">다 골랐어요</button></div>
+  </div>
   <div id="panel">
     <div class="row">
       <div class="hint">
-        <span class="touch">바닥을 누르면 그 자리로 걸어가요.</span>
-        <span class="pc">바닥을 누르거나 방향키(WASD)로 걸어요.<small>Q · E 로 방을 돌려 볼 수 있어요.</small></span>
+        <span class="touch">바닥을 누르면 그 자리로 걸어가요.<small>두 손가락으로 벌리면 크게 보여요.</small></span>
+        <span class="pc">바닥을 누르거나 방향키(WASD)로 걸어요.<small>Q · E 로 방 돌리기, 휠로 크게·작게 보기.</small></span>
       </div>
-      <button type="button" class="btn" id="turn" aria-label="방을 돌려 보기">↻ 돌려 보기</button>
+      <button type="button" class="btn" id="lookOpen">캐릭터</button>
     </div>
   </div>
 </div>
