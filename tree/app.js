@@ -5,7 +5,7 @@
 import { THREE } from './kit.js';
 import { Grid, NX, NZ, CELL, X0, Z0, X1, Z1, cellOf, centerOf } from './path.js';
 import { buildRoom, WALL_H, TREE, fixedCell, surfaceR } from './room.js';
-import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, BODY_R, SPEED } from './avatar.js';
+import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, FACES, ACTS, BODY_R, SPEED } from './avatar.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER, STARTER_EAST } from './catalog.js';
 import { makeState, apply, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake } from './state.js';
 import { buildItem } from './furniture.js';
@@ -260,6 +260,7 @@ function zoomGoal() {
   }
   let z = clamp(view.zDef * view.zMul, 1, Z_MAX);
   if (mode === 'look') z = Math.max(z, Math.min(Z_MAX, 105 * view.sFit)); // 고르는 동안은 아바타가 크게 보이게
+  if (mode === 'emo') z = Math.max(z, Math.min(Z_MAX, 84 * view.sFit));   // 표정과 행동이 보이게
   return z;
 }
 function setZoomMul(m) { view.zMul = clamp(m, 1 / view.zDef, Z_MAX / view.zDef); }
@@ -319,7 +320,7 @@ function turnView(dir = 1) {
 const faceCamera = () => me.turnTo(Math.sin(yawOf(yawK)), Math.cos(yawOf(yawK)));
 
 /* ───────── 1인칭으로 보기 ───────── */
-// fp = 1인칭을 골랐는지. 캐릭터를 고를 때는 내 모습이 보여야 하므로 잠깐 내려다보는 시점으로 돌아간다.
+// fp = 1인칭을 골랐는지. 캐릭터를 고르거나 표정·행동을 고를 때는 내 모습이 보여야 하므로 잠깐 내려다보는 시점으로 돌아간다.
 // pose = 놀이(다트·TV …) 중에 고정된 카메라 자리 { pos: [x, y, z], at: [x, y, z], fov }
 const eye = new THREE.PerspectiveCamera(70, 1, 0.05, 80);
 const EYE_H = 1.18;              // 눈높이
@@ -327,7 +328,7 @@ let fp = store.get(POV_KEY) === 'fp';
 let fy = Math.PI, fpitch = -0.08, fpFov = 70; // 보는 방향: 바닥에서 (-sin fy, -cos fy) 쪽, fpitch 만큼 위로
 let pose = null;
 const joy = { x: 0, y: 0 };      // 조이스틱 (-1 ~ 1)
-function usingEye() { return !!pose || (fp && mode !== 'look'); }
+function usingEye() { return !!pose || (fp && mode !== 'look' && mode !== 'emo'); }
 const cam = () => (usingEye() ? eye : camera);
 function updateEye() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -540,7 +541,7 @@ function roomHash() {
 // 친구가 보낸 생김새가 아는 값일 때만 받는다 (아니면 null)
 function okLook(lk) {
   const c = cleanLook(lk);
-  return lk && typeof lk === 'object' && c.gender === lk.gender && c.outfit === lk.outfit ? c : null;
+  return lk && typeof lk === 'object' && c.gender === lk.gender && c.outfit === lk.outfit && (lk.face === undefined || c.face === lk.face) ? c : null; // 표정이 없던 때의 것도 받는다
 }
 const okId = (id) => typeof id === 'string' && /^[a-z0-9]{1,8}$/.test(id);
 // 한 사람의 아바타를 만들거나 고친다. 돌려주는 값 = 받아들인 { look, pos }
@@ -579,7 +580,7 @@ function paintRole() {
   $('tabs').style.gridTemplateColumns = `repeat(${canEdit ? 6 : 3}, 1fr)`;
   if (!canEdit && (mode === 'furn' || mode === 'tree' || mode === 'paint')) setMode(null);
 }
-const FX = { dart: 'number', fire: 'number', music: 'string' };
+const FX = { dart: 'number', fire: 'number', music: 'string', act: 'string' };
 const duo = makeDuo({
   snapshot: () => ({ state: serialize(S), look, pos: [r3(me.x), r3(me.z)], mine: !!(cur && cur.mine) }),
   hash: roomHash,
@@ -610,9 +611,10 @@ const duo = makeDuo({
     a.walk([[x, z]]);
     return true;
   },
-  peerFx(m) {
+  peerFx(m, id) {
     if (m && m.k === 'bell') { if (duo.role !== 'host') ding(false); return false; } // 초인종 소식은 방장만 전한다
     if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false;
+    if (m.k === 'act') { const a = others.get(id); return !!(a && a.act(m.v)); } // 그 사람이 한 행동
     play.peerFx(m);
     return true;
   },
@@ -1034,7 +1036,7 @@ if (window.visualViewport) {
 $('zin').addEventListener('click', () => zoomBy(1.35));
 $('zout').addEventListener('click', () => zoomBy(1 / 1.35));
 
-const PANELS = { furn: 'furn', tree: 'treeP', paint: 'paint', look: 'look', duo: 'duoP', play: 'playP', chat: 'chatP', door: 'doorP' };
+const PANELS = { furn: 'furn', tree: 'treeP', paint: 'paint', look: 'look', duo: 'duoP', play: 'playP', chat: 'chatP', door: 'doorP', emo: 'emoP' };
 function setMode(m) {
   if (mode === 'door') return; // 문 앞에서는 탭을 쓸 수 없다
   if (m === mode) m = null; // 같은 탭을 다시 누르면 닫는다
@@ -1045,6 +1047,7 @@ function setMode(m) {
   $('tabs').hidden = m === 'play'; $('tools').hidden = m === 'play'; // 놀이 중에는 놀이 판만 보인다
   for (const k in PANELS) $(PANELS[k]).hidden = k !== m;
   for (const b of document.querySelectorAll('#tabs button')) b.setAttribute('aria-pressed', String(b.dataset.m === m));
+  $('emo').setAttribute('aria-pressed', String(m === 'emo'));
   itemsG.visible = m !== 'tree'; // 트리를 꾸밀 때는 가구가 트리를 가리지 않게 잠깐 숨긴다
   if (m === 'tree') { standByTree(); toast('트리를 눌러 장식을 달아요'); }
   if (m === 'look') { me.stop(); me.onArrive = null; faceCamera(); }
@@ -1074,6 +1077,9 @@ function picks(box, list, cls, onPick) {
 const css = (hex) => '#' + hex.toString(16).padStart(6, '0');
 picks($('pickGender'), GENDERS, 'chip', (v) => setLook({ gender: v }));
 picks($('pickOutfit'), OUTFITS, 'chip', (v) => setLook({ outfit: v }));
+picks($('faceList'), FACES, 'pick', (v) => setLook({ face: v }));
+picks($('actList'), ACTS, 'pick', (v) => doAct(v));
+$('emo').addEventListener('click', () => setMode('emo'));
 picks($('furnList'), FURNITURE, 'pick', (v) => ghostNew(v));
 picks($('ornList'), [...ORNAMENTS, { id: 'cut', name: '떼기', icon: '✂️' }], 'pick', (v) => { tool = v; paintPanels(); if (v === 'cut') toast('뗄 장식을 눌러요'); });
 picks($('lightList'), LIGHT_SETS, 'chip', (v) => dispatch({ t: 'lights', set: v, blink: S.lights.blink }));
@@ -1108,13 +1114,21 @@ for (const box of document.querySelectorAll('.scroll')) {
 
 const press = (sel, v) => { for (const b of document.querySelectorAll(sel)) b.setAttribute('aria-pressed', String(b.dataset.v === v)); };
 function paintPanels() {
-  press('#pickGender .chip', look.gender); press('#pickOutfit .chip', look.outfit);
+  press('#pickGender .chip', look.gender); press('#pickOutfit .chip', look.outfit); press('#faceList .pick', look.face);
   press('#ornList .pick', tool);
   press('#lightList .chip', S.lights.set); press('#blinkList .chip', S.lights.blink);
   press('#wallList .sw', S.wall); press('#floorList .sw', S.floor);
   $('furnBar').hidden = !ghost; $('furnRow').hidden = !!ghost; $('furnHint').hidden = !!ghost;
   if (ghost) { $('furnName').textContent = kindOf(ghost.k).name; $('gDel').hidden = !ghost.id; }
   $('ornCount').textContent = S.orns.size ? `장식 ${S.orns.size}개` : '';
+}
+// 행동을 한다: 걷던 것을 멈추고 그 몸짓을 하며, 친구들에게도 알린다
+function doAct(id) {
+  me.stop(); me.onArrive = null;
+  if (!me.act(id)) return false;
+  duo.fx({ k: 'act', v: id });
+  dirty = true;
+  return true;
 }
 function setLook(patch) {
   look = cleanLook({ ...look, ...patch });
@@ -1154,8 +1168,8 @@ function frame(now) {
   // 걷기
   const byKey = keyWalk(dt);
   const moved = byKey ? (me.animate(dt, true), true) : me.step(dt);
-  if (moved || me.blend > 0.01) dirty = true;
-  for (const a of others.values()) if (a.step(dt) || a.blend > 0.01) dirty = true;
+  if (moved || me.blend > 0.01 || me.doing) dirty = true;
+  for (const a of others.values()) if (a.step(dt) || a.blend > 0.01 || a.doing) dirty = true;
   // 내 자리를 친구에게 알린다 (1초에 열 번까지, 움직였을 때만)
   if (duo.mode === 'on' && clock - sentAt > 0.1 && (Math.abs(me.x - sentX) > 0.004 || Math.abs(me.z - sentZ) > 0.004)) {
     sentAt = clock; sentX = me.x; sentZ = me.z;
@@ -1218,7 +1232,7 @@ window.__duo = {
   get knocks() { return duo.knocks; }, get people() { return duo.people; }, get why() { return duo.why; }, get rang() { return duo.rang; },
   admit: (id) => duo.admit(id), deny: (id) => duo.deny(id), kick: (id) => duo.kick(id),
   get canEdit() { return canEdit; }, get count() { return duo.count; }, get me() { return duo.me; }, get editors() { return duo.editors; }, get slot() { return mySlot; },
-  get others() { return [...others].map(([id, a]) => ({ id, x: a.x, z: a.z, look: a.look, moving: a.moving })); },
+  get others() { return [...others].map(([id, a]) => ({ id, x: a.x, z: a.z, look: a.look, moving: a.moving, acting: a.acting })); },
   say, cleanSay, get bubbles() { return [...bubbles].filter(([, b]) => b.el.style.display !== 'none').map(([who, b]) => { const r = b.el.getBoundingClientRect(); return { who, text: b.el.textContent, x: r.left + r.width / 2, y: r.bottom }; }); },
   get chatLog() { return [...document.querySelectorAll('#chatLog .ln')].map((l) => l.textContent); },
   get other() { const a = others.values().next().value; return a ? { x: a.x, z: a.z, look: a.look, moving: a.moving } : null; },
@@ -1236,6 +1250,7 @@ window.__tree = {
   NX, NZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
   ghostNew, ghostPick, ghostMoveTo, ghostTurn, ghostDone, ghostCancel, ghostRemove, surfaceR, serialize: () => serialize(S),
   setZoomMul(m) { setZoomMul(m); },
+  doAct,
   openLook(on) { if ((mode === 'look') !== on) setMode('look'); },
   // 트리 겉면의 한 점(높이 y, 둘레 각 a)이 화면에서 어디인지
   treePoint(y, a) { const r = surfaceR(y) * 0.93; return screenOf(Math.sin(a) * r, Math.cos(a) * r, y); },

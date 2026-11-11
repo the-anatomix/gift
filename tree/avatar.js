@@ -1,16 +1,27 @@
 // 치비 아바타. 머리가 큰 2.5등신 사람. 도형만으로 만든다(나중에 모델 파일로 바꿔 끼울 수 있다).
-// 고를 수 있는 것: 성별(여자·남자), 옷(평상복·산타·루돌프).
+// 고를 수 있는 것: 성별(여자·남자), 옷(평상복·산타·루돌프), 표정. 그리고 잠깐 하는 행동(손 흔들기, 춤 …).
 import { THREE, M, put, ball, cap, cyl } from './kit.js';
 
 export const GENDERS = [{ id: 'f', name: '여자' }, { id: 'm', name: '남자' }];
 export const OUTFITS = [{ id: 'basic', name: '평상복' }, { id: 'santa', name: '🎅 산타' }, { id: 'rudolph', name: '🦌 루돌프' }];
-export const DEFAULT_LOOK = { gender: 'f', outfit: 'basic' };
+// 표정: 고르면 바꿀 때까지 그 얼굴로 있다
+export const FACES = [
+  { id: 'smile', name: '기본', icon: '🙂' }, { id: 'happy', name: '활짝', icon: '😄' }, { id: 'wink', name: '윙크', icon: '😉' },
+  { id: 'wow', name: '놀람', icon: '😮' }, { id: 'sad', name: '시무룩', icon: '😢' }, { id: 'angry', name: '뾰로통', icon: '😠' },
+];
+// 행동: 누르면 sec 초 동안 그 몸짓을 하고 돌아온다. 걸으면 그만둔다
+export const ACTS = [
+  { id: 'wave', name: '안녕', icon: '👋', sec: 2.4 }, { id: 'cheer', name: '만세', icon: '🙌', sec: 2.2 }, { id: 'clap', name: '박수', icon: '👏', sec: 2.4 },
+  { id: 'jump', name: '폴짝', icon: '🐰', sec: 1.3 }, { id: 'dance', name: '춤', icon: '💃', sec: 4.6 }, { id: 'bow', name: '꾸벅', icon: '🙇', sec: 1.8 },
+];
+export const DEFAULT_LOOK = { gender: 'f', outfit: 'basic', face: 'smile' };
 // 저장된 값이나 상대가 보낸 값은 믿지 않고 아는 값만 받는다
 export function cleanLook(l) {
   const v = l && typeof l === 'object' ? l : {};
   return {
     gender: GENDERS.some((g) => g.id === v.gender) ? v.gender : DEFAULT_LOOK.gender,
     outfit: OUTFITS.some((o) => o.id === v.outfit) ? v.outfit : DEFAULT_LOOK.outfit,
+    face: FACES.some((x) => x.id === v.face) ? v.face : DEFAULT_LOOK.face,
   };
 }
 
@@ -22,11 +33,49 @@ const COL = {
 };
 const EYE = new THREE.MeshBasicMaterial({ color: 0x3B2619 });
 const CHEEK = new THREE.MeshBasicMaterial({ color: 0xF2998C, transparent: true, opacity: 0.75 });
+const MOUTH = new THREE.MeshBasicMaterial({ color: 0x8A3B34 });
+const TEAR = new THREE.MeshBasicMaterial({ color: 0x8CCBF2 });
 
 const SIZE = 1.25;   // 방 크기에 맞춘 전체 배율
 const SPEED = 2.6;   // 걷는 빠르기 (1초에 가는 거리)
 export const BODY_R = 0.18;
 export const HEIGHT = 1.16 * SIZE; // 머리끝까지 높이 (모자·뿔 제외)
+
+// 얼굴(눈, 눈썹, 입)을 머리에 붙인다. 표정마다 모양이 다르다. 돌려주는 값 = 깜빡일 수 있는(뜬) 눈들
+const HEAD_R = 0.27;
+function buildFace(head, id, deer) {
+  // 머리 겉면 위의 자리와, 그 자리에서 겉면을 따라 눕는 기울기
+  const on = (m, x, y, lift = 0.004) => {
+    const q = 1 - (x / (HEAD_R * 1.06)) ** 2 - (y / (HEAD_R * 0.96)) ** 2, z = HEAD_R * Math.sqrt(Math.max(0.05, q));
+    m.position.set(x, y, z + lift); m.rotation.set(-Math.atan2(y, z) * 0.8, Math.atan2(x, z) * 0.8, 0);
+    head.add(m); return m;
+  };
+  const mesh = (geo, mat) => new THREE.Mesh(geo, mat);
+  const arc = (r, tube = 0.0085) => new THREE.TorusGeometry(r, tube, 6, 14, Math.PI); // ∩ 모양
+  const eyes = [];
+  for (const s of [-1, 1]) {
+    const x = 0.1 * s;
+    if (id === 'happy' || (id === 'wink' && s === 1)) on(mesh(arc(0.033), EYE), x, -0.03);  // 웃느라 감은 눈
+    else {
+      const big = id === 'wow', e = put(ball(big ? 0.041 : 0.034, 10, 8), EYE, x, -0.015, 0.243, head, false);
+      e.scale.set(1, big ? 1.12 : 1.3, 0.5); e.userData.sy = e.scale.y;
+      eyes.push(e);
+    }
+    put(ball(0.045, 10, 8), CHEEK, 0.165 * s, -0.085, 0.2, head, false).scale.set(1.2, 0.7, 0.35);
+    if (id === 'sad' || id === 'angry') { // 눈썹: 시무룩하면 안쪽이 올라가고, 뾰로통하면 안쪽이 내려간다
+      const b = on(mesh(new THREE.BoxGeometry(0.072, 0.015, 0.012), EYE), x, id === 'sad' ? 0.052 : 0.047, 0.006);
+      b.rotation.z = (id === 'sad' ? -0.36 : 0.42) * s;
+    }
+    if (id === 'wow') on(mesh(new THREE.BoxGeometry(0.06, 0.012, 0.012), EYE), x, 0.062, 0.006); // 놀라서 올라간 눈썹
+  }
+  if (id === 'sad') on(mesh(ball(0.016, 8, 6), TEAR), 0.118, -0.068, 0.012).scale.set(1, 1.35, 0.6); // 눈물 한 방울
+  const my = deer ? -0.152 : -0.108; // 루돌프는 빨간 코 밑에
+  if (id === 'happy') on(mesh(new THREE.CircleGeometry(0.046, 14, Math.PI, Math.PI), MOUTH), 0, my + 0.03, 0.007);   // 활짝 벌린 입
+  else if (id === 'wow') on(mesh(ball(0.024, 10, 8), MOUTH), 0, my + 0.005, 0.002).scale.set(1, 1.3, 0.4);           // 동그란 입
+  else if (id === 'sad' || id === 'angry') on(mesh(arc(id === 'sad' ? 0.03 : 0.024), MOUTH), 0, my - 0.012);         // 처진 입
+  else on(mesh(arc(0.034), MOUTH), 0, my + 0.024).rotation.z = Math.PI;                                              // 웃는 입
+  return eyes;
+}
 
 function build(L) {
   const f = L.gender === 'f', santa = L.outfit === 'santa', deer = L.outfit === 'rudolph';
@@ -88,10 +137,7 @@ function build(L) {
   body.add(head);
   const R = 0.27;
   put(ball(R, 22, 16), COL.skin, 0, 0, 0, head).scale.set(1.06, 0.96, 1);
-  for (const s of [-1, 1]) {
-    put(ball(0.034, 10, 8), EYE, 0.1 * s, -0.015, 0.243, head, false).scale.set(1, 1.3, 0.5);
-    put(ball(0.045, 10, 8), CHEEK, 0.165 * s, -0.085, 0.2, head, false).scale.set(1.2, 0.7, 0.35);
-  }
+  const eyes = buildFace(head, L.face, deer);
   if (deer) put(ball(0.046, 12, 10), COL.nose, 0, -0.072, 0.262, head);
 
   // 머리카락: 뒤로 기울인 반구. 루돌프는 그 자리에 모자(후드)를 쓴다.
@@ -134,7 +180,7 @@ function build(L) {
       ear.scale.set(1.25, 0.6, 0.45); ear.rotation.z = 0.5 * s;
     }
   }
-  return { body, legs, arms, head };
+  return { body, legs, arms, head, eyes };
 }
 
 export function makeAvatar(look) {
@@ -148,6 +194,11 @@ export function makeAvatar(look) {
 
   const A = {
     root, look: null, path: [], onArrive: null, moving: false, t: Math.random() * 6, blend: 0, face: 0,
+    doing: null, blink: Math.random() * 4, // doing = 하고 있는 행동 { id, t, sec }
+    get acting() { return A.doing ? A.doing.id : null; },
+    get parts() { return parts; },
+    // 행동을 시작한다. 아는 행동이 아니면 false
+    act(id) { const a = ACTS.find((x) => x.id === id); if (!a) return false; A.doing = { id, t: 0, sec: a.sec }; return true; },
     get x() { return root.position.x; }, get z() { return root.position.z; },
     place(x, z) { root.position.set(x, 0, z); },
     mark(on) { ring.visible = on; },
@@ -190,11 +241,39 @@ export function makeAvatar(look) {
       A.moving = moved;
       A.blend += ((moved ? 1 : 0) - A.blend) * Math.min(1, dt * 12);
       A.t += dt * (moved ? 11 : 2.2);
-      const sw = Math.sin(A.t) * A.blend, { body, legs, arms, head } = parts;
-      legs[0].rotation.x = sw * 0.75; legs[1].rotation.x = -sw * 0.75;
-      arms[0].rotation.x = -sw * 0.65; arms[1].rotation.x = sw * 0.65;
-      body.position.y = Math.abs(Math.sin(A.t)) * 0.045 * A.blend + Math.sin(A.t) * 0.006 * (1 - A.blend);
-      head.rotation.z = Math.sin(A.t * 0.5) * 0.035 * A.blend;
+      const sw = Math.sin(A.t) * A.blend, { body, legs, arms, head, eyes } = parts;
+      // 걷는 몸짓(기본). lx·ax = 다리·팔을 앞뒤로, az = 팔을 옆으로, by = 몸 높이, bx·bz = 몸 숙임·기울임, hx·hz = 고개
+      const P = { lx: [sw * 0.75, -sw * 0.75], ax: [-sw * 0.65, sw * 0.65], az: [-0.28, 0.28],
+        by: Math.abs(Math.sin(A.t)) * 0.045 * A.blend + Math.sin(A.t) * 0.006 * (1 - A.blend), bx: 0, bz: 0, hx: 0, hz: Math.sin(A.t * 0.5) * 0.035 * A.blend, as: 1 };
+      let spin = 0;
+      const act = A.doing;
+      if (act) { act.t += dt; if (moved || act.t >= act.sec) A.doing = null; }
+      if (A.doing) {
+        // 행동의 몸짓 Q 를 기본 몸짓 위에 부드럽게 섞는다 (시작과 끝에서 e 가 0 → 1 → 0)
+        const t = act.t, w = Math.max(0, Math.min(1, t / 0.18, (act.sec - t) / 0.22)), e = w * w * (3 - 2 * w);
+        const Q = { lx: P.lx.slice(), ax: P.ax.slice(), az: P.az.slice(), by: P.by, bx: 0, bz: 0, hx: 0, hz: 0, as: 1 }; // as = 팔 길이(든 팔이 큰 머리에 가리지 않게 조금 뻗는다)
+        if (act.id === 'wave') { Q.az[0] = -(1.95 + 0.4 * Math.sin(t * 13)); Q.hz = 0.1; Q.as = 1.35; }               // 오른손을 들어 흔든다
+        else if (act.id === 'cheer') { const k = 2.2 + 0.16 * Math.sin(t * 10); Q.az = [-k, k]; Q.by = Math.abs(Math.sin(t * 8)) * 0.06; Q.hx = -0.12; Q.as = 1.35; }
+        else if (act.id === 'clap') { const k = 0.52 + 0.23 * Math.cos(t * 17); Q.ax = [-1.25, -1.25]; Q.az = [k, -k]; Q.by = Math.abs(Math.sin(t * 8.5)) * 0.015; }
+        else if (act.id === 'jump') { const h = Math.abs(Math.sin(Math.PI * t / 0.65)); Q.by = h * 0.3; Q.az = [-(0.5 + h * 1.6), 0.5 + h * 1.6]; Q.lx = [-0.3 * h, 0.3 * h]; Q.as = 1.25; }
+        else if (act.id === 'dance') {
+          const s = Math.sin(t * 6.5), u = Math.max(0, Math.min(1, (t - 2) / 1.2));
+          Q.bz = s * 0.1; Q.by = Math.abs(s) * 0.05; Q.az = [-(1.45 + s * 0.75), 1.45 - s * 0.75]; Q.as = 1.25; Q.lx = [s * 0.25, -s * 0.25]; Q.hz = -s * 0.12;
+          spin = u * u * (3 - 2 * u) * Math.PI * 2; // 가운데쯤에서 한 바퀴 돈다
+        }
+        else if (act.id === 'bow') { const k = Math.min(1, Math.sin(Math.PI * t / act.sec) * 1.7); Q.bx = 0.42 * k; Q.hx = 0.2 * k; Q.az = [-0.12, 0.12]; Q.lx = [-0.42 * k, -0.42 * k]; }
+        const mix = (a, b) => a + (b - a) * e;
+        for (const k of ['lx', 'ax', 'az']) { P[k][0] = mix(P[k][0], Q[k][0]); P[k][1] = mix(P[k][1], Q[k][1]); }
+        for (const k of ['by', 'bx', 'bz', 'hx', 'hz', 'as']) P[k] = mix(P[k], Q[k]);
+      }
+      for (const k of [0, 1]) { legs[k].rotation.x = P.lx[k]; arms[k].rotation.x = P.ax[k]; arms[k].rotation.z = P.az[k]; arms[k].scale.y = P.as; }
+      // 숙일 때는 엉덩이가 제자리에 있게 몸을 조금 뒤로 뺀다
+      body.position.set(0, P.by, -Math.sin(P.bx) * 0.27 * SIZE);
+      body.rotation.set(P.bx, spin, P.bz);
+      head.rotation.set(P.hx, 0, P.hz);
+      // 눈 깜빡임
+      A.blink += dt; if (A.blink > 4.2) A.blink = Math.random() * 1.2;
+      for (const m of eyes) m.scale.y = m.userData.sy * (A.blink < 0.12 ? 0.15 : 1);
       // 가는 쪽으로 부드럽게 돌아선다
       let d = A.face - root.rotation.y;
       d = Math.atan2(Math.sin(d), Math.cos(d));

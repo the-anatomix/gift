@@ -206,7 +206,7 @@ export function makeDuo(K) {
       case 'sync': link.send(stateMsg(pid), pid); break;
       case 'look': { const lk = K.peerLook(pid, m.look); if (lk) relay({ t: 'look', id: pid, look: lk }, pid); break; }
       case 'pos': if (K.peerPos(pid, m.x, m.z)) relay({ t: 'pos', id: pid, x: m.x, z: m.z }, pid); break;
-      case 'fx': if (K.peerFx(m)) relay({ t: 'fx', id: pid, k: m.k, v: m.v }, pid); break;
+      case 'fx': if (K.peerFx(m, pid)) relay({ t: 'fx', id: pid, k: m.k, v: m.v }, pid); break;
       case 'say': { // 채팅: 너무 잦으면 버린다
         const now = performance.now();
         if (now - (p.said || 0) < 300) return;
@@ -242,7 +242,7 @@ export function makeDuo(K) {
         break;
       case 'look': K.peerLook(typeof m.id === 'string' ? m.id : 'h', m.look); break;
       case 'pos': K.peerPos(typeof m.id === 'string' ? m.id : 'h', m.x, m.z); break;
-      case 'fx': K.peerFx(m); break;
+      case 'fx': K.peerFx(m, typeof m.id === 'string' ? m.id : 'h'); break;
       case 'say': K.peerSay(typeof m.id === 'string' ? m.id : 'h', m.text); break;
       case 'admit': if (mode === 'door') K.admitted(); break; // 문이 열린다. 다 들어가면 app.js 가 enter() 를 부른다
       case 'deny': denied(m.why); break;
