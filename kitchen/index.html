@@ -108,8 +108,11 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 /* 편지 쓰기 · 받은 선물 */
 #letter,#rcard{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;background:rgba(43,29,20,.35);
   padding:12px 10px calc(10px + env(safe-area-inset-bottom))}
+#brag{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;background:rgba(43,29,20,.45);padding:12px 10px calc(10px + env(safe-area-inset-bottom))}
+#brag img{display:block;width:auto;max-width:100%;max-height:52vh;aspect-ratio:4/5;margin:0 auto;border-radius:12px;box-shadow:0 6px 18px rgba(43,29,20,.2);background:#FFF8EA;-webkit-touch-callout:default;user-select:auto;-webkit-user-select:auto}
 #letter[hidden],#rcard[hidden],#recv[hidden]{display:none}
-#rcard{background:rgba(43,29,20,.18);align-items:center;padding:calc(64px + env(safe-area-inset-top)) 18px calc(96px + env(safe-area-inset-bottom))}
+#rcard{background:none;pointer-events:none;align-items:flex-end;padding:0 16px calc(var(--barh,96px) + 100px + env(safe-area-inset-bottom))}
+#rcard .letterpaper{pointer-events:auto;max-height:44vh}
 .sheet{width:100%;max-width:460px;max-height:100%;overflow:auto;background:#FFFCF5;border:1.5px solid var(--line);border-radius:20px;
   padding:14px 14px 12px;box-shadow:0 10px 30px rgba(43,29,20,.25);display:flex;flex-direction:column;gap:8px;pointer-events:auto}
 .sheet h2{margin:0;font-size:16px;font-weight:900;display:flex;justify-content:space-between;align-items:center}
@@ -172,7 +175,7 @@ button{font:inherit;color:inherit;touch-action:manipulation}
   background:linear-gradient(90deg,transparent 20px,rgba(217,72,59,.28) 20px,rgba(217,72,59,.28) 21.5px,transparent 21.5px),
     linear-gradient(transparent 31px,#E9DBC2 31px) 0 6px/100% 32px,#FFFDF6;background-attachment:local}
 .sheet .two input{font-family:"Gaegu","Nanum Pen Script","Noto Sans KR",cursive;font-size:20px;font-weight:700}
-#rcard{z-index:2}#bottom{z-index:3}#letter{z-index:5}#toast{z-index:6}#loading,#fallback{z-index:9}
+#rcard{z-index:2}#bottom{z-index:3}#letter,#brag{z-index:5}#toast{z-index:6}#loading,#fallback{z-index:9}
 body.recv{background:radial-gradient(90% 60% at 50% 46%,#FFF8EA 0%,#FBE6D2 55%,#F0CDB4 100%)}
 #recv{background:rgba(255,252,245,.96);border:1.5px solid var(--line);border-radius:18px;padding:10px 12px;box-shadow:0 6px 20px rgba(90,56,36,.12)}
 #recv .main{background:var(--choc);border-color:var(--choc);color:#FFF4E0}
@@ -212,8 +215,10 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels,body.recv #top
   <div id="recv" hidden>
     <div class="row" id="rcTitle" hidden><span class="titlechip" id="rcChip">🏅 최고급 수제 초콜릿</span></div>
     <div class="row"><div class="hint" id="rcHint">선물이 도착했어요.</div>
-      <button type="button" class="btn main" id="rcOpen">열어 보기</button>
-      <button type="button" class="btn main" id="rcMake" hidden>나도 만들기</button></div>
+      <button type="button" class="btn main" id="rcOpen">열어 보기</button></div>
+    <div class="row" id="rcRow2" hidden>
+      <button type="button" class="btn" id="rcBrag" style="flex:1">📸 자랑 카드</button>
+      <button type="button" class="btn main" id="rcMake" style="flex:1">나도 만들기</button></div>
   </div>
   <div id="duo" hidden></div>
   <div id="panel"></div>
@@ -242,6 +247,19 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels,body.recv #top
     <div class="hint" id="ltUrlHint" hidden><small>링크를 길게 눌러 복사해 보내 주세요.</small></div>
     <div class="row"><button type="button" class="btn main" id="ltGive" hidden>상대에게 바로 선물하기</button></div>
     <div class="row"><button type="button" class="btn main" id="ltShare" style="flex:1">선물 링크 보내기</button></div>
+  </div>
+</div>
+<div id="brag" hidden>
+  <div class="sheet">
+    <h2>자랑 카드 <button type="button" class="btn" id="bgClose">닫기</button></h2>
+    <img id="bgImg" alt="받은 선물을 자랑하는 그림">
+    <div class="row">
+      <button type="button" class="chip" id="bgAvatar" aria-pressed="true">반죽이로</button>
+      <button type="button" class="chip" id="bgPhoto" aria-pressed="false">내 사진 넣기</button>
+      <input type="file" id="bgFile" accept="image/*" hidden>
+    </div>
+    <div class="hint"><small>사진은 이 폰 안에서 그림에 합쳐질 뿐, 어디에도 올라가지 않아요.</small></div>
+    <div class="row"><button type="button" class="btn" id="bgSave" style="flex:1">저장</button><button type="button" class="btn main" id="bgShare" style="flex:1">공유</button></div>
   </div>
 </div>
 <div id="loading">주방을 차리는 중…</div>
@@ -283,5 +301,6 @@ window.__fallback = function () {
 <script type="module" src="./app.js" onerror="window.__fallback()"></script>
 <script type="module" src="./duo.js"></script>
 <script type="module" src="./gift.js"></script>
+<script type="module" src="./brag.js"></script>
 </body>
 </html>

@@ -85,14 +85,33 @@ const audit = (p) => p.evaluate(() => {
     check('봉투를 누르면 편지가 나옴', await until(() => R.isVisible('#rcard'), 3000) && (await R.evaluate(() => document.getElementById('env').classList.contains('open'))));
     check('편지 글이 글자 그대로 보임 (태그로 바뀌지 않음)', (await R.textContent('#rcMsg')) === '메리 크리스마스!\n<b>굵게</b> & "따옴표"' && (await R.evaluate(() => !document.querySelector('#rcMsg b')))
       && (await R.textContent('#rcTo')) === '지우에게' && (await R.textContent('#rcFrom')) === '민서 드림');
-    await sleep(700);
+    await sleep(900);
     await R.screenshot({ path: path.join(__dirname, 'out', 'recv-letter.png') });
+    const lay = await R.evaluate(() => { const s = window.__kitchen.stickScreen(), p = document.querySelector('.letterpaper').getBoundingClientRect(); return { tip: s.tip.y, end: s.end.y, paperTop: p.top, paperBottom: p.bottom, bar: document.getElementById('bottom').getBoundingClientRect().top }; });
+    check('편지를 펼쳐도 과자를 가리지 않음 (과자는 위, 편지는 아래)', Math.max(lay.tip, lay.end) < lay.paperTop + 4 && Math.min(lay.tip, lay.end) > 40 && lay.paperBottom <= lay.bar, lay);
     await R.tap('#rcClose');
     check('편지지의 ✕ 로 봉투에 다시 넣을 수 있음', await until(async () => !(await R.isVisible('#rcard'))) && !(await R.evaluate(() => document.getElementById('env').classList.contains('open'))));
     await R.tap('#env'); await sleep(300);
     check('봉투를 다시 누르면 다시 나옴', await R.isVisible('#rcard'));
     await R.tap('#env');
     check('열린 봉투를 누르면 편지가 들어감', await until(async () => !(await R.isVisible('#rcard'))));
+    // 자랑 카드
+    await R.tap('#rcBrag');
+    check('자랑 카드가 열리고 그림이 만들어짐 (1080×1350, 과자 포함)', await until(() => R.evaluate(() => { const i = document.getElementById('bgImg'); return !document.getElementById('brag').hidden && i.naturalWidth === 1080 && i.naturalHeight === 1350 && window.__brag.hasStick(); }), 8000));
+    check('자랑 카드 버튼이 화면 안·44px 이상', (await audit(R)).length === 0, await audit(R));
+    await sleep(500);
+    await R.screenshot({ path: path.join(__dirname, 'out', 'brag-avatar.png') });
+    fs.writeFileSync(path.join(__dirname, 'out', 'brag-avatar-card.png'), Buffer.from((await R.evaluate(() => window.__brag.canvas.toDataURL('image/png'))).split(',')[1], 'base64'));
+    await R.setInputFiles('#bgFile', path.join(__dirname, 'face.png'));
+    check('내 사진을 고르면 사진이 들어간 카드로 바뀜', await until(() => R.evaluate(() => window.__brag.hasPhoto() && document.getElementById('bgPhoto').getAttribute('aria-pressed') === 'true'), 5000));
+    await sleep(500);
+    fs.writeFileSync(path.join(__dirname, 'out', 'brag-photo-card.png'), Buffer.from((await R.evaluate(() => window.__brag.canvas.toDataURL('image/png'))).split(',')[1], 'base64'));
+    const reqs = []; R.on('request', (r) => { if (r.method() !== 'GET') reqs.push(r.url()); });
+    await R.tap('#bgAvatar'); await sleep(300);
+    check('"반죽이로"를 누르면 사진이 빠짐', !(await R.evaluate(() => window.__brag.hasPhoto())));
+    check('사진을 넣는 동안 밖으로 보내는 요청이 없음', reqs.length === 0, reqs);
+    await R.tap('#bgClose'); await sleep(200);
+    check('자랑 카드를 닫을 수 있음', !(await R.isVisible('#brag')));
     const before = await R.evaluate(() => window.__kitchen.S.grains.length);
     await R.mouse.move(187, 300); await R.mouse.down(); await R.mouse.move(187, 420, { steps: 8 }); await R.mouse.up();
     check('받은 과자는 문질러도 바뀌지 않음', (await R.evaluate(() => window.__kitchen.S.grains.length)) === before);

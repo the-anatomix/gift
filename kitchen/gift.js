@@ -3,6 +3,7 @@
 // 사용자 글자는 value / textContent 로만 다룬다.
 import { kitchen as K } from './app.js';
 import { packState, unpackState, share, canGive, give, takeGift } from './duo.js';
+import { openBrag } from './brag.js';
 
 const $ = (id) => document.getElementById(id);
 const LIM = { to: 12, fr: 12, m: 200 };
@@ -46,6 +47,7 @@ $('ltGive').addEventListener('click', () => { // 서로 선물: 연결된 상대
 });
 
 /* ───────── 받은 선물 ───────── */
+let cur = null; // 지금 보고 있는 선물
 let best = 0; // 받은 선물의 칭호 (0 없음, 1 고급, 2 최고급)
 let back = null; // 서로 선물에서 받은 선물을 보고 내 주방으로 돌아갈 때 쓰는 내 상태
 // 받은 선물은 주방 없이 무대 위에서만 보여 준다
@@ -60,13 +62,19 @@ function showLetter(on) {
   const card = $('rcard'), env = $('env');
   env.classList.toggle('open', on);
   env.setAttribute('aria-label', on ? '편지를 봉투에 넣기' : '봉투를 열어 편지 읽기');
-  if (on) { card.classList.remove('closing'); card.hidden = false; return; }
+  if (on) {
+    card.classList.remove('closing'); card.hidden = false;
+    // 편지는 아래에, 과자는 위에: 서로 가리지 않게 카메라를 옮긴다
+    K.setView(Object.assign({}, VIEW_STICK, { pad: card.querySelector('.letterpaper').offsetHeight + 112 }), 450);
+    return;
+  }
   if (card.hidden) return;
+  K.setView(VIEW_STICK, 450);
   card.classList.add('closing');                      // 봉투 쪽으로 들어가는 움직임이 끝난 뒤 숨긴다
   closing = setTimeout(() => { card.hidden = true; card.classList.remove('closing'); }, 320);
 }
 function setBar(opened) {
-  $('rcOpen').hidden = opened; $('rcOpen').disabled = false; $('rcMake').hidden = !opened;
+  $('rcOpen').hidden = opened; $('rcOpen').disabled = false; $('rcRow2').hidden = !opened;
   $('rcHint').textContent = opened ? (best === 2 ? '완벽하게 만든 막대과자예요.' : best ? '정성껏 만든 막대과자예요.' : '직접 구운 막대과자예요.') : '선물이 도착했어요.';
   $('rcMake').textContent = back ? '내 주방으로' : '나도 만들기';
   document.documentElement.style.setProperty('--barh', $('bottom').offsetHeight + 'px'); // 봉투를 아래 막대 바로 위에 둔다
@@ -80,7 +88,7 @@ function sparkle() {
   });
 }
 function receive(g, mine) {
-  back = mine || null;
+  back = mine || null; cur = g;
   closeLetter();
   document.body.classList.add('recv');
   K.setLocked(true);
@@ -114,6 +122,7 @@ $('rcOpen').addEventListener('click', () => {
 });
 $('env').addEventListener('click', () => showLetter(!$('env').classList.contains('open')));
 $('rcClose').addEventListener('click', () => showLetter(false));
+$('rcBrag').addEventListener('click', () => { if (!$('rcard').hidden) showLetter(false); if (cur) openBrag(cur); });
 $('rcard').addEventListener('click', (e) => { if (e.target === $('rcard')) showLetter(false); }); // 편지 바깥을 눌러도 접힌다
 $('rcMake').addEventListener('click', () => {
   if (!back) { location.href = location.pathname + location.search; return; }

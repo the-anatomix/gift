@@ -367,7 +367,7 @@ const tanHalf = Math.tan((FOV * Math.PI) / 360);
 let viewOverride = null; // 받은 선물 화면처럼 자리와 상관없는 구도
 function viewFor(name) {
   const v = viewOverride || VIEWS[name];
-  const bottomH = H - $('bottom').getBoundingClientRect().top;
+  const bottomH = H - $('bottom').getBoundingClientRect().top + (v.pad || 0); // pad: 아래에 더 비워 둘 높이(펼친 편지 등)
   const topH = $('top').getBoundingClientRect().bottom;
   const usable = Math.max(120, H - bottomH - topH);
   const dist = Math.max((v.h / (2 * tanHalf)) * (H / usable), v.w / (2 * tanHalf * (W / H)));
@@ -501,12 +501,31 @@ function setStage(on) {
   poke(400);
 }
 function setView(spec, ms) { // spec = { tgt:[x,y,z], dir:[x,y,z], w, h } 또는 null(자리 구도로 되돌림)
-  viewOverride = spec ? { tgt: V3(...spec.tgt), dir: V3(...spec.dir), w: spec.w, h: spec.h } : null;
+  viewOverride = spec ? { tgt: V3(...spec.tgt), dir: V3(...spec.dir), w: spec.w, h: spec.h, pad: spec.pad || 0 } : null;
   if (travel) { tweens.delete(travel); travel = null; }
   const to = viewFor(S.station), from = { pos: cam.pos.clone(), tgt: cam.tgt.clone(), off: cam.off };
   const set = (k) => { cam.pos.lerpVectors(from.pos, to.pos, k); cam.tgt.lerpVectors(from.tgt, to.tgt, k); cam.off = from.off + (to.off - from.off) * k; };
   if (!ms) { set(1); poke(); return; }
   tween(ms, (k) => set(ease(k)));
+}
+// 과자만 투명한 바탕에 찍어 그림으로 돌려준다 (자랑 카드용). 과자 끝이 위, 꾸민 면이 앞.
+const QUP = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI, 0, 0));
+function snapStick() {
+  const hid = [];
+  for (const o of scene.children) if (!o.isLight && o !== stick && o.visible) { hid.push(o); o.visible = false; }
+  const p0 = stick.position.clone(), q0 = stick.quaternion.clone();
+  stick.position.set(0, 50, 0); stick.quaternion.copy(QUP);
+  const span = STICK.L * 1.1, cam2 = new THREE.PerspectiveCamera(FOV, W / H, 0.1, 20);
+  cam2.position.set(0, 50 - STICK.L / 2, span / (2 * tanHalf)); cam2.lookAt(0, 50 - STICK.L / 2, 0);
+  renderer.render(scene, cam2);
+  const ppu = canvas.height / span, w = Math.min(canvas.width, Math.ceil(0.24 * ppu));
+  const out = document.createElement('canvas'); out.width = w; out.height = canvas.height;
+  out.getContext('2d').drawImage(canvas, (canvas.width - w) / 2, 0, w, canvas.height, 0, 0, w, canvas.height);
+  stick.position.copy(p0); stick.quaternion.copy(q0);
+  for (const o of hid) o.visible = true;
+  applyCam(); camera.updateProjectionMatrix(); camera.updateMatrixWorld(); // 같은 순간에 원래 화면을 다시 그려 깜빡이지 않게
+  renderer.shadowMap.needsUpdate = true; renderer.render(scene, camera);
+  return out;
 }
 let travel = null, locked = false;
 function go(name, instant) {
@@ -880,7 +899,7 @@ requestAnimationFrame(() => { $('loading').classList.add('done'); setTimeout(() 
 // 둘이 굽기·자동 검사에서 쓰는 창구
 export const kitchen = {
   S, CHOCO, KINDS, STICK, cleanText, dispatch, onLocal: (f) => listeners.push(f), onHand: (f) => handFns.push(f), toast, poke,
-  remoteTip, getState, setState, setLocked(v) { locked = !!v; }, setStage, setView, present, grades, DIP,
+  remoteTip, getState, setState, setLocked(v) { locked = !!v; }, setStage, setView, present, grades, DIP, snapStick,
   get stage() { return stageOn; }, get presenting() { return presenting; },
   setHomeAction(a, panel) { homeAction = a; homePanel = panel || null; panelKey = ''; renderPanel(); refit(); },
   refit, // 아래 패널 높이가 바뀌었을 때 카메라를 다시 맞춘다
