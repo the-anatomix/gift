@@ -60,6 +60,18 @@ async function walkAndTrace(p, act) {
     await A.tap('#tabs button[data-m="furn"]'); await sleep(300);
     check('가구 탭을 누르면 가구 11가지가 나옴', (await A.isVisible('#furn')) && (await A.locator('#furnList .pick').count()) === 11 && (await T(A, () => window.__tree.mode)) === 'furn');
     check('가구 판의 단추가 44px 이상', (await audit(A)).length === 0, await audit(A));
+    // 목록: 접어 두면 옆으로 넘기고, "전체 보기"를 누르면 한 번에 다 보인다
+    const shown = (sel) => A.evaluate((q) => { const box = document.querySelector(q), r = box.getBoundingClientRect();
+      return [...box.querySelectorAll('.pick')].filter((b) => { const c = b.getBoundingClientRect(); return c.left >= r.left - 1 && c.right <= Math.min(r.right, innerWidth) + 1 && c.top >= 0 && c.bottom <= innerHeight; }).length; }, sel);
+    const n0 = await shown('#furnList');
+    check('접어 둔 목록은 일부만 보이고, 더 있다는 표시가 있음', n0 >= 3 && n0 < 11 && (await A.evaluate(() => document.getElementById('furnList').classList.contains('more-right'))), n0);
+    await A.tap('.more[data-list="furnList"]'); await sleep(250);
+    check('"전체 보기"를 누르면 가구 11가지가 한 번에 다 보임', (await shown('#furnList')) === 11 && (await A.textContent('.more[data-list="furnList"]')) === '접기' && (await audit(A)).length === 0, { n: await shown('#furnList'), bad: await audit(A) });
+    await A.screenshot({ path: path.join(__dirname, 'out', 'furn-open.png') });
+    const vOpen = await T(A, () => { const W = window.__tree, v = W.view, s = W.screenOf(W.me.x, W.me.z, 0); return s.y < innerHeight - v.bottom; });
+    check('목록을 펼쳐도 아바타가 판에 가려지지 않음', vOpen);
+    await A.tap('.more[data-list="furnList"]'); await sleep(250);
+    check('"접기"를 누르면 다시 한 줄로 접힘', (await shown('#furnList')) === n0 && (await A.textContent('.more[data-list="furnList"]')) === '전체 보기');
     await A.tap('#furnList .pick[data-v="sofa"]'); await sleep(300);
     let g = await ghost(A);
     check('소파를 고르면 방에 들린 채로 나타남 (놓을 수 있는 자리)', g && g.k === 'sofa' && g.ok && !g.id && (await A.isVisible('#furnBar')) && !(await A.isVisible('#furnList')) && !(await A.isVisible('#gDel')), g);
@@ -158,6 +170,10 @@ async function walkAndTrace(p, act) {
     await A.tap('#tabs button[data-m="tree"]'); await sleep(200);
     check('트리 탭을 누르면 트리 꾸미기가 열리고 가구는 잠깐 숨음', (await A.isVisible('#treeP')) && (await T(A, () => window.__tree.mode)) === 'tree' && !(await T(A, () => window.__tree.itemsShown)));
     check('트리 판의 단추가 44px 이상', (await audit(A)).length === 0, await audit(A));
+    await A.tap('.more[data-list="ornList"]'); await sleep(250);
+    check('장식 목록도 펼치면 9가지(장식 8 + 떼기)가 다 보임', (await A.evaluate(() => { const box = document.getElementById('ornList'); return [...box.querySelectorAll('.pick')].filter((b) => { const c = b.getBoundingClientRect(); return c.left >= 0 && c.right <= innerWidth && c.bottom <= innerHeight; }).length; })) === 9 && (await audit(A)).length === 0);
+    check('전구 색 5가지가 모두 화면 안에 보임', await A.evaluate(() => [...document.querySelectorAll('#lightList .chip')].every((b) => { const c = b.getBoundingClientRect(); return c.left >= 0 && c.right <= innerWidth && c.width >= 43.5; })));
+    await A.tap('.more[data-list="ornList"]'); await sleep(250);
     await idle(A); await settled(A); await sleep(700);
     const tv = await T(A, () => { const W = window.__tree, v = W.view, top = W.screenOf(0, 0, 2.68), base = W.screenOf(0, 0, 0.3), l = W.treePoint(0.5, W.yaw - Math.PI / 2), r = W.treePoint(0.5, W.yaw + Math.PI / 2);
       return { ok: top.y >= v.top && base.y <= innerHeight - v.bottom && l.x >= 0 && r.x <= innerWidth, tall: base.y - top.y, me: Math.hypot(W.me.x, W.me.z) }; });
@@ -250,7 +266,16 @@ async function walkAndTrace(p, act) {
     const ctx2 = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const B = await open(ctx2, BASE);
     await B.click('#lookDone'); await sleep(500);
-    await B.click('#tabs button[data-m="furn"]'); await B.click('#furnList .pick[data-v="table"]'); await sleep(300);
+    await B.click('#tabs button[data-m="furn"]'); await sleep(200);
+    const fb = await B.evaluate(() => { const r = document.getElementById('furnList').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    await B.mouse.move(fb.x, fb.y); await B.mouse.wheel(0, 300); await sleep(200);
+    check('PC 에서는 목록 위에서 휠을 굴리면 옆으로 넘어감', (await B.evaluate(() => document.getElementById('furnList').scrollLeft)) > 100);
+    await B.click('.more[data-list="furnList"]'); await sleep(200);
+    check('PC 에서도 "전체 보기"로 가구 11가지가 다 보임', await B.evaluate(() => { const box = document.getElementById('furnList').getBoundingClientRect(); return [...document.querySelectorAll('#furnList .pick')].every((b) => { const c = b.getBoundingClientRect(); return c.left >= box.left - 1 && c.right <= box.right + 1 && c.bottom <= innerHeight; }); }));
+    await B.reload(); await ready(B);
+    await B.click('#tabs button[data-m="furn"]'); await sleep(200);
+    check('펼쳐 둔 것은 다시 열어도 그대로', await B.evaluate(() => document.getElementById('furnList').classList.contains('open')));
+    await B.click('#furnList .pick[data-v="table"]'); await sleep(300);
     const p1 = await at(B, -2.5, 2.5), p2 = await at(B, 2.5, -2.0);
     await B.mouse.move(p1.x, p1.y); await B.mouse.down(); await sleep(60);
     const g1 = await ghost(B);

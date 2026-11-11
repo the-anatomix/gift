@@ -170,6 +170,7 @@ function measure(snap = true) {
   aimCamera(yaw);
   if (snap) view.snap = true;
   updateView(0);
+  edges();
 }
 
 function zoomGoal() {
@@ -512,13 +513,34 @@ $('gDone').addEventListener('click', ghostDone);
 $('gCancel').addEventListener('click', ghostCancel);
 $('gDel').addEventListener('click', ghostRemove);
 
+// 옆으로 미는 목록: "전체 보기"로 펼치면 여러 줄로 한 번에 보인다. 접어 두었을 때는 더 있다는 것을 오른쪽 끝을 흐리게 해서 알린다.
+const OPEN_KEY = 'nolja-tree-open';
+const opened = new Set((Array.isArray(store.get(OPEN_KEY)) ? store.get(OPEN_KEY) : []).filter((x) => typeof x === 'string'));
+function edges() {
+  for (const box of document.querySelectorAll('.scroll')) box.classList.toggle('more-right', !box.classList.contains('open') && box.scrollWidth - box.clientWidth - box.scrollLeft > 4);
+}
+for (const b of document.querySelectorAll('.more')) {
+  const box = $(b.dataset.list);
+  const paint = () => { const on = opened.has(box.id); box.classList.toggle('open', on); b.textContent = on ? '접기' : '전체 보기'; b.setAttribute('aria-expanded', String(on)); };
+  b.addEventListener('click', () => { if (!opened.delete(box.id)) opened.add(box.id); store.set(OPEN_KEY, [...opened]); paint(); measure(false); });
+  paint();
+}
+for (const box of document.querySelectorAll('.scroll')) {
+  box.addEventListener('scroll', edges, { passive: true });
+  // 마우스 휠을 굴리면 옆으로 넘긴다 (PC 에는 옆으로 미는 손짓이 없다)
+  box.addEventListener('wheel', (e) => {
+    if (box.classList.contains('open') || box.scrollWidth <= box.clientWidth) return;
+    e.preventDefault(); box.scrollLeft += e.deltaY || e.deltaX;
+  }, { passive: false });
+}
+
 const press = (sel, v) => { for (const b of document.querySelectorAll(sel)) b.setAttribute('aria-pressed', String(b.dataset.v === v)); };
 function paintPanels() {
   press('#pickGender .chip', look.gender); press('#pickOutfit .chip', look.outfit);
   press('#ornList .pick', tool);
   press('#lightList .chip', S.lights.set); press('#blinkList .chip', S.lights.blink);
   press('#wallList .sw', S.wall); press('#floorList .sw', S.floor);
-  $('furnBar').hidden = !ghost; $('furnList').hidden = !!ghost; $('furnHint').hidden = !!ghost;
+  $('furnBar').hidden = !ghost; $('furnRow').hidden = !!ghost; $('furnHint').hidden = !!ghost;
   if (ghost) { $('furnName').textContent = kindOf(ghost.k).name; $('gDel').hidden = !ghost.id; }
   $('ornCount').textContent = S.orns.size ? `장식 ${S.orns.size}개` : '';
 }
