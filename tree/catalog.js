@@ -18,6 +18,9 @@ export const FURNITURE = [
   { id: 'music', name: '오르골', icon: '🎶', w: 1, d: 1, solid: true, play: 'music' },
 ];
 
+// 새로 시작하는 방에 처음부터 놓여 있는 가구 [종류, i, j, 돌린 횟수]. 놀 수 있는 가구들이고, 다른 가구처럼 옮기거나 치울 수 있다.
+export const STARTER = [['fire', 6, 0, 0], ['tv', 0, 6, 1], ['dart', 11, 0, 0], ['music', 15, 12, 3]];
+
 // 다트판: 가운데 높이 y, 판 겉면 z(가구 기준), 고리마다 [반지름, 점수] (안쪽부터)
 export const DART = { y: 1.3, z: 0.036, rings: [[0.045, 50], [0.11, 30], [0.19, 20], [0.28, 10]] };
 // TV 화면: 가로 w, 세로 h, 가운데 높이 y, 화면 z

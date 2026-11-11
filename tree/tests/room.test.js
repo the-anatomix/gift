@@ -10,6 +10,7 @@ async function until(fn, ms = 12000) { const t = Date.now(); for (;;) { try { co
 const errors = [];
 async function open(ctx, url) {
   const p = await ctx.newPage();
+  await p.addInitScript(() => { window.__bare = true; }); // 기본 가구 없이 빈 방에서 시작한다
   p.on('pageerror', (e) => { errors.push(e.message); console.log('   (페이지 오류)', e.message); });
   await p.goto(url);
   await until(() => p.evaluate(() => !!(window.__tree && window.__tree.frames > 3)));

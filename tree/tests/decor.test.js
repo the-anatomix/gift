@@ -11,6 +11,7 @@ const errors = [];
 const ready = (p) => until(() => p.evaluate(() => !!(window.__tree && window.__tree.frames > 3)));
 async function open(ctx, url) {
   const p = await ctx.newPage();
+  await p.addInitScript(() => { window.__bare = true; }); // 기본 가구 없이 빈 방에서 시작한다
   p.on('pageerror', (e) => { errors.push(e.message); console.log('   (페이지 오류)', e.message); });
   await p.goto(url);
   await ready(p);
@@ -299,6 +300,34 @@ async function walkAndTrace(p, act) {
     check('PC 에서도 트리를 눌러 장식을 닮', (await orns(B)).length === 1);
     await B.screenshot({ path: path.join(__dirname, 'out', 'tree-pc.png') });
     await ctx2.close();
+
+    /* ── 새로 시작하는 방의 기본 가구 ── */
+    const ctx3 = await browser.newContext({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true });
+    const N1 = await ctx3.newPage(); // 검사용 빈 방 표시 없이 그대로 연다
+    N1.on('pageerror', (e) => { errors.push(e.message); console.log('   (페이지 오류)', e.message); });
+    await N1.goto(BASE); await ready(N1);
+    await N1.tap('#lookDone'); await sleep(300);
+    const st0 = await T(N1, () => window.__tree.serialize());
+    check('처음 시작하는 방에는 놀 수 있는 가구 네 가지(벽난로·TV·다트판·오르골)가 놓여 있음', st0.items.length === 4 && ['dart', 'fire', 'music', 'tv'].every((k) => st0.items.some((it) => it[1] === k)) && (await T(N1, () => window.__tree.itemObjs)) === 4, st0.items);
+    check('기본 가구는 꾸민 것으로 치지 않음 (친구 방에 들어갈 때 친구 방을 덮지 않게)', st0.at === 0 && st0.sync === 0);
+    check('기본 가구 자리는 걸어 들어갈 수 없고, 내 아바타는 빈칸에 서 있음', await T(N1, () => { const W = window.__tree; return !W.grid.free(6, 0) && !W.grid.free(0, 7) && !W.grid.free(11, 0) && !W.grid.free(15, 12) && W.grid.fits(W.me.x, W.me.z); }));
+    await T(N1, () => window.__tree.setZoomMul(0)); await sleep(900);
+    await N1.screenshot({ path: path.join(__dirname, 'out', 'starter.png') });
+    // 방에서 벽난로를 누르면 놀이가 열린다 (기본 가구로 바로 놀 수 있다)
+    const fp = await T(N1, () => window.__tree.screenOf(0, -3.3, 0.9));
+    await N1.touchscreen.tap(fp.x, fp.y);
+    check('기본으로 놓인 벽난로를 누르면 마시멜로 굽기가 열림', await until(async () => (await T(N1, () => window.__tree.mode)) === 'play' && (await T(N1, () => window.__play.state && window.__play.state.kind)) === 'fire', 15000));
+    await T(N1, () => window.__play.close());
+    // 옮기고 치울 수 있다
+    await T(N1, () => { const W = window.__tree; W.setMode('furn'); W.ghostPick('base2'); W.ghostMoveTo(2.75, 3.25); W.ghostDone(); });
+    const moved = (await items(N1)).find((it) => it.id === 'base2');
+    check('기본 가구도 옮길 수 있음', moved && moved.i === 13 && moved.j === 14 && (await T(N1, () => window.__tree.grid.free(11, 0))), moved);
+    await T(N1, () => { const W = window.__tree; for (const id of ['base0', 'base1', 'base2', 'base3']) { W.ghostPick(id); W.ghostRemove(); } });
+    check('기본 가구도 치울 수 있음', (await items(N1)).length === 0);
+    await sleep(500);
+    await N1.reload(); await ready(N1);
+    check('다 치운 뒤 다시 열어도 기본 가구가 다시 생기지 않음', (await items(N1)).length === 0);
+    await ctx3.close();
 
     check('페이지 오류 없음', errors.length === 0, errors);
   } finally {

@@ -6,7 +6,7 @@ import { THREE } from './kit.js';
 import { Grid, HALF, N, CELL, cellOf } from './path.js';
 import { buildRoom, WALL_H, TREE, treeBlocked, surfaceR } from './room.js';
 import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, BODY_R, SPEED } from './avatar.js';
-import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS } from './catalog.js';
+import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER } from './catalog.js';
 import { makeState, apply, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins } from './state.js';
 import { buildItem } from './furniture.js';
 import { buildOrnament, buildLights } from './decor.js';
@@ -988,7 +988,13 @@ function frame(now) {
 }
 
 /* ───────── 시작 ───────── */
-loadRoom(cur && cur.view ? null : store.get(slot())); // 지난번에 꾸민 방 (구경하는 방은 주인에게서 받는다)
+{
+  const saved = cur && cur.view ? null : store.get(slot()); // 지난번에 꾸민 방 (구경하는 방은 주인에게서 받는다)
+  loadRoom(saved);
+  // 처음 시작하는 내 방에는 놀 수 있는 가구를 놓아 둔다. 꾸민 것으로 치지 않는다(at 은 0 그대로).
+  // window.__bare 는 자동 검사에서 빈 방으로 시작할 때만 쓴다.
+  if (!saved && !cur && !window.__bare) STARTER.forEach(([k, i, j, r], n) => dispatch({ t: 'put', id: 'base' + n, k, i, j, r }, 'load'));
+}
 addEventListener('resize', () => measure());
 addEventListener('orientationchange', () => setTimeout(measure, 200));
 faceCamera(); me.root.rotation.y = me.face; // 처음에는 화면 쪽을 본다
