@@ -1,9 +1,10 @@
 // 고를 수 있는 것들의 목록. 화면과 상관없는 자료만 둔다.
 // 가구: w × d 는 차지하는 바닥 칸 수(돌리지 않았을 때). solid 가 false 면 밟고 지나갈 수 있다(러그).
+// play 가 있으면 눌러서 놀 수 있는 가구다(놀이는 play.js).
 export const FURNITURE = [
   { id: 'sofa', name: '소파', icon: '🛋️', w: 4, d: 2, solid: true },
   { id: 'chair', name: '안락의자', icon: '🪑', w: 2, d: 2, solid: true },
-  { id: 'fire', name: '벽난로', icon: '🔥', w: 4, d: 2, solid: true },
+  { id: 'fire', name: '벽난로', icon: '🔥', w: 4, d: 2, solid: true, play: 'fire' },
   { id: 'table', name: '탁자', icon: '☕', w: 3, d: 2, solid: true },
   { id: 'shelf', name: '책장', icon: '📚', w: 3, d: 1, solid: true },
   { id: 'giftR', name: '빨간 선물', icon: '🎁', w: 1, d: 1, solid: true },
@@ -12,6 +13,24 @@ export const FURNITURE = [
   { id: 'lamp', name: '스탠드', icon: '💡', w: 1, d: 1, solid: true },
   { id: 'snowman', name: '눈사람', icon: '⛄', w: 1, d: 1, solid: true },
   { id: 'rug', name: '러그', icon: '🟦', w: 3, d: 2, solid: false },
+  { id: 'dart', name: '다트판', icon: '🎯', w: 1, d: 1, solid: true, play: 'dart' },
+  { id: 'tv', name: 'TV', icon: '📺', w: 3, d: 1, solid: true, play: 'tv' },
+  { id: 'music', name: '오르골', icon: '🎶', w: 1, d: 1, solid: true, play: 'music' },
+];
+
+// 다트판: 가운데 높이 y, 판 겉면 z(가구 기준), 고리마다 [반지름, 점수] (안쪽부터)
+export const DART = { y: 1.3, z: 0.036, rings: [[0.045, 50], [0.11, 30], [0.19, 20], [0.28, 10]] };
+// TV 화면: 가로 w, 세로 h, 가운데 높이 y, 화면 z
+export const TV = { w: 1.18, h: 0.664, y: 0.87, z: 0.014 };
+// 오르골 캐럴(모두 오래된 곡). notes = [음 높이(미디 번호, 0 은 쉼), 박자 수]
+const n = (txt) => txt.trim().split(/\s+/).map((t) => { const [a, b] = t.split(':'); return [+a, +(b || 1)]; });
+export const SONGS = [
+  { id: 'jingle', name: '징글벨', bpm: 190, notes: n(`64 64 64:2 64 64 64:2 64 67 60:1.5 62:.5 64:4 65 65 65:1.5 65:.5 65 64 64 64:.5 64:.5 64 62 62 64 62:2 67:2
+    64 64 64:2 64 64 64:2 64 67 60:1.5 62:.5 64:4 65 65 65:1.5 65:.5 65 64 64 64:.5 64:.5 67 67 65 62 60:4`) },
+  { id: 'wish', name: '위 위시 유', bpm: 150, notes: n(`67 72 72:.5 74:.5 72:.5 71:.5 69 69 69 74 74:.5 76:.5 74:.5 72:.5 71 67 67 76 76:.5 77:.5 76:.5 74:.5 72 69 67:.5 67:.5 69 74 71 72:2`) },
+  { id: 'silent', name: '고요한 밤', bpm: 96, notes: n(`67:1.5 69:.5 67 64:3 67:1.5 69:.5 67 64:3 74:2 74 71:3 72:2 72 67:3
+    69:2 69 72:1.5 71:.5 69 67:1.5 69:.5 67 64:3 69:2 69 72:1.5 71:.5 69 67:1.5 69:.5 67 64:3
+    74:2 74 77:1.5 74:.5 71 72:3 76:3 72:1.5 67:.5 64 67:1.5 65:.5 62 60:3`) },
 ];
 
 // 트리 장식. 'cut' 은 장식이 아니라 떼는 도구라 여기에 없다.

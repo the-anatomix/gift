@@ -11,6 +11,7 @@ import { makeState, apply, canPlace, footprint, cellsOf, kindOf, serialize, ops,
 import { buildItem } from './furniture.js';
 import { buildOrnament, buildLights } from './decor.js';
 import { makeDuo, ROOM_RE } from './duo.js';
+import { makePlay } from './play.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('c');
@@ -143,6 +144,7 @@ function dispatch(op, from = 'me') {
   if (op.t === 'put' || op.t === 'move' || op.t === 'del') rebuildGrid();
   dirty = true;
   if (from === 'load') return true;
+  if (mode === 'play' && play.id === op.id && (op.t === 'del' || op.t === 'move')) setMode(null); // 놀던 가구를 친구가 옮기거나 치움
   S.at = Date.now();
   saveSoon();
   if (taken) ghostEnd(); else { if (ghost) ghostPaint(); paintPanels(); }
@@ -152,6 +154,7 @@ function dispatch(op, from = 'me') {
 
 // 방을 통째로 바꾼다 (저장된 방을 열 때, 친구의 방을 받아올 때). fromPeer = 친구에게서 받은 방(받는 순간 둘이 같다)
 function loadRoom(data, fromPeer = false) {
+  if (mode === 'play') setMode(null);
   if (ghost) ghostCancel();
   for (const id of [...itemObj.keys()]) dropObj(itemObj, id, itemsG, true);
   for (const id of [...ornObj.keys()]) dropObj(ornObj, id, ornG, false);
@@ -527,6 +530,7 @@ const duo = makeDuo({
   peerJoin(m) { setPeer(m.look, m.pos); },
   peerOp: (op) => dispatch(op, 'peer'),
   peerLook(lk) { const c = okLook(lk); if (other && c) { other.setLook(c); dirty = true; } },
+  peerFx: (m) => play.peerFx(m),
   peerPos(x, z) {
     if (!other || !okPos(x) || !okPos(z)) return;
     if (Math.hypot(x - other.x, z - other.z) > 3) other.place(x, z); // 너무 멀어졌으면 바로 옮긴다
@@ -599,6 +603,32 @@ $('duoRetry').addEventListener('click', () => duo.retry());
 $('duoLeave').addEventListener('click', leaveRoom);
 $('duoUrl').addEventListener('focus', (e) => e.target.select());
 
+/* ───────── 놀이 (다트, TV, 마시멜로, 오르골) ───────── */
+const play = makePlay({
+  key, store, toast: (m) => toast(m),
+  itemObj: (id) => itemObj.get(id),
+  hasKind: (k) => { for (const it of S.items.values()) if (it.k === k) return true; return false; },
+  aspect: () => eye.aspect,
+  // 놀이 중 카메라 자리. inside = 방 안으로 당겨 둔다(벽 뒤로 나가지 않게)
+  setPose(p) {
+    if (p && p.inside) { const L = HALF - 0.25; p.pos[0] = clamp(p.pos[0], -L, L); p.pos[2] = clamp(p.pos[2], -L, L); }
+    pose = p; applyPov(); dirty = true;
+  },
+  fx: (m) => duo.fx(m),
+  resized: () => { if (mode === 'play') measure(false); },
+  close: () => setMode(null),
+});
+// 놀 수 있는 가구를 누르면: 그 앞으로 걸어가서 놀이를 연다
+function startPlay(id) {
+  const it = S.items.get(id), kind = it && kindOf(it.k).play, g = itemObj.get(id);
+  if (!kind || !g) return false;
+  const open = () => { if (S.items.has(id) && mode === null) { setMode('play'); if (!play.start(id, kind)) setMode(null); } };
+  g.updateMatrixWorld();
+  const p = g.localToWorld(new THREE.Vector3(0.45, 0, kindOf(it.k).d * CELL / 2 + 0.5));
+  if (Math.hypot(p.x - me.x, p.z - me.z) < 0.4 || !goTo(p.x, p.z)) open(); else me.onArrive = open;
+  return true;
+}
+
 /* ───────── 누르기 ───────── */
 // 손가락 하나를 거의 움직이지 않고 뗐을 때가 "누르기". 두 손가락은 크게·작게 보기.
 // 가구를 들고 있을 때는 누르거나 끄는 자리로 가구가 따라온다.
@@ -630,6 +660,8 @@ function lift(e, ok) {
   const still = ok && Math.hypot(e.clientX - t.x, e.clientY - t.y) <= 10;
   if (ghost) { if (still && usingEye()) ghostAt(e.clientX, e.clientY); return; } // 1인칭에서는 누른 자리로 가구가 온다
   if (!still) return;
+  if (mode === 'play') { play.tap(); return; }
+  if (mode === null) { const id = pickItem(e.clientX, e.clientY); if (id && startPlay(id)) return; } // 놀 수 있는 가구
   if (mode === 'tree') { treeTap(e.clientX, e.clientY); return; }
   if (mode === 'furn') { const id = pickItem(e.clientX, e.clientY); if (id) { ghostPick(id); return; } }
   const p = floorAt(e.clientX, e.clientY);
@@ -706,12 +738,14 @@ $('pov').addEventListener('click', () => setPov(!fp));
 $('zin').addEventListener('click', () => zoomBy(1.35));
 $('zout').addEventListener('click', () => zoomBy(1 / 1.35));
 
-const PANELS = { furn: 'furn', tree: 'treeP', paint: 'paint', look: 'look', duo: 'duoP' };
+const PANELS = { furn: 'furn', tree: 'treeP', paint: 'paint', look: 'look', duo: 'duoP', play: 'playP' };
 function setMode(m) {
   if (m === mode) m = null; // 같은 탭을 다시 누르면 닫는다
   if (ghost) ghostCancel();
   const was = mode;
+  if (was === 'play') play.stop();
   mode = m;
+  $('tabs').hidden = m === 'play'; $('tools').hidden = m === 'play'; // 놀이 중에는 놀이 판만 보인다
   for (const k in PANELS) $(PANELS[k]).hidden = k !== m;
   for (const b of document.querySelectorAll('#tabs button')) b.setAttribute('aria-pressed', String(b.dataset.m === m));
   itemsG.visible = m !== 'tree'; // 트리를 꾸밀 때는 가구가 트리를 가리지 않게 잠깐 숨긴다
@@ -840,6 +874,7 @@ function frame(now) {
     if (p.t >= 1) pops.splice(k, 1);
   }
   bulbs.tick(clock);
+  play.tick(dt);
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
   renderer.render(scene, cam());
@@ -868,6 +903,12 @@ window.__duo = {
   get other() { return other ? { x: other.x, z: other.z, look: other.look, moving: other.moving } : null; },
   inviteUrl: () => duo.inviteUrl(), invite, leaveRoom, hash: roomHash, feed: (m) => duo.feed(m),
 };
+window.__play = Object.assign(play.test, {
+  start: (id) => startPlay(id), // 가구 앞으로 걸어가서 연다
+  open(id) { const it = S.items.get(id); if (mode !== null) setMode(null); setMode('play'); return play.start(id, kindOf(it.k).play); }, // 걷지 않고 바로 연다
+  close: () => setMode(null), peerFx: (m) => play.peerFx(m),
+});
+Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose } });
 window.__tree = {
   N, CELL, HALF, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
   ghostNew, ghostPick, ghostMoveTo, ghostTurn, ghostDone, ghostCancel, ghostRemove, surfaceR, serialize: () => serialize(S),

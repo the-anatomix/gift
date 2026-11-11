@@ -1,6 +1,10 @@
 // 가구 모양. 도형만으로 만든다. 바닥 자리 한가운데가 (0, 0), 앞쪽이 +z, 바닥이 y = 0.
 // 차지하는 칸 수는 catalog.js 의 FURNITURE 와 맞춘다(한 칸 0.5).
 import { THREE, M, put, rbox, cyl, ball } from './kit.js';
+import { DART, TV } from './catalog.js';
+
+// TV 화면 재질: 모든 TV 가 같이 쓴다. 무엇을 비출지는 play.js 가 정한다.
+export const TV_MAT = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
 
 const lit = (hex) => new THREE.MeshBasicMaterial({ color: hex }); // 스스로 빛나 보이는 색
 const WOOD = 0xC99A6B, WOOD_D = 0x8A5F3F, DARK = 0x5A3824, CREAM = 0xF3E2C3, RED = 0xD23A30, GREEN = 0x3E9A7E, GOLD = 0xE7B441;
@@ -109,6 +113,33 @@ const B = {
     put(new THREE.TorusGeometry(0.11, 0.035, 8, 16), RED, 0, 0.6, 0, g).rotation.x = Math.PI / 2;
     put(cyl(0.11, 0.11, 0.02, 14), 0x2B2420, 0, 0.8, 0, g);
     put(cyl(0.075, 0.075, 0.11, 14), 0x2B2420, 0, 0.865, 0, g);
+  },
+  dart(g) { // 다트판: 세워 둔 대에 걸려 있다. 고리 크기는 catalog.js 의 DART
+    put(cyl(0.2, 0.22, 0.04, 14), DARK, 0, 0.02, -0.06, g);
+    put(cyl(0.025, 0.025, 1.56, 8), WOOD_D, 0, 0.8, -0.06, g);
+    const disc = (r, col, z, th = 0.012) => { const m = put(cyl(r, r, th, 30), col, 0, DART.y, z, g, false); m.rotation.x = Math.PI / 2; return m; };
+    disc(0.33, 0x2B2420, -0.012, 0.06).castShadow = true;
+    const cols = [GOLD, RED, GREEN, CREAM];
+    DART.rings.forEach(([r], k) => disc(r, cols[k], DART.z - 0.006 - k * 0.004));
+  },
+  tv(g) { // 3 × 1, 낮은 장 위의 TV
+    put(rbox(1.4, 0.42, 0.42, 0.03), WOOD, 0, 0.27, 0, g);
+    for (const s of [-1, 1]) { put(new THREE.BoxGeometry(0.6, 0.3, 0.02), WOOD_D, 0.33 * s, 0.27, 0.21, g, false); put(ball(0.02, 8, 6), GOLD, 0.08 * s, 0.27, 0.225, g, false); }
+    feet(g, 0.62, 0.15, 0.03);
+    put(cyl(0.06, 0.1, 0.05, 12), 0x2B2420, 0, 0.505, -0.02, g);
+    put(rbox(TV.w + 0.1, TV.h + 0.1, 0.06, 0.02), 0x2B2420, 0, TV.y, -0.02, g);
+    put(new THREE.PlaneGeometry(TV.w, TV.h), TV_MAT, 0, TV.y, TV.z, g, false).receiveShadow = false;
+  },
+  music(g) { // 작은 탁자 위의 오르골 (나팔이 달린 상자)
+    put(cyl(0.16, 0.18, 0.03, 14), WOOD_D, 0, 0.015, 0, g);
+    put(cyl(0.035, 0.05, 0.5, 8), WOOD_D, 0, 0.27, 0, g);
+    put(cyl(0.21, 0.21, 0.04, 18), WOOD, 0, 0.53, 0, g);
+    put(rbox(0.26, 0.14, 0.22, 0.02), RED, 0, 0.62, 0, g);
+    put(new THREE.BoxGeometry(0.265, 0.02, 0.225), GOLD, 0, 0.62, 0, g, false);
+    const horn = put(new THREE.ConeGeometry(0.17, 0.3, 16, 1, true), new THREE.MeshLambertMaterial({ color: GOLD, side: THREE.DoubleSide }), 0.05, 0.86, 0.03, g);
+    horn.rotation.set(0.25, 0, Math.PI - 0.4);
+    put(cyl(0.012, 0.012, 0.1, 6), GOLD, 0.16, 0.62, 0, g, false).rotation.z = Math.PI / 2;
+    put(ball(0.022, 8, 6), DARK, 0.21, 0.62, 0, g, false);
   },
   rug(g) { // 3 × 2, 밟고 지나갈 수 있다
     put(rbox(1.45, 0.016, 0.95, 0.007), 0x4F6FB8, 0, 0.028, 0, g, false);

@@ -6,7 +6,7 @@
 //   주인 → 손님  { t: 'state', state, look, pos }         어느 쪽 방을 쓸지 정해서 통째로 돌려준다 (다시 맞출 때도 이것)
 //   서로         { t: 'op', op }                    방의 변화 하나 (가구 놓기, 장식 달기 …)
 //   손님 → 주인  { t: 'sync' }                      방이 서로 달라진 것 같으니 통째로 다시 달라
-//   서로         { t: 'look', look } { t: 'pos', x, z } { t: 'ping', h }
+//   서로         { t: 'look', look } { t: 'pos', x, z } { t: 'fx', k, v } { t: 'ping', h }
 // 어느 쪽 방을 쓸지는 state.js 의 guestWins 가 정한다(처음 온 사람은 상대 방을 받고, 헤어져 혼자 꾸민 쪽이 있으면 그쪽).
 // 둘이 같은 순간에 같은 자리를 바꾸면 주인 쪽 결과로 맞춘다. ping 에 방의 지문(h)이 들어 있어서,
 // 지문이 같으면 "지금 둘의 방이 같다"고 적어 두고(K.synced), 손님은 거듭 다르면 통째로 다시 받는다.
@@ -105,6 +105,7 @@ export function makeDuo(K) {
         break;
       case 'sync': if (role === 'host') link.send({ t: 'state', ...K.snapshot() }); break;
       case 'look': K.peerLook(m.look); break;
+      case 'fx': K.peerFx(m); break; // 친구가 논 소식 (다트 점수, 캐럴 …)
       case 'pos': K.peerPos(m.x, m.z); break;
       case 'ping':
         if (typeof m.h !== 'string') return;
@@ -146,6 +147,7 @@ export function makeDuo(K) {
     },
     op(op) { send({ t: 'op', op }); },
     look(look) { send({ t: 'look', look }); },
+    fx(m) { send({ t: 'fx', k: m.k, v: m.v }); },
     pos(x, z) { send({ t: 'pos', x, z }); },
     inviteUrl() { return room ? location.origin + location.pathname + '#r=' + room : ''; },
     feed: onMsg, // 자동 검사에서 상대가 보낸 말을 흉내 낸다
