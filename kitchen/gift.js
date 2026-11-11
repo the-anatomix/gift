@@ -107,7 +107,7 @@ function receive(g, mine) {
   $('rcFrom').textContent = g.fr ? g.fr + ' 드림' : '';
   $('rcTo').hidden = !g.to; $('rcFrom').hidden = !g.fr;
   $('rcTitle').hidden = !g.q; best = g.q;
-  $('rcChip').textContent = g.q === 2 ? '🥇 최고급 수제 초콜릿' : g.q === 1 ? '🥈 고급 수제 초콜릿' : '🥉 수제 초콜릿';
+  $('rcChip').textContent = g.q === 2 ? '🥇 최고급 수제 과자' : g.q === 1 ? '🥈 고급 수제 과자' : '🥉 수제 과자';
   $('rcChip').classList.toggle('silver', g.q === 1); $('rcChip').classList.toggle('bronze', g.q === 3);
   $('recv').hidden = false; $('rcard').hidden = true; $('env').hidden = true; $('env').classList.remove('open');
   setBar(false);

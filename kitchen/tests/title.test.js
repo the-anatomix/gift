@@ -1,4 +1,4 @@
-// "최고급 수제 초콜릿" 칭호 검사. 실행: cd kitchen/tests && node title.test.js
+// "최고급 수제 과자" 칭호 검사. 실행: cd kitchen/tests && node title.test.js
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8146, BASE = `http://localhost:${PORT}/kitchen/`;
@@ -86,14 +86,14 @@ async function make(p, o) { // 네 자리를 정해진 정확도로 만든다
     check('포장 자리에 점수 요약이 보임 (★ 셋, ☆ 하나)', /반죽 ★ 자르기 ★ 굽기 ☆ 초콜릿 ★/.test(await A.textContent('#panel')), await A.textContent('#panel'));
     await A.tap('#packDone'); await until(() => A.isVisible('#letter'), 15000);
     await A.tap('#ltClose'); await sleep(300);
-    check('★ 셋이면 "고급 수제 초콜릿" (최고급은 아님)', (await A.evaluate(() => window.__kitchen.getState().x.pack.seal)) === 1 && /🥈 고급 수제 초콜릿/.test(await A.textContent('#panel')));
+    check('★ 셋이면 "고급 수제 과자" (최고급은 아님)', (await A.evaluate(() => window.__kitchen.getState().x.pack.seal)) === 1 && /🥈 고급 수제 과자/.test(await A.textContent('#panel')));
     const urlS = await A.evaluate(() => { document.getElementById('ltMsg').value = '고급'; return window.__gift.giftUrl(); });
     await A.screenshot({ path: path.join(__dirname, 'out', 'title-silver.png') });
     await A.tap('#packOpen'); await sleep(1200);
     await make(A, { dough: 0, cut: 0, oven: 0.7, dip: 0.52 });
     check('네 자리를 다 했지만 ★ 하나뿐이면 "수제" 등급', (await q(A)).tier === 3);
     await tab(A, '포장'); await A.tap('#packDone'); await until(() => A.isVisible('#letter'), 15000); await A.tap('#ltClose'); await sleep(300);
-    check('수제 등급으로 포장하면 "🥉 수제 초콜릿"', (await A.evaluate(() => window.__kitchen.getState().x.pack.seal)) === 3 && /🥉 수제 초콜릿/.test(await A.textContent('#panel')), await A.textContent('#panel'));
+    check('수제 등급으로 포장하면 "🥉 수제 과자"', (await A.evaluate(() => window.__kitchen.getState().x.pack.seal)) === 3 && /🥉 수제 과자/.test(await A.textContent('#panel')), await A.textContent('#panel'));
     const urlB = await A.evaluate(() => { document.getElementById('ltMsg').value = '수제'; return window.__gift.giftUrl(); });
     await A.tap('#packOpen'); await sleep(1200);
     await st(A, 'dough', { reset: true });
@@ -113,21 +113,21 @@ async function make(p, o) { // 네 자리를 정해진 정확도로 만든다
     await A.tap('#packDone'); await until(() => A.isVisible('#letter'), 15000);
     await A.fill('#ltMsg', '완벽하게 만들었어'); const url = await A.evaluate(() => window.__gift.giftUrl());
     await A.tap('#ltClose'); await sleep(300);
-    check('모두 완벽이면 "최고급 수제 초콜릿" 칭호', (await A.evaluate(() => window.__kitchen.getState().x.pack.seal)) === 2 && (await A.textContent('#panel')).includes('최고급 수제 초콜릿'));
+    check('모두 완벽이면 "최고급 수제 과자" 칭호', (await A.evaluate(() => window.__kitchen.getState().x.pack.seal)) === 2 && (await A.textContent('#panel')).includes('최고급 수제 과자'));
     await A.screenshot({ path: path.join(__dirname, 'out', 'title-pack.png') });
 
     const ctx2 = await browser.newContext({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true });
     const R = await open(ctx2, url);
     await sleep(700);
-    check('받는 사람 화면에 칭호 표시', (await R.isVisible('#rcTitle')) && (await R.textContent('#rcTitle')).includes('최고급 수제 초콜릿'));
+    check('받는 사람 화면에 칭호 표시', (await R.isVisible('#rcTitle')) && (await R.textContent('#rcTitle')).includes('최고급 수제 과자'));
     await R.screenshot({ path: path.join(__dirname, 'out', 'title-recv.png') });
     await R.tap('#rcOpen'); await until(() => R.isVisible('#env'), 9000); await R.tap('#env'); await until(() => R.isVisible('#rcard'), 4000); await sleep(700);
     check('편지지에는 칭호 도장을 찍지 않음', (await R.locator('#rcStamp').count()) === 0);
     await R.screenshot({ path: path.join(__dirname, 'out', 'title-letter.png') });
     const S2 = await open(ctx2, urlS); await sleep(600);
-    check('고급 수제 선물은 받는 화면에 "고급 수제 초콜릿"으로 표시', (await S2.textContent('#rcTitle')).includes('🥈 고급 수제 초콜릿'));
+    check('고급 수제 선물은 받는 화면에 "고급 수제 과자"으로 표시', (await S2.textContent('#rcTitle')).includes('🥈 고급 수제 과자'));
     const S3 = await open(ctx2, urlB); await sleep(600);
-    check('수제 선물은 받는 화면에 "수제 초콜릿"으로 표시', (await S3.textContent('#rcTitle')).includes('🥉 수제 초콜릿'));
+    check('수제 선물은 받는 화면에 "수제 과자"으로 표시', (await S3.textContent('#rcTitle')).includes('🥉 수제 과자'));
     await ctx2.close(); await ctx.close();
   } catch (e) { check('검사 도중 오류 없음', false, String(e && e.message).slice(0, 300)); }
   await browser.close(); server.close();

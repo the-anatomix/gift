@@ -530,7 +530,22 @@ function setView(spec, ms) { // spec = { tgt:[x,y,z], dir:[x,y,z], w, h } 또는
   if (!ms) { set(1); poke(); return; }
   tween(ms, (k) => set(ease(k)));
 }
-// 과자만 투명한 바탕에 찍어 그림으로 돌려준다 (자랑 카드용). 과자 끝이 위, 꾸민 면이 앞.
+// 지금 장면을 정해진 크기와 구도로 찍어 그림으로 돌려준다 (자랑 카드용). 바탕은 투명.
+function snapScene(w, h, spec) {
+  const pr = renderer.getPixelRatio();
+  renderer.setPixelRatio(1); renderer.setSize(w, h, false);
+  const cam2 = new THREE.PerspectiveCamera(FOV, w / h, 0.1, 60), tgt = V3(...spec.tgt);
+  const dist = Math.max(spec.h / (2 * tanHalf), spec.w / (2 * tanHalf * (w / h)));
+  cam2.position.copy(V3(...spec.dir).normalize().multiplyScalar(dist).add(tgt)); cam2.lookAt(tgt);
+  renderer.shadowMap.needsUpdate = true; renderer.render(scene, cam2);
+  const out = document.createElement('canvas'); out.width = w; out.height = h;
+  out.getContext('2d').drawImage(canvas, 0, 0, w, h);
+  renderer.setPixelRatio(pr); renderer.setSize(W, H, false); // 같은 순간에 원래 화면으로 되돌려 깜빡이지 않게
+  applyCam(); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+  renderer.shadowMap.needsUpdate = true; renderer.render(scene, camera);
+  return out;
+}
+// 과자만 투명한 바탕에 찍어 그림으로 돌려준다. 과자 끝이 위, 꾸민 면이 앞.
 const QUP = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI, 0, 0));
 function snapStick() {
   const hid = [];
@@ -930,7 +945,7 @@ requestAnimationFrame(() => { $('loading').classList.add('done'); setTimeout(() 
 // 둘이 굽기·자동 검사에서 쓰는 창구
 export const kitchen = {
   S, CHOCO, KINDS, STICK, cleanText, dispatch, onLocal: (f) => listeners.push(f), onHand: (f) => handFns.push(f), toast, poke,
-  remoteTip, getState, setState, setLocked(v) { locked = !!v; }, setStage, setView, present, grades, DIP, snapStick, setOrbit, judge, get yaw() { return yaw; },
+  remoteTip, getState, setState, setLocked(v) { locked = !!v; }, setStage, setView, present, grades, DIP, snapStick, snapScene, setOrbit, judge, get yaw() { return yaw; },
   get stage() { return stageOn; }, get presenting() { return presenting; },
   setHomeAction(a, panel) { homeAction = a; homePanel = panel || null; panelKey = ''; renderPanel(); refit(); },
   refit, // 아래 패널 높이가 바뀌었을 때 카메라를 다시 맞춘다

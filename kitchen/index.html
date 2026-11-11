@@ -230,7 +230,7 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels,body.recv #top
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="bottom">
   <div id="recv" hidden>
-    <div class="row" id="rcTitle" hidden><span class="titlechip" id="rcChip">🥇 최고급 수제 초콜릿</span></div>
+    <div class="row" id="rcTitle" hidden><span class="titlechip" id="rcChip">🥇 최고급 수제 과자</span></div>
     <div class="row"><div class="hint" id="rcHint">선물이 도착했어요.<small id="rcSub">화면을 밀면 돌려 볼 수 있어요.</small></div>
       <button type="button" class="btn main" id="rcOpen">열어 보기</button></div>
     <div class="row" id="rcRow2" hidden>
@@ -271,11 +271,11 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels,body.recv #top
     <h2>자랑 카드 <button type="button" class="btn" id="bgClose">닫기</button></h2>
     <img id="bgImg" alt="받은 선물을 자랑하는 그림">
     <div class="row">
-      <button type="button" class="chip" id="bgAvatar" aria-pressed="true">반죽이로</button>
-      <button type="button" class="chip" id="bgPhoto" aria-pressed="false">내 사진 넣기</button>
+      <button type="button" class="chip" id="bgPhoto">내 사진 넣기</button>
+      <button type="button" class="chip" id="bgNoPhoto" hidden>사진 빼기</button>
       <input type="file" id="bgFile" accept="image/*" hidden>
     </div>
-    <div class="hint"><small>사진은 이 폰 안에서 그림에 합쳐질 뿐, 어디에도 올라가지 않아요.</small></div>
+    <div class="hint"><small>내 사진은 폴라로이드처럼 사진 속에 붙어요. 이 폰 안에서만 합쳐지고 어디에도 올라가지 않아요.</small></div>
     <div class="row"><button type="button" class="btn" id="bgSave" style="flex:1">저장</button><button type="button" class="btn main" id="bgShare" style="flex:1">공유</button></div>
   </div>
 </div>

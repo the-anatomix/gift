@@ -10,7 +10,7 @@ export default function (kit) {
     { name: '분홍', hex: 0xF4B6C0, ribbon: 0xFFF6E2 },
   ];
   // 과자 등급 세 단계. 번호는 0 없음, 3 수제, 1 고급 수제, 2 최고급 수제
-  const TITLES = ['', '고급 수제 초콜릿', '최고급 수제 초콜릿', '수제 초콜릿'], MEDAL = ['', '🥈 ', '🥇 ', '🥉 '];
+  const TITLES = ['', '고급 수제 과자', '최고급 수제 과자', '수제 과자'], MEDAL = ['', '🥈 ', '🥇 ', '🥉 '];
   const tierOf = (v) => (v === 1 || v === 2 || v === 3 ? v : 0);
   let box = 0, packed = false, busy = false, mine = false, seal = 0;
 
