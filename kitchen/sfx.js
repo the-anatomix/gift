@@ -29,8 +29,6 @@ const SOUNDS = {
   dip() { tone(520, 170, 0.15, 0.32); noise(0.08, 0.06, 900); },                                               // 초콜릿에 퐁당
   plop() { tone(300, 640, 0.09, 0.26); tone(720, 320, 0.12, 0.16, 'sine', 0.08); },                            // 꺼낼 때 방울
   tick() { tone(1500 + Math.random() * 900, 1100, 0.035, 0.11, 'triangle'); },                                 // 토핑: 톡
-  perfect() { [1047, 1319, 1568, 2093].forEach((f, i) => tone(f, f, 0.24, 0.2, 'triangle', i * 0.07)); },      // PERFECT
-  good() { [784, 988].forEach((f, i) => tone(f, f, 0.18, 0.16, 'triangle', i * 0.08)); },                      // GOOD
   pack() { tone(380, 920, 0.13, 0.24); noise(0.05, 0.16, 3200, 'highpass', 0.11); tone(1568, 1568, 0.3, 0.14, 'triangle', 0.16); }, // 포장 완료
 };
 const GAP = { knead: 150, tick: 55 }; // 문지르는 동안 너무 잦지 않게

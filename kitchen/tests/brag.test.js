@@ -26,7 +26,8 @@ const save = async (p, name) => fs.writeFileSync(path.join(__dirname, 'out', nam
     await tab(A, '초콜릿');
     await A.mouse.move(187, 280); await A.mouse.down(); await A.mouse.move(187, 430, { steps: 8 }); await A.mouse.up(); await sleep(1200);
     const snd = await A.evaluate(() => Object.assign({}, window.__sfx.played));
-    check('효과음: 자르기·오븐·띵·퐁당·판정 소리가 났음', snd.cut === 5 && snd.oven === 1 && snd.ding === 1 && snd.dip >= 1 && snd.plop === 1 && snd.perfect >= 2 && snd.good >= 1, snd);
+    check('효과음: 자르기·오븐·띵·퐁당 소리가 났음', snd.cut === 5 && snd.oven === 1 && snd.ding === 1 && snd.dip >= 1 && snd.plop === 1, snd);
+    check('PERFECT / GOOD 판정에는 소리가 없음', !snd.perfect && !snd.good, snd);
     const have = await A.evaluate(() => Object.keys(window.__kitchen.shots).sort());
     check('네 자리의 과정 사진이 저절로 찍힘', JSON.stringify(have) === JSON.stringify(['choco', 'cut', 'dough', 'oven']), have);
     const filled = await A.evaluate(() => { const c = window.__kitchen.shots.cut, d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4000) if (Math.abs(d[i] - 251) > 6 || Math.abs(d[i + 1] - 239) > 6) n++; return { w: c.width, h: c.height, n }; });

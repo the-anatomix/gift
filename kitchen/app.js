@@ -499,7 +499,6 @@ let judgeT = 0;
 function judge(v) {
   const j = $('judge');
   j.textContent = v === 2 ? 'PERFECT!' : 'GOOD'; j.className = v === 2 ? 'p' : 'g';
-  sfx.play(v === 2 ? 'perfect' : 'good');
   j.hidden = false; j.style.animation = 'none'; void j.offsetWidth; j.style.animation = '';
   clearTimeout(judgeT); judgeT = setTimeout(() => { j.hidden = true; }, 1100);
   // 제작 과정 사진: 판정이 난 자리의 화면을 잠시 뒤에 찍어 둔다 (자랑 카드용. 이 기기 메모리에만 있다)
