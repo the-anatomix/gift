@@ -9,6 +9,35 @@ export const TV_MAT = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
 const lit = (hex) => new THREE.MeshBasicMaterial({ color: hex }); // 스스로 빛나 보이는 색
 const WOOD = 0xC99A6B, WOOD_D = 0x8A5F3F, DARK = 0x5A3824, CREAM = 0xF3E2C3, RED = 0xD23A30, GREEN = 0x3E9A7E, GOLD = 0xE7B441;
 
+// 다트판 그림: 스무 칸(검정·크림), 2배·3배 칸(빨강·초록), 가운데, 테두리의 숫자. 한 번만 그려서 모든 다트판이 같이 쓴다.
+let dartTex = null;
+function dartTexture() {
+  if (dartTex) return dartTex;
+  const S = 512, c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d'), k = (S / 2) / DART.out, R = DART.R * k, mid = S / 2;
+  g.fillStyle = '#1F1A17'; g.fillRect(0, 0, S, S);
+  const wedge = (i, r0, r1, col) => { // 위(-y)에서 시계 방향으로 i 번째 칸
+    const a0 = -Math.PI / 2 + (i - 0.5) * Math.PI / 10, a1 = a0 + Math.PI / 10;
+    g.beginPath(); g.arc(mid, mid, r1 * R, a0, a1); g.arc(mid, mid, r0 * R, a1, a0, true); g.closePath(); g.fillStyle = col; g.fill();
+  };
+  for (let i = 0; i < 20; i++) {
+    const dark = i % 2 === 0;
+    wedge(i, DART.bull2, 1, dark ? '#2A2420' : '#F1E3C6');
+    wedge(i, DART.t0, DART.t1, dark ? '#C8332B' : '#2F8F5F');
+    wedge(i, DART.d0, 1, dark ? '#C8332B' : '#2F8F5F');
+  }
+  g.strokeStyle = '#B9AE9C'; g.lineWidth = 1.5; // 칸 사이 철사
+  for (let i = 0; i < 20; i++) { const a = -Math.PI / 2 + (i - 0.5) * Math.PI / 10; g.beginPath(); g.moveTo(mid + Math.cos(a) * DART.bull2 * R, mid + Math.sin(a) * DART.bull2 * R); g.lineTo(mid + Math.cos(a) * R, mid + Math.sin(a) * R); g.stroke(); }
+  for (const r of [DART.bull2, DART.t0, DART.t1, DART.d0, 1]) { g.beginPath(); g.arc(mid, mid, r * R, 0, 7); g.stroke(); }
+  g.beginPath(); g.arc(mid, mid, DART.bull2 * R, 0, 7); g.fillStyle = '#2F8F5F'; g.fill(); g.stroke();
+  g.beginPath(); g.arc(mid, mid, DART.bull * R, 0, 7); g.fillStyle = '#C8332B'; g.fill(); g.stroke();
+  g.fillStyle = '#F6EEDD'; g.font = 'bold 30px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  DART.nums.forEach((n, i) => { const a = -Math.PI / 2 + i * Math.PI / 10, rr = (DART.R + (DART.out - DART.R) * 0.52) * k; g.fillText(String(n), mid + Math.cos(a) * rr, mid + Math.sin(a) * rr + 1); });
+  dartTex = new THREE.CanvasTexture(c);
+  dartTex.colorSpace = THREE.SRGBColorSpace; dartTex.anisotropy = 4;
+  return dartTex;
+}
 function feet(g, x, z, y = 0.06) {
   for (const a of [-1, 1]) for (const b of [-1, 1]) put(cyl(0.04, 0.03, y * 2, 8), DARK, x * a, y, z * b, g);
 }
@@ -114,13 +143,13 @@ const B = {
     put(cyl(0.11, 0.11, 0.02, 14), 0x2B2420, 0, 0.8, 0, g);
     put(cyl(0.075, 0.075, 0.11, 14), 0x2B2420, 0, 0.865, 0, g);
   },
-  dart(g) { // 다트판: 세워 둔 대에 걸려 있다. 고리 크기는 catalog.js 의 DART
+  dart(g) { // 다트판: 세워 둔 대에 걸려 있다. 칸과 숫자는 catalog.js 의 DART 대로 그린다
     put(cyl(0.2, 0.22, 0.04, 14), DARK, 0, 0.02, -0.06, g);
     put(cyl(0.025, 0.025, 1.56, 8), WOOD_D, 0, 0.8, -0.06, g);
-    const disc = (r, col, z, th = 0.012) => { const m = put(cyl(r, r, th, 30), col, 0, DART.y, z, g, false); m.rotation.x = Math.PI / 2; return m; };
-    disc(0.33, 0x2B2420, -0.012, 0.06).castShadow = true;
-    const cols = [GOLD, RED, GREEN, CREAM];
-    DART.rings.forEach(([r], k) => disc(r, cols[k], DART.z - 0.006 - k * 0.004));
+    const rim = put(cyl(DART.out + 0.012, DART.out + 0.012, 0.06, 36), 0x2B2420, 0, DART.y, -0.012, g);
+    rim.rotation.x = Math.PI / 2;
+    const face = put(new THREE.CircleGeometry(DART.out, 48), new THREE.MeshLambertMaterial({ map: dartTexture() }), 0, DART.y, DART.z - 0.016, g, false);
+    face.receiveShadow = false;
   },
   tv(g) { // 3 × 1, 낮은 장 위의 TV
     put(rbox(1.4, 0.42, 0.42, 0.03), WOOD, 0, 0.27, 0, g);

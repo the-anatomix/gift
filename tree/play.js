@@ -3,7 +3,7 @@
 //   케이크 작업대 → 케이크 만들기(여럿이 같이, 다 만들면 촛불 불기)
 // app.js 가 넘겨주는 창구 K 로 카메라 자리(pose)와 아래 판을 다룬다.
 import { THREE, M, put, cyl } from './kit.js';
-import { DART, TV, SONGS, CREAMS, TOPPINGS } from './catalog.js';
+import { DART, TV, SONGS, CREAMS, TOPPINGS, dartScore } from './catalog.js';
 import { TV_MAT } from './furniture.js';
 
 const $ = (id) => document.getElementById(id);
@@ -35,23 +35,33 @@ export function makePlay(K) {
   const quit = { label: '그만하기', id: 'playQuit', fn: () => K.close() };
 
   /* ───────── 다트 ───────── */
+  // 손가락(마우스)으로 겨냥한 자리에 조준점이 따라오고, 손이 떨리듯 조금씩 흔들린다. 손을 떼면(누르면) 그때의 조준점으로 날아간다.
   const BEST_KEY = K.key('dart');
+  const coarse = () => matchMedia('(pointer: coarse)').matches;
+  function dartMesh() { // 화살: 촉이 판 쪽(-z)을 향한다
+    const m = new THREE.Group();
+    put(new THREE.ConeGeometry(0.008, 0.07, 8), 0xD9D0C3, 0, 0, 0.035, m, false).rotation.x = -Math.PI / 2;
+    put(cyl(0.013, 0.01, 0.1, 8), 0xE7B441, 0, 0, 0.12, m, false).rotation.x = Math.PI / 2;
+    put(cyl(0.006, 0.006, 0.09, 6), 0x2B2420, 0, 0, 0.215, m, false).rotation.x = Math.PI / 2;
+    for (const r of [0, Math.PI / 2]) put(new THREE.BoxGeometry(0.075, 0.003, 0.07), 0xC8443A, 0, 0, 0.275, m, false).rotation.z = r + Math.PI / 4;
+    return m;
+  }
   const dart = {
     start(c) {
-      c.aim = new THREE.Group(); // 흔들리는 조준점
-      const ring = new THREE.Mesh(new THREE.RingGeometry(0.028, 0.04, 20), new THREE.MeshBasicMaterial({ color: 0xFFFFFF, depthTest: false, transparent: true }));
-      const dot = new THREE.Mesh(new THREE.CircleGeometry(0.01, 10), new THREE.MeshBasicMaterial({ color: 0xFF3B30, depthTest: false, transparent: true }));
-      ring.renderOrder = dot.renderOrder = 9;
-      c.aim.add(ring, dot); c.g.add(c.aim);
+      c.aim = new THREE.Group(); // 조준점
+      const mk = (geo, col) => { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: col, depthTest: false, transparent: true })); m.renderOrder = 9; c.aim.add(m); };
+      mk(new THREE.RingGeometry(0.03, 0.038, 24), 0xFFFFFF); mk(new THREE.RingGeometry(0.026, 0.03, 24), 0x2B2420); mk(new THREE.CircleGeometry(0.007, 10), 0xFFE08A);
+      c.g.add(c.aim);
       c.darts = [];
-      const d = portrait() ? 2.7 : 2.2;
-      K.setPose({ pos: world(c.g, 0, DART.y, d), at: world(c.g, 0, DART.y, 0), fov: portrait() ? 44 : 36 });
+      const d = portrait() ? 2.5 : 2.1;
+      // 화살이 다트 모양으로 보이게 조금 아래 옆에서 올려다본다
+      K.setPose({ pos: world(c.g, 0.22, DART.y - 0.28, d), at: world(c.g, 0, DART.y, 0), fov: portrait() ? 46 : 36 });
       dart.reset(c);
     },
     reset(c) {
       for (const m of c.darts) c.g.remove(m);
       c.darts = []; c.left = 3; c.score = 0; c.phase = 'aim'; c.t = Math.random() * 6; c.fly = null; c.last = null;
-      c.aim.visible = true;
+      c.ax = 0; c.ay = 0; c.aim.visible = true;
       dart.paint(c);
     },
     paint(c) {
@@ -59,30 +69,37 @@ export function makePlay(K) {
         const best = Math.max(c.score, +K.store.get(BEST_KEY) || 0);
         panel(`다트 끝! 합계 ${c.score}점`, `내 최고 점수 ${best}점`, [{ label: '다시 하기', main: true, id: 'playGo', fn: () => dart.reset(c) }, quit]);
       } else {
-        panel(`다트 · 남은 화살 ${c.left}개 · ${c.score}점`, '조준점이 가운데에 올 때 던져요. 화면을 눌러도 던져져요.',
+        panel(`다트 · 남은 화살 ${c.left}개 · ${c.score}점`, coarse() ? '판을 누른 채 겨냥하고, 손을 떼면 날아가요. 조준점이 흔들리니 때를 잘 맞춰요.' : '마우스로 겨냥하고 누르면 날아가요. 조준점이 흔들리니 때를 잘 맞춰요.',
           [{ label: '던지기', main: true, id: 'playGo', fn: () => dart.shoot(c) }, quit]);
       }
     },
-    // 조준점 자리 (다트판 가운데가 0, 0)
-    at(c) { const sp = 1.5 + (3 - c.left) * 0.35; return [0.27 * Math.sin(c.t * sp * 1.3 + 1.1), 0.25 * Math.sin(c.t * sp * 1.9)]; },
+    // 지금 조준점 자리 (다트판 가운데가 0, 0): 겨냥한 자리 + 손 떨림. 화살을 던질수록 조금 더 떨린다
+    at(c) {
+      const A = 0.034 + (3 - c.left) * 0.008, t = c.t;
+      return [c.ax + A * (Math.sin(t * 2.9 + 1.1) + 0.6 * Math.sin(t * 5.3)), c.ay + A * (Math.sin(t * 3.7) + 0.6 * Math.sin(t * 6.1 + 2))];
+    },
+    // 화면의 한 점으로 겨냥한다. 손가락에 가려지지 않게 폰에서는 손가락보다 조금 위를 겨냥한다
+    move(c, px, py) {
+      if (c.phase !== 'aim') return;
+      const p = K.pointOn(c.g, px, py - (coarse() ? 56 : 0), [0, DART.y, DART.z]);
+      if (p) { c.ax = clamp(p.x, -0.45, 0.45); c.ay = clamp(p.y - DART.y, -0.45, 0.45); }
+    },
     shoot(c, to) {
       if (c.phase !== 'aim') return;
       const [ax, ay] = to || dart.at(c);
-      const m = new THREE.Group(); // 화살: 판 쪽(-z)을 향한다
-      put(new THREE.ConeGeometry(0.012, 0.05, 8), 0xD9D0C3, 0, 0, 0.025, m, false).rotation.x = -Math.PI / 2;
-      put(cyl(0.012, 0.012, 0.12, 8), 0xC8443A, 0, 0, 0.11, m, false).rotation.x = Math.PI / 2;
-      for (const r of [0, Math.PI / 2]) put(new THREE.BoxGeometry(0.07, 0.002, 0.06), 0xF3E2C3, 0, 0, 0.19, m, false).rotation.z = r;
+      const m = dartMesh();
+      m.rotation.set(-0.34, 0.2, 0); // 꽁지가 조금 들려서 꽂힌다 (화살 몸통이 보이게)
       c.g.add(m); c.darts.push(m);
-      c.fly = { m, t: 0, from: [0.12, DART.y - 0.3, 1.9], to: [ax, DART.y + ay, DART.z] };
+      c.fly = { m, t: 0, from: [0.25, DART.y - 0.45, 1.7], to: [ax, DART.y + ay, DART.z] };
       c.phase = 'fly'; c.aim.visible = false;
     },
     land(c) {
-      const [x, y] = [c.fly.to[0], c.fly.to[1] - DART.y], r = Math.hypot(x, y);
-      const hit = DART.rings.find(([rr]) => r <= rr);
-      const pts = hit ? hit[1] : 0;
-      c.last = { x, y, pts };
-      c.score += pts; c.left--; c.fly = null;
-      K.toast(pts === 50 ? '한가운데! +50점' : pts ? `+${pts}점` : '빗나갔어요');
+      const x = c.fly.to[0], y = c.fly.to[1] - DART.y, r = dartScore(x, y);
+      c.last = { x, y, pts: r.pts };
+      c.score += r.pts; c.left--;
+      if (Math.hypot(x, y) > DART.out) { c.fall = c.fly.m; c.fallT = 0; } // 판 밖으로 나간 화살은 바닥으로 떨어진다
+      c.fly = null;
+      K.toast(r.say);
       if (c.left > 0) { c.phase = 'aim'; c.aim.visible = true; }
       else {
         c.phase = 'done';
@@ -92,15 +109,20 @@ export function makePlay(K) {
       dart.paint(c);
     },
     tick(c, dt) {
-      if (c.phase === 'aim') { c.t += dt; const [x, y] = dart.at(c); c.aim.position.set(x, DART.y + y, DART.z + 0.012); }
+      c.t += dt;
+      if (c.phase === 'aim') { const [x, y] = dart.at(c); c.aim.position.set(x, DART.y + y, DART.z + 0.012); }
       else if (c.phase === 'fly') {
-        const f = c.fly; f.t = Math.min(1, f.t + dt / 0.26);
+        const f = c.fly; f.t = Math.min(1, f.t + dt / 0.3);
         const e = f.t * f.t * (3 - 2 * f.t);
-        f.m.position.set(f.from[0] + (f.to[0] - f.from[0]) * e, f.from[1] + (f.to[1] - f.from[1]) * e + Math.sin(f.t * Math.PI) * 0.12, f.from[2] + (f.to[2] - f.from[2]) * e);
+        f.m.position.set(f.from[0] + (f.to[0] - f.from[0]) * e, f.from[1] + (f.to[1] - f.from[1]) * e + Math.sin(f.t * Math.PI) * 0.1, f.from[2] + (f.to[2] - f.from[2]) * e);
         if (f.t >= 1) dart.land(c);
       }
+      if (c.fall) { // 빗나간 화살이 떨어져 사라진다
+        c.fallT += dt; c.fall.position.y -= dt * (0.4 + c.fallT * 5); c.fall.rotation.x += dt * 4;
+        if (c.fall.position.y < 0.05) { c.g.remove(c.fall); c.darts.splice(c.darts.indexOf(c.fall), 1); c.fall = null; }
+      }
     },
-    tap(c) { dart.shoot(c); },
+    tap(c, px, py) { if (px !== undefined) dart.move(c, px, py); dart.shoot(c); },
     stop(c) { for (const m of c.darts) c.g.remove(m); c.g.remove(c.aim); },
   };
 
@@ -386,6 +408,8 @@ export function makePlay(K) {
       if (K.hasKind('tv')) { tvT += dt; if (tvT > 0.06) { drawScreen(tvT); tvT = 0; } }
     },
     tap(px, py) { if (cur) KINDS[cur.kind].tap(cur, px, py); },
+    // 놀이 중에 손가락·마우스가 움직였다 (다트 겨냥)
+    move(px, py) { if (cur && KINDS[cur.kind].move) KINDS[cur.kind].move(cur, px, py); },
     // 친구가 TV 영상을 보내기 시작했거나(stream) 그만뒀다(null)
     remoteTv(stream, from) {
       if (!stream) { if (rvFrom !== from) return; if (rv) { rv.pause(); rv.srcObject = null; } rv = null; rvFrom = null; }
@@ -406,7 +430,7 @@ export function makePlay(K) {
     // 친구가 한 것
     peerFx(m) {
       if (!m || typeof m.k !== 'string') return;
-      if (m.k === 'dart' && Number.isFinite(m.v)) K.toast(`친구가 다트에서 ${clamp(Math.round(m.v), 0, 150)}점을 냈어요 🎯`);
+      if (m.k === 'dart' && Number.isFinite(m.v)) K.toast(`친구가 다트에서 ${clamp(Math.round(m.v), 0, 180)}점을 냈어요 🎯`);
       else if (m.k === 'fire' && Number.isFinite(m.v)) K.toast(m.v >= 80 ? '친구가 마시멜로를 완벽하게 구웠어요!' : '친구가 마시멜로를 구웠어요');
       else if (m.k === 'music' && typeof m.v === 'string') {
         const had = song ? song.id : '';
@@ -422,6 +446,8 @@ export function makePlay(K) {
       get video() { return video ? { ready: video.readyState, w: video.videoWidth, muted: video.muted, paused: video.paused } : null; },
       get remote() { return rv ? { ready: rv.readyState, w: rv.videoWidth, muted: rv.muted, from: rvFrom } : null; },
       throwAt(x, y) { if (cur && cur.kind === 'dart') dart.shoot(cur, [x, y]); },
+      boardPoint(x, y) { if (!cur || cur.kind !== 'dart') return null; const [wx, wy, wz] = world(cur.g, x, DART.y + y, DART.z); return { x: wx, y: wy, z: wz }; },
+      dartScore, get aim() { return cur && cur.kind === 'dart' ? { want: [cur.ax, cur.ay], now: dart.at(cur) } : null; },
       setHeat(h) { if (cur && cur.kind === 'fire') { cur.heat = h; fire.color(cur); } },
       setVideo, clearVideo, setSong, verdict: toast2,
       pixel(x, y) { const d = sc.getImageData(x, y, 1, 1).data; return [d[0], d[1], d[2]]; },

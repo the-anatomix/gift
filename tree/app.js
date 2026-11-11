@@ -831,6 +831,16 @@ const play = makePlay({
   itemObj: (id) => itemObj.get(id),
   hasKind: (k) => { for (const it of S.items.values()) if (it.k === k) return true; return false; },
   aspect: () => eye.aspect,
+  // 화면의 한 점이 가구 앞 세워진 면(가구 기준 at 을 지나고 앞을 보는 면)의 어디인지 → 가구 기준 { x, y }
+  pointOn(g, px, py, at) {
+    g.updateMatrixWorld();
+    const p0 = g.localToWorld(new THREE.Vector3(at[0], at[1], at[2])), n = new THREE.Vector3(0, 0, 1).transformDirection(g.matrixWorld);
+    aimRay(px, py);
+    const hitP = ray.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(n, p0), new THREE.Vector3());
+    if (!hitP) return null;
+    const l = g.worldToLocal(hitP);
+    return { x: l.x, y: l.y };
+  },
   // 내가 넣은 TV 영상을 방 사람들에게 보낸다 (null 이면 그만)
   canShare: () => duo.mode === 'on' && media.can,
   shareTv: (stream) => media.setTv(stream),
@@ -869,10 +879,11 @@ const spread = () => { const [a, b] = [...touches.values()]; return Math.hypot(a
 function ghostAt(px, py) { const p = floorAt(px, py, false); if (p) ghostMoveTo(p.x, p.z); }
 canvas.addEventListener('pointerdown', (e) => {
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (touches.size === 1) { tap = { x: e.clientX, y: e.clientY, id: e.pointerId }; if (ghost && !usingEye()) ghostAt(e.clientX, e.clientY); }
+  if (touches.size === 1) { tap = { x: e.clientX, y: e.clientY, id: e.pointerId }; if (ghost && !usingEye()) ghostAt(e.clientX, e.clientY); if (mode === 'play') play.move(e.clientX, e.clientY); }
   else { tap = null; pinch = touches.size === 2 ? spread() : 0; }
 });
 canvas.addEventListener('pointermove', (e) => {
+  if (mode === 'play') play.move(e.clientX, e.clientY); // 다트 겨냥 (마우스는 누르지 않고 움직여도 된다)
   const t = touches.get(e.pointerId);
   if (!t) return;
   const mx = e.clientX - t.x, my = e.clientY - t.y;
@@ -890,6 +901,7 @@ function lift(e, ok) {
   tap = null;
   const still = ok && Math.hypot(e.clientX - t.x, e.clientY - t.y) <= 10;
   if (ghost) { if (still && usingEye()) ghostAt(e.clientX, e.clientY); return; } // 1인칭에서는 누른 자리로 가구가 온다
+  if (mode === 'play' && ok && play.kind === 'dart') { play.tap(e.clientX, e.clientY); return; } // 다트는 겨냥하며 끌다가 떼면 날아간다
   if (!still) return;
   if (mode === 'door') { aimRay(e.clientX, e.clientY); if (outside.hitBell(ray)) ring(); return; } // 초인종
   if (mode === 'play') { play.tap(e.clientX, e.clientY); return; }
@@ -1161,7 +1173,7 @@ function frame(now) {
     if (p.t >= 1) pops.splice(k, 1);
   }
   bulbs.tick(clock);
-  { const p = outside.tick(dt); if (p) pose = p; } // 문이 열려 걸어 들어가는 동안의 카메라
+  { const p = outside.tick(dt); if (p && outside.opening) pose = p; } // 문이 열려 걸어 들어가는 동안의 카메라 (다 들어간 뒤에는 건드리지 않는다)
   for (const id of S.cakes.keys()) { const c = S.cakes.get(id); if (c.lit > 0 && itemObj.has(id)) flicker(itemObj.get(id), clock); }
   placeBubbles();
   play.tick(dt);

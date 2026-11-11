@@ -46,8 +46,26 @@ export const TOPPINGS = [
 ];
 export const CAKE = { r: 0.3, y: 1.14, max: 40 };
 
-// 다트판: 가운데 높이 y, 판 겉면 z(가구 기준), 고리마다 [반지름, 점수] (안쪽부터)
-export const DART = { y: 1.3, z: 0.036, rings: [[0.045, 50], [0.11, 30], [0.19, 20], [0.28, 10]] };
+// 다트판: 가운데 높이 y, 판 겉면 z(가구 기준), R = 점수가 나는 바깥 끝, out = 숫자가 적힌 테까지의 반지름.
+// nums = 맨 위부터 시계 방향으로 칸의 숫자. 고리는 R 에 대한 비율: 한가운데 50점, 그 둘레 25점,
+// 3배 칸(t0~t1), 2배 칸(d0~끝). 실제 다트판보다 좁은 칸을 조금 넓혀서 폰에서도 맞힐 수 있게 했다.
+export const DART = {
+  y: 1.3, z: 0.036, R: 0.28, out: 0.335,
+  nums: [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5],
+  bull: 0.07, bull2: 0.16, t0: 0.52, t1: 0.63, d0: 0.87,
+};
+// 다트판의 (x, y) 자리에 맞았을 때의 점수 (판 가운데가 0, 0, 위가 +y, 보는 사람 오른쪽이 +x)
+export function dartScore(x, y) {
+  const r = Math.hypot(x, y) / DART.R;
+  if (r > 1) return { pts: 0, say: '빗나갔어요', miss: true };
+  if (r <= DART.bull) return { pts: 50, say: '한가운데! 50점' };
+  if (r <= DART.bull2) return { pts: 25, say: '가운데 둘레 25점' };
+  const a = (Math.atan2(x, y) + Math.PI * 2 + Math.PI / 20) % (Math.PI * 2);
+  const n = DART.nums[Math.floor(a / (Math.PI / 10)) % 20];
+  if (r >= DART.t0 && r <= DART.t1) return { pts: n * 3, say: `${n}의 3배! ${n * 3}점` };
+  if (r >= DART.d0) return { pts: n * 2, say: `${n}의 2배! ${n * 2}점` };
+  return { pts: n, say: `${n}점` };
+}
 // TV 화면: 가로 w, 세로 h, 가운데 높이 y, 화면 z
 export const TV = { w: 1.18, h: 0.664, y: 0.87, z: 0.014 };
 // 오르골 캐럴(모두 오래된 곡). notes = [음 높이(미디 번호, 0 은 쉼), 박자 수]
