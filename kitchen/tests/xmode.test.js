@@ -73,14 +73,17 @@ async function packAndGive(p, msg) {
     await B.tap('#rcOpen');
     check('상자를 열면 A 의 편지가 나타남', await until(() => B.isVisible('#rcard'), 8000) && (await B.textContent('#rcMsg')) === 'A 가 B 에게');
     check('돌아가는 버튼이 "내 주방으로"', (await B.textContent('#rcMake')) === '내 주방으로');
+    if (await B.isVisible('#rcard')) await B.tap('#rcClose');
     await B.tap('#rcMake'); await sleep(900);
     check('내 주방으로 돌아오면 B 자신의 과자가 그대로', (await n(B)) === 8 && (await B.isVisible('#tabs')) && (await B.evaluate(() => window.__kitchen.S.layers[0].c)) === 1);
+    check('돌아오면 주방이 다시 보임', await B.evaluate(() => window.__kitchen.stage === false && window.__kitchen.presenting === false));
     check('선물을 보는 동안에도 연결 유지', (await mode(A)) === 'on' && (await mode(B)) === 'on');
 
     await packAndGive(B, 'B 가 A 에게'); await B.tap('#ltGive');
     check('반대 방향도 선물 가능 (A 에 도착)', await until(() => A.isVisible('#giftOpen')));
     await A.tap('#giftOpen'); await sleep(900); await A.tap('#rcOpen');
     check('A 가 B 의 과자와 편지를 봄', await until(() => A.isVisible('#rcard'), 8000) && (await A.textContent('#rcMsg')) === 'B 가 A 에게' && (await n(A)) === 8);
+    if (await A.isVisible('#rcard')) await A.tap('#rcClose');
     await A.tap('#rcMake'); await sleep(900);
     check('A 도 자기 과자로 돌아옴', (await n(A)) === 5);
 

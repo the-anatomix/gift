@@ -7,6 +7,9 @@
 <meta name="description" content="작은 주방에서 막대과자를 굽고 꾸며서 편지와 함께 선물해 보세요.">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#FFF8EC">
+<!-- 편지지 손글씨 글꼴. 화면을 막지 않게 뒤늦게 읽는다(못 읽으면 기본 글꼴) -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap" media="print" onload="this.media='all'">
 <style>
 :root{
   --bg:#FFF8EC; --ink:#2B1D14; --sub:#8A7868; --line:#EADCC6; --card:#FFFCF5;
@@ -105,7 +108,7 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 #letter,#rcard{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;background:rgba(43,29,20,.35);
   padding:12px 10px calc(10px + env(safe-area-inset-bottom))}
 #letter[hidden],#rcard[hidden],#recv[hidden]{display:none}
-#rcard{background:none;pointer-events:none;align-items:center;padding-bottom:calc(150px + env(safe-area-inset-bottom))}
+#rcard{background:rgba(43,29,20,.18);align-items:center;padding:calc(64px + env(safe-area-inset-top)) 18px calc(96px + env(safe-area-inset-bottom))}
 .sheet{width:100%;max-width:460px;max-height:100%;overflow:auto;background:#FFFCF5;border:1.5px solid var(--line);border-radius:20px;
   padding:14px 14px 12px;box-shadow:0 10px 30px rgba(43,29,20,.25);display:flex;flex-direction:column;gap:8px;pointer-events:auto}
 .sheet h2{margin:0;font-size:16px;font-weight:900;display:flex;justify-content:space-between;align-items:center}
@@ -117,12 +120,30 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 .sheet .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .sheet .main{background:var(--choc);border-color:var(--choc);color:#FFF4E0}
 .sheet #ltGive{flex:1}
-.paper{background:#fff;border-radius:14px;border:1.5px dashed var(--choc);padding:16px;font-size:17px;line-height:1.6;display:flex;flex-direction:column;gap:8px}
-.paper .body{white-space:pre-wrap;word-break:break-word;min-height:60px;user-select:text;-webkit-user-select:text}
-.paper .to{font-weight:800}.paper .from{font-weight:800;text-align:right}
+/* 편지지: 줄 노트에 손글씨 */
+.letterpaper{position:relative;width:100%;max-width:400px;max-height:100%;overflow:auto;border-radius:5px;
+  padding:30px 22px 24px 38px;color:#3B2619;font-family:"Gaegu","Nanum Pen Script","Noto Sans KR",cursive;font-size:23px;line-height:36px;
+  background:linear-gradient(90deg,transparent 26px,rgba(217,72,59,.28) 26px,rgba(217,72,59,.28) 27.5px,transparent 27.5px),
+    linear-gradient(transparent 35px,#E9DBC2 35px) 0 30px/100% 36px,#FFFDF6;background-attachment:local;
+  box-shadow:0 16px 36px rgba(43,29,20,.3),0 1px 0 rgba(90,56,36,.08);transform:rotate(-1.2deg);animation:paperIn .5s cubic-bezier(.2,.9,.3,1.15)}
+@keyframes paperIn{from{transform:translateY(60px) rotate(3deg) scale(.86);opacity:0}to{transform:rotate(-1.2deg);opacity:1}}
+.letterpaper .tape{position:sticky;display:block;top:-30px;margin:-30px auto 4px;width:92px;height:24px;background:rgba(217,72,59,.5);
+  transform:rotate(-3deg) translateY(-8px);border-radius:2px;box-shadow:0 1px 2px rgba(43,29,20,.15)}
+.letterpaper .x{position:absolute;right:2px;top:2px;width:44px;height:44px;border:0;background:none;font-size:18px;color:#8A7868;cursor:pointer}
+.letterpaper .to{font-weight:700;font-size:25px}
+.letterpaper .body{white-space:pre-wrap;word-break:break-word;min-height:108px;user-select:text;-webkit-user-select:text}
+.letterpaper .from{font-weight:700;text-align:right}
+.letterpaper .heart{position:absolute;right:20px;bottom:12px;font-size:20px;color:var(--accent);opacity:.75;transform:rotate(12deg)}
+/* 편지 쓰는 칸도 같은 편지지 */
+.sheet textarea{font-family:"Gaegu","Nanum Pen Script","Noto Sans KR",cursive;font-size:21px;line-height:32px;min-height:140px;border-radius:6px;padding:6px 12px 6px 30px;
+  background:linear-gradient(90deg,transparent 20px,rgba(217,72,59,.28) 20px,rgba(217,72,59,.28) 21.5px,transparent 21.5px),
+    linear-gradient(transparent 31px,#E9DBC2 31px) 0 6px/100% 32px,#FFFDF6;background-attachment:local}
+.sheet .two input{font-family:"Gaegu","Nanum Pen Script","Noto Sans KR",cursive;font-size:20px;font-weight:700}
+#rcard{z-index:2}#bottom{z-index:3}#letter{z-index:5}#toast{z-index:6}#loading,#fallback{z-index:9}
+body.recv{background:radial-gradient(90% 60% at 50% 46%,#FFF8EA 0%,#FBE6D2 55%,#F0CDB4 100%)}
 #recv{background:rgba(255,252,245,.96);border:1.5px solid var(--line);border-radius:18px;padding:10px 12px;box-shadow:0 6px 20px rgba(90,56,36,.12)}
 #recv .main{background:var(--choc);border-color:var(--choc);color:#FFF4E0}
-body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels{display:none}
+body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels,body.recv #top a{display:none}
 
 #toast{position:absolute;left:50%;top:calc(64px + env(safe-area-inset-top));transform:translate(-50%,-8px);
   background:rgba(43,29,20,.88);color:#FFF4E0;font-size:13px;font-weight:600;padding:8px 14px;border-radius:999px;
@@ -158,7 +179,7 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels{display:none}
   <div id="recv" hidden>
     <div class="row"><div class="hint" id="rcHint">선물이 도착했어요.</div>
       <button type="button" class="btn main" id="rcOpen">열어 보기</button>
-      <button type="button" class="btn" id="rcToggle" hidden>과자 보기</button>
+      <button type="button" class="btn" id="rcToggle" hidden>💌 편지 열기</button>
       <button type="button" class="btn main" id="rcMake" hidden>나도 만들기</button></div>
   </div>
   <div id="duo" hidden></div>
@@ -166,7 +187,12 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels{display:none}
   <nav id="tabs" role="tablist" aria-label="자리 이동"></nav>
 </div>
 <div id="rcard" hidden>
-  <div class="sheet"><div class="paper"><div class="to" id="rcTo"></div><div class="body" id="rcMsg"></div><div class="from" id="rcFrom"></div></div></div>
+  <div class="letterpaper" role="dialog" aria-label="편지">
+    <span class="tape"></span>
+    <button type="button" class="x" id="rcClose" aria-label="편지 접기">✕</button>
+    <div class="to" id="rcTo"></div><div class="body" id="rcMsg"></div><div class="from" id="rcFrom"></div>
+    <span class="heart" aria-hidden="true">♥</span>
+  </div>
 </div>
 <div id="letter" hidden>
   <div class="sheet">

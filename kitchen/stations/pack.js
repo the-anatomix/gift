@@ -95,7 +95,8 @@ export default function (kit) {
     view: { tgt: [0.5, 1.68, -1.7], dir: [0.12, 0.42, 1], w: 1.0, h: 2.05 },
     packed: () => packed,
     // 상자 안(과자가 들어가 있는 자리)과 상자 위(넣기 전에 들고 있는 자리)
-    slot: () => ({ x: POS.x, z: POS.z, inY: TOP_Y + 0.03, overY: TOP_Y + BOX.h + 0.1 }),
+    slot: () => ({ x: POS.x, z: POS.z, inY: TOP_Y + 0.03, overY: TOP_Y + BOX.h + 0.1, topY: TOP_Y + BOX.h }),
+    stage: [g, palRoot], // 받은 선물 화면에서도 보이는 것
     panel(p, ui) {
       const r = ui.el('div', 'row');
       if (packed) {
@@ -125,6 +126,7 @@ export default function (kit) {
       if (typeof d.box === 'number' && BOXES[d.box]) { box = d.box; paint(); kit.repaint(); }
       if (d.pack && !packed) doPack();
       if (d.open && packed) doOpen();
+      if (d.cheer) hop(2);
     },
     get() { return { box, packed: packed ? 1 : 0 }; },
     set(v) {

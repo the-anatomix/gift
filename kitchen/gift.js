@@ -46,39 +46,65 @@ $('ltGive').addEventListener('click', () => { // 서로 선물: 연결된 상대
 
 /* ───────── 받은 선물 ───────── */
 let back = null; // 서로 선물에서 받은 선물을 보고 내 주방으로 돌아갈 때 쓰는 내 상태
+// 받은 선물은 주방 없이 무대 위에서만 보여 준다
+const VIEW_BOX = { tgt: [0.52, 1.42, -1.72], dir: [0.1, 0.34, 1], w: 1.5, h: 1.55 };
+const VIEW_STICK = { tgt: [0.6, 2.02, -1.82], dir: [0.04, 0.16, 1], w: 0.8, h: 1.3 };
+let timers = [];
+const later = (ms, fn) => timers.push(setTimeout(fn, ms));
+function showLetter(on) {
+  $('rcard').hidden = !on;
+  $('rcToggle').textContent = on ? '편지 접기' : '💌 편지 열기';
+}
 function setBar(opened) {
   $('rcOpen').hidden = opened; $('rcOpen').disabled = false; $('rcToggle').hidden = !opened; $('rcMake').hidden = !opened;
-  $('rcHint').textContent = opened ? '직접 구운 막대과자와 편지예요.' : '선물이 도착했어요.';
+  $('rcHint').textContent = opened ? '직접 구운 막대과자예요.' : '선물이 도착했어요.';
   $('rcMake').textContent = back ? '내 주방으로' : '나도 만들기';
   K.refit();
+}
+function sparkle() {
+  for (let i = 0; i < 7; i++) later(i * 110, () => {
+    const e = document.createElement('div'); e.className = 'emo'; e.textContent = i % 2 ? '✨' : '💛';
+    e.style.left = 14 + Math.random() * 72 + '%'; e.style.bottom = 30 + Math.random() * 25 + '%'; e.style.fontSize = 22 + Math.random() * 18 + 'px';
+    $('emos').appendChild(e); setTimeout(() => e.remove(), 1700);
+  });
 }
 function receive(g, mine) {
   back = mine || null;
   closeLetter();
   document.body.classList.add('recv');
   K.setLocked(true);
-  K.setState(g.st);
+  K.present(false);
+  K.setState(g.st, true);           // 과자는 포장된 상자 안에
+  K.dispatch({ t: 'go', s: 'pack' }, true);
+  K.setStage(true);
+  K.setView(VIEW_BOX, 0);
   $('rcTo').textContent = g.to ? g.to + '에게' : '';
   $('rcMsg').textContent = g.m;
   $('rcFrom').textContent = g.fr ? g.fr + ' 드림' : '';
   $('rcTo').hidden = !g.to; $('rcFrom').hidden = !g.fr;
-  $('rcard').hidden = true; $('recv').hidden = false;
+  $('recv').hidden = false; showLetter(false);
   setBar(false);
+}
+function endReceive() {
+  timers.forEach(clearTimeout); timers = [];
+  document.body.classList.remove('recv'); $('recv').hidden = true; $('rcard').hidden = true;
+  K.present(false); K.setStage(false); K.setView(null, 0); K.setLocked(false);
 }
 $('rcOpen').addEventListener('click', () => {
   $('rcOpen').disabled = true;
-  K.dispatch({ t: 'st', s: 'pack', d: { open: 1 } }, true);
-  setTimeout(() => { K.dispatch({ t: 'go', s: 'top' }, true); setBar(true); }, 1300);
-  setTimeout(() => { if (document.body.classList.contains('recv')) { $('rcard').hidden = false; $('rcToggle').textContent = '과자 보기'; } }, 2300);
+  K.present(true);                                             // 상자 안에서 꾸민 면이 앞을 보게 돌려 두고
+  K.dispatch({ t: 'st', s: 'pack', d: { open: 1 } }, true);     // 뚜껑이 열리면 솟아오른다
+  later(700, () => { K.dispatch({ t: 'st', s: 'pack', d: { cheer: 1 } }, true); sparkle(); });
+  later(1000, () => { K.setView(VIEW_STICK, 1000); setBar(true); });
+  later(2600, () => { if (document.body.classList.contains('recv')) showLetter(true); });
 });
-$('rcToggle').addEventListener('click', () => {
-  const show = $('rcard').hidden; $('rcard').hidden = !show; $('rcToggle').textContent = show ? '과자 보기' : '편지 보기';
-});
+$('rcToggle').addEventListener('click', () => showLetter($('rcard').hidden));
+$('rcClose').addEventListener('click', () => showLetter(false));
+$('rcard').addEventListener('click', (e) => { if (e.target === $('rcard')) showLetter(false); }); // 편지 바깥을 눌러도 접힌다
 $('rcMake').addEventListener('click', () => {
   if (!back) { location.href = location.pathname + location.search; return; }
   const st = back; back = null;
-  document.body.classList.remove('recv'); $('recv').hidden = true; $('rcard').hidden = true;
-  K.setLocked(false); K.setState(st); K.refit();
+  endReceive(); K.setState(st); K.refit();
 });
 // 서로 선물: 상대가 보낸 선물을 연다. 내 과자는 따로 두었다가 돌아오면 되돌린다.
 window.addEventListener('kitchen:gift-open', () => {

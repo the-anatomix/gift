@@ -335,8 +335,9 @@ const cam = { pos: V3(0, 5, 8), tgt: V3(0, 1, 0), off: 0 };
 let W = 1, H = 1;
 const tanHalf = Math.tan((FOV * Math.PI) / 360);
 
+let viewOverride = null; // 받은 선물 화면처럼 자리와 상관없는 구도
 function viewFor(name) {
-  const v = VIEWS[name];
+  const v = viewOverride || VIEWS[name];
   const bottomH = H - $('bottom').getBoundingClientRect().top;
   const topH = $('top').getBoundingClientRect().bottom;
   const usable = Math.max(120, H - bottomH - topH);
@@ -419,10 +420,13 @@ for (const id in STN) {
 
 const QV = new THREE.Quaternion(); // 세워 든 자세
 const QL = new THREE.Quaternion().setFromAxisAngle(V3(1, 0, 0), Math.PI / 2); // 판에 눕힌 자세
+const QF = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI, 0, 0.045)); // 손잡이를 아래로, 꾸민 면을 앞으로 (선물 보여 주기)
+let presenting = false;
 function stickPose(name) {
   const pk = mods.pack;
   if (pk && pk.slot) { // 포장했으면 상자 안, 포장 자리에서는 상자 위
     const sl = pk.slot();
+    if (presenting) return { p: V3(sl.x, sl.topY - 0.13 + STICK.L, sl.z), q: QF }; // 상자에서 솟아오른 모습
     if (pk.packed()) return { p: V3(sl.x, sl.inY, sl.z), q: QV };
     if (name === 'pack') return { p: V3(sl.x, sl.overY, sl.z), q: QV };
   }
@@ -438,6 +442,42 @@ function restick(ms, done) {
   if (!ms) { stick.position.copy(pose.p); stick.quaternion.copy(pose.q); poke(); if (done) done(); return; }
   stickTween = tween(ms, (k) => { const e = ease(k); stick.position.lerpVectors(p0, pose.p, e); stick.quaternion.slerpQuaternions(q0, pose.q, e); },
     () => { stickTween = null; if (done) done(); });
+}
+// 선물 보여 주기: 과자를 상자 안에서 뒤집어 두고, 상자가 열리면 솟아오르게 한다
+function present(on) {
+  presenting = !!on;
+  if (on && mods.pack) { const sl = mods.pack.slot(); stick.position.set(sl.x, sl.inY + STICK.L, sl.z); stick.quaternion.copy(QF); }
+  poke();
+}
+// 무대: 주방을 숨기고 선물 상자와 과자만 둥근 받침 위에 보여 준다
+let stageOn = false, stageSaved = null, stageDisc = null;
+function setStage(on) {
+  on = !!on;
+  if (on === stageOn || !mods.pack) return;
+  stageOn = on;
+  if (on) {
+    if (!stageDisc) {
+      const sl = mods.pack.slot();
+      stageDisc = new THREE.Group(); stageDisc.position.set(sl.x - 0.1, TOP_Y, sl.z + 0.12); scene.add(stageDisc);
+      put(cyl(0.64, 0.68, 0.05, 44), C.white, 0, -0.026, 0, stageDisc);
+      put(cyl(0.7, 0.72, 0.03, 44), C.accentSoft, 0, -0.066, 0, stageDisc, false);
+    }
+    const keep = new Set([stick, stageDisc, ...mods.pack.stage]);
+    stageSaved = new Map();
+    for (const o of scene.children) { if (o.isLight) continue; stageSaved.set(o, o.visible); o.visible = keep.has(o); }
+  } else {
+    for (const [o, v] of stageSaved) o.visible = v;
+    stageDisc.visible = false; stageSaved = null;
+  }
+  poke(400);
+}
+function setView(spec, ms) { // spec = { tgt:[x,y,z], dir:[x,y,z], w, h } 또는 null(자리 구도로 되돌림)
+  viewOverride = spec ? { tgt: V3(...spec.tgt), dir: V3(...spec.dir), w: spec.w, h: spec.h } : null;
+  if (travel) { tweens.delete(travel); travel = null; }
+  const to = viewFor(S.station), from = { pos: cam.pos.clone(), tgt: cam.tgt.clone(), off: cam.off };
+  const set = (k) => { cam.pos.lerpVectors(from.pos, to.pos, k); cam.tgt.lerpVectors(from.tgt, to.tgt, k); cam.off = from.off + (to.off - from.off) * k; };
+  if (!ms) { set(1); poke(); return; }
+  tween(ms, (k) => set(ease(k)));
 }
 let travel = null, locked = false;
 function go(name, instant) {
@@ -803,7 +843,8 @@ requestAnimationFrame(() => { $('loading').classList.add('done'); setTimeout(() 
 // 둘이 굽기·자동 검사에서 쓰는 창구
 export const kitchen = {
   S, CHOCO, KINDS, STICK, cleanText, dispatch, onLocal: (f) => listeners.push(f), onHand: (f) => handFns.push(f), toast, poke,
-  remoteTip, getState, setState, setLocked(v) { locked = !!v; },
+  remoteTip, getState, setState, setLocked(v) { locked = !!v; }, setStage, setView, present,
+  get stage() { return stageOn; }, get presenting() { return presenting; },
   setHomeAction(a, panel) { homeAction = a; homePanel = panel || null; panelKey = ''; renderPanel(); refit(); },
   refit, // 아래 패널 높이가 바뀌었을 때 카메라를 다시 맞춘다
   project(x, y, z) { _v.set(x, y, z).project(camera); return { x: (_v.x * 0.5 + 0.5) * W, y: (-_v.y * 0.5 + 0.5) * H }; },
