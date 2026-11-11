@@ -83,17 +83,30 @@ async function make(p, o) { // 네 자리를 정해진 정확도로 만든다
     await tab(A, '포장');
     check('포장 자리에 점수 요약이 보임 (★ 셋, ☆ 하나)', /반죽 ★ 자르기 ★ 굽기 ☆ 초콜릿 ★/.test(await A.textContent('#panel')), await A.textContent('#panel'));
     await A.tap('#packDone'); await until(() => A.isVisible('#letter'), 15000);
-    check('하나라도 완벽이 아니면 칭호 없음', (await A.evaluate(() => window.__kitchen.getState().x.pack.seal)) === 0 && !(await A.evaluate(() => /[?&#]/.test('') || JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(window.__gift.giftText().replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0)))).q)));
-    await A.tap('#ltClose'); await A.tap('#packOpen'); await sleep(1200);
+    await A.tap('#ltClose'); await sleep(300);
+    check('★ 셋이면 "고급 수제 초콜릿" (최고급은 아님)', (await A.evaluate(() => window.__kitchen.getState().x.pack.seal)) === 1 && /🎖 고급 수제 초콜릿/.test(await A.textContent('#panel')));
+    const urlS = await A.evaluate(() => { document.getElementById('ltMsg').value = '고급'; return window.__gift.giftUrl(); });
+    await A.screenshot({ path: path.join(__dirname, 'out', 'title-silver.png') });
+    await A.tap('#packOpen'); await sleep(1200);
+    await make(A, { dough: 0, cut: 0, oven: 0.7, dip: 0.52 });
+    check('★ 하나뿐이면 칭호 없음', (await q(A)).tier === 0);
+    await st(A, 'dough', { reset: true });
+    await ev(A, { t: 'go', s: 'home' }); await sleep(1100);
+    if (await A.isVisible('#chooseSolo')) { await A.tap('#chooseSolo'); await sleep(300); }
+    check('전체 화면에 다음 차례 안내 ("다음 차례: 반죽하기")', (await A.textContent('#panel')).includes('다음 차례: 반죽하기') && (await A.isVisible('#homeNext')));
+    check('탭에 진행 표시 (자르기 ☆, 초콜릿 ★, 반죽은 다음 차례)', await A.evaluate(() => { const t = [...document.querySelectorAll('#tabs button')]; const f = (n) => t.find((b) => b.textContent === n); return f('자르기').dataset.g === '1' && f('초콜릿').dataset.g === '2' && f('반죽').classList.contains('next'); }));
+    await A.screenshot({ path: path.join(__dirname, 'out', 'title-home.png') });
+    await A.tap('#homeNext'); await sleep(1100);
+    check('"하러 가기"를 누르면 그 자리로 이동', (await A.evaluate(() => window.__kitchen.S.station)) === 'dough');
 
     // 칭호 받고 포장
     await make(A, { dough: 1, cut: 1, oven: 0.675, dip: 0.52 });
     await tab(A, '전체'); await tab(A, '포장');
-    check('모두 완벽이면 요약에 "모두 완벽!"', (await A.textContent('#panel')).includes('모두 완벽'));
+    check('모두 완벽이면 요약에 "최고급 수제!"', (await A.textContent('#panel')).includes('최고급 수제!'));
     await A.tap('#packDone'); await until(() => A.isVisible('#letter'), 15000);
     await A.fill('#ltMsg', '완벽하게 만들었어'); const url = await A.evaluate(() => window.__gift.giftUrl());
     await A.tap('#ltClose'); await sleep(300);
-    check('모두 완벽이면 "최고급 수제 초콜릿" 칭호', (await A.evaluate(() => window.__kitchen.getState().x.pack.seal)) === 1 && (await A.textContent('#panel')).includes('최고급 수제 초콜릿'));
+    check('모두 완벽이면 "최고급 수제 초콜릿" 칭호', (await A.evaluate(() => window.__kitchen.getState().x.pack.seal)) === 2 && (await A.textContent('#panel')).includes('최고급 수제 초콜릿'));
     await A.screenshot({ path: path.join(__dirname, 'out', 'title-pack.png') });
 
     const ctx2 = await browser.newContext({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true });
@@ -101,9 +114,11 @@ async function make(p, o) { // 네 자리를 정해진 정확도로 만든다
     await sleep(700);
     check('받는 사람 화면에 칭호 표시', (await R.isVisible('#rcTitle')) && (await R.textContent('#rcTitle')).includes('최고급 수제 초콜릿'));
     await R.screenshot({ path: path.join(__dirname, 'out', 'title-recv.png') });
-    await R.tap('#rcOpen'); await until(() => R.isVisible('#rcard'), 9000); await sleep(700);
+    await R.tap('#rcOpen'); await until(() => R.isVisible('#env'), 9000); await R.tap('#env'); await until(() => R.isVisible('#rcard'), 4000); await sleep(700);
     check('편지지에도 칭호 도장', await R.isVisible('#rcStamp'));
     await R.screenshot({ path: path.join(__dirname, 'out', 'title-letter.png') });
+    const S2 = await open(ctx2, urlS); await sleep(600);
+    check('고급 수제 선물은 받는 화면에 "고급 수제 초콜릿"으로 표시', (await S2.textContent('#rcTitle')).includes('🎖 고급 수제 초콜릿'));
     await ctx2.close(); await ctx.close();
   } catch (e) { check('검사 도중 오류 없음', false, String(e && e.message).slice(0, 300)); }
   await browser.close(); server.close();

@@ -71,7 +71,8 @@ async function packAndGive(p, msg) {
     await B.tap('#giftOpen'); await sleep(900);
     check('열면 A 의 과자와 상자가 보임 (탭은 숨김)', (await n(B)) === 5 && (await B.isVisible('#rcOpen')) && !(await B.isVisible('#tabs')));
     await B.tap('#rcOpen');
-    check('상자를 열면 A 의 편지가 나타남', await until(() => B.isVisible('#rcard'), 8000) && (await B.textContent('#rcMsg')) === 'A 가 B 에게');
+    await until(() => B.isVisible('#env'), 8000); await B.tap('#env');
+    check('상자를 열고 봉투를 누르면 A 의 편지가 나타남', await until(() => B.isVisible('#rcard'), 8000) && (await B.textContent('#rcMsg')) === 'A 가 B 에게');
     check('돌아가는 버튼이 "내 주방으로"', (await B.textContent('#rcMake')) === '내 주방으로');
     if (await B.isVisible('#rcard')) await B.tap('#rcClose');
     await B.tap('#rcMake'); await sleep(900);
@@ -82,6 +83,7 @@ async function packAndGive(p, msg) {
     await packAndGive(B, 'B 가 A 에게'); await B.tap('#ltGive');
     check('반대 방향도 선물 가능 (A 에 도착)', await until(() => A.isVisible('#giftOpen')));
     await A.tap('#giftOpen'); await sleep(900); await A.tap('#rcOpen');
+    await until(() => A.isVisible('#env'), 8000); await A.tap('#env');
     check('A 가 B 의 과자와 편지를 봄', await until(() => A.isVisible('#rcard'), 8000) && (await A.textContent('#rcMsg')) === 'B 가 A 에게' && (await n(A)) === 8);
     if (await A.isVisible('#rcard')) await A.tap('#rcClose');
     await A.tap('#rcMake'); await sleep(900);

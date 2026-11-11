@@ -16,6 +16,7 @@
   --choc:#5A3824; --accent:#D9483B;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
 html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:var(--bg);color:var(--ink);
   font-family:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif}
 body{position:fixed;inset:0;background:radial-gradient(120% 80% at 50% 30%,#FFFBF2 0%,#FBEFD9 60%,#F3E0C2 100%);
@@ -121,12 +122,33 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 .sheet .main{background:var(--choc);border-color:var(--choc);color:#FFF4E0}
 .sheet #ltGive{flex:1}
 /* 편지지: 줄 노트에 손글씨 */
-.letterpaper{position:relative;width:100%;max-width:400px;max-height:100%;overflow:auto;border-radius:5px;
+.letterpaper{transform-origin:86% 100%;position:relative;width:100%;max-width:400px;max-height:100%;overflow:auto;border-radius:5px;
   padding:30px 22px 24px 38px;color:#3B2619;font-family:"Gaegu","Nanum Pen Script","Noto Sans KR",cursive;font-size:23px;line-height:36px;
   background:linear-gradient(90deg,transparent 26px,rgba(217,72,59,.28) 26px,rgba(217,72,59,.28) 27.5px,transparent 27.5px),
     linear-gradient(transparent 35px,#E9DBC2 35px) 0 30px/100% 36px,#FFFDF6;background-attachment:local;
   box-shadow:0 16px 36px rgba(43,29,20,.3),0 1px 0 rgba(90,56,36,.08);transform:rotate(-1.2deg);animation:paperIn .5s cubic-bezier(.2,.9,.3,1.15)}
-@keyframes paperIn{from{transform:translateY(60px) rotate(3deg) scale(.86);opacity:0}to{transform:rotate(-1.2deg);opacity:1}}
+@keyframes paperIn{from{transform:translate(34%,46%) rotate(8deg) scale(.16);opacity:0}60%{opacity:1}to{transform:rotate(-1.2deg);opacity:1}}
+@keyframes paperOut{from{transform:rotate(-1.2deg);opacity:1}to{transform:translate(34%,46%) rotate(8deg) scale(.16);opacity:0}}
+#rcard.closing{background:transparent;transition:background .3s}
+#rcard.closing .letterpaper{animation:paperOut .32s ease-in forwards}
+/* 봉투: 누르면 열리며 편지가 나오고, 다시 누르면 편지가 들어간다 */
+#env{position:absolute;right:16px;bottom:calc(var(--barh,96px) + 16px);width:108px;height:74px;padding:0;border:0;background:none;cursor:pointer;z-index:3;
+  animation:envIn .7s cubic-bezier(.2,.9,.3,1.35);filter:drop-shadow(0 8px 12px rgba(43,29,20,.28))}
+#env[hidden]{display:none}
+@keyframes envIn{from{transform:translateY(40px) scale(.4) rotate(-14deg);opacity:0}to{transform:none;opacity:1}}
+#env .b{position:absolute;inset:0;border-radius:9px;background:linear-gradient(#FFF6E4,#F8E6C8);border:1.5px solid #E6D2B0}
+#env .b::before,#env .b::after{content:"";position:absolute;bottom:0;width:50%;height:62%;background:#F3DDBA;opacity:.75}
+#env .b::before{left:0;clip-path:polygon(0 0,100% 100%,0 100%)}#env .b::after{right:0;clip-path:polygon(100% 0,100% 100%,0 100%)}
+#env .f{position:absolute;left:1.5px;right:1.5px;top:1.5px;height:58%;background:#F5DCB6;clip-path:polygon(0 0,100% 0,50% 100%);border-radius:8px 8px 0 0;
+  transform-origin:50% 0;transition:transform .32s ease}
+#env .s{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-11px 0 0 -13px;border-radius:50%;background:var(--accent);color:#FFF4E0;
+  font-size:13px;line-height:26px;text-align:center;transition:opacity .2s}
+#env .p{position:absolute;left:12px;right:12px;top:10px;height:58%;border-radius:4px;background:#FFFDF6;border:1px solid #EADCC6;transition:transform .32s ease}
+#env.open .f{transform:scaleY(-1)}
+#env.open .s{opacity:0}
+#env.open .p{transform:translateY(-16px)}
+#env:not(.open){animation:envIn .7s cubic-bezier(.2,.9,.3,1.35),envNudge 2.6s 1.2s ease-in-out 3}
+@keyframes envNudge{0%,86%,100%{transform:none}90%{transform:rotate(-6deg) translateY(-3px)}95%{transform:rotate(5deg)}}
 .letterpaper .tape{position:sticky;display:block;top:-30px;margin:-30px auto 4px;width:92px;height:24px;background:rgba(217,72,59,.5);
   transform:rotate(-3deg) translateY(-8px);border-radius:2px;box-shadow:0 1px 2px rgba(43,29,20,.15)}
 .letterpaper .x{position:absolute;right:2px;top:2px;width:44px;height:44px;border:0;background:none;font-size:18px;color:#8A7868;cursor:pointer}
@@ -138,6 +160,13 @@ button{font:inherit;color:inherit;touch-action:manipulation}
   font-family:"Noto Sans KR",sans-serif;font-size:11px;font-weight:900;line-height:1.25;text-align:center;transform:rotate(-8deg);opacity:.9}
 .titlechip{flex:1;text-align:center;padding:7px 10px;border-radius:12px;background:linear-gradient(135deg,#F9E3A2,#E7B441);color:#4A3312;
   font-size:14px;font-weight:900;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55)}
+.titlechip.silver{background:linear-gradient(135deg,#F1F2F4,#C3C7CE);color:#3A3F47}
+/* 탭의 진행 표시: ☆ 완성, ★ 완벽, 점은 다음 차례 */
+#tabs button{position:relative}
+#tabs button[data-g="1"]::after,#tabs button[data-g="2"]::after{position:absolute;top:1px;right:3px;font-size:10px;line-height:1}
+#tabs button[data-g="1"]::after{content:"☆";color:#B39B84}
+#tabs button[data-g="2"]::after{content:"★";color:#E0A21B}
+#tabs button.next:not([aria-selected=true])::before{content:"";position:absolute;top:5px;left:50%;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--accent)}
 /* 편지 쓰는 칸도 같은 편지지 */
 .sheet textarea{font-family:"Gaegu","Nanum Pen Script","Noto Sans KR",cursive;font-size:21px;line-height:32px;min-height:140px;border-radius:6px;padding:6px 12px 6px 30px;
   background:linear-gradient(90deg,transparent 20px,rgba(217,72,59,.28) 20px,rgba(217,72,59,.28) 21.5px,transparent 21.5px),
@@ -181,16 +210,16 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels,body.recv #top
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="bottom">
   <div id="recv" hidden>
-    <div class="row" id="rcTitle" hidden><span class="titlechip">🏅 최고급 수제 초콜릿</span></div>
+    <div class="row" id="rcTitle" hidden><span class="titlechip" id="rcChip">🏅 최고급 수제 초콜릿</span></div>
     <div class="row"><div class="hint" id="rcHint">선물이 도착했어요.</div>
       <button type="button" class="btn main" id="rcOpen">열어 보기</button>
-      <button type="button" class="btn" id="rcToggle" hidden>💌 편지 열기</button>
       <button type="button" class="btn main" id="rcMake" hidden>나도 만들기</button></div>
   </div>
   <div id="duo" hidden></div>
   <div id="panel"></div>
   <nav id="tabs" role="tablist" aria-label="자리 이동"></nav>
 </div>
+<button type="button" id="env" hidden aria-label="봉투를 열어 편지 읽기"><span class="p"></span><span class="b"></span><span class="f"></span><span class="s">♥</span></button>
 <div id="rcard" hidden>
   <div class="letterpaper" role="dialog" aria-label="편지">
     <span class="tape"></span>

@@ -14,7 +14,7 @@ const b64 = {
 
 function giftText() {
   const st = K.getState();
-  const o = { v: 1, s: packState(st), b: (st.x.pack && st.x.pack.box) | 0, q: st.x.pack && st.x.pack.seal ? 1 : 0, to: clip($('ltTo').value.trim(), LIM.to), fr: clip($('ltFrom').value.trim(), LIM.fr), m: clip($('ltMsg').value.trim(), LIM.m) };
+  const o = { v: 1, s: packState(st), b: (st.x.pack && st.x.pack.box) | 0, q: (st.x.pack && st.x.pack.seal) | 0, to: clip($('ltTo').value.trim(), LIM.to), fr: clip($('ltFrom').value.trim(), LIM.fr), m: clip($('ltMsg').value.trim(), LIM.m) };
   return b64.enc(JSON.stringify(o));
 }
 const giftUrl = () => location.origin + location.pathname + '#g=' + giftText();
@@ -22,8 +22,9 @@ function readGift(txt) {
   const o = JSON.parse(b64.dec(txt));
   if (!o || o.v !== 1 || typeof o.s !== 'string') throw new Error('gift');
   const st = unpackState(o.s);
-  st.station = 'pack'; st.x = st.x || {}; st.x.pack = { box: o.b | 0, packed: 1, seal: o.q ? 1 : 0 };
-  return { st, q: !!o.q, to: clip(o.to, LIM.to), fr: clip(o.fr, LIM.fr), m: clip(o.m, LIM.m) };
+  st.station = 'pack'; st.x = st.x || {}; const q = o.q === 2 ? 2 : o.q ? 1 : 0; // 2 최고급 수제, 1 고급 수제
+  st.x.pack = { box: o.b | 0, packed: 1, seal: q };
+  return { st, q, to: clip(o.to, LIM.to), fr: clip(o.fr, LIM.fr), m: clip(o.m, LIM.m) };
 }
 
 /* ───────── 편지 쓰기 ───────── */
@@ -45,21 +46,30 @@ $('ltGive').addEventListener('click', () => { // 서로 선물: 연결된 상대
 });
 
 /* ───────── 받은 선물 ───────── */
-let best = false; // 칭호를 받은 선물인가
+let best = 0; // 받은 선물의 칭호 (0 없음, 1 고급, 2 최고급)
 let back = null; // 서로 선물에서 받은 선물을 보고 내 주방으로 돌아갈 때 쓰는 내 상태
 // 받은 선물은 주방 없이 무대 위에서만 보여 준다
 const VIEW_BOX = { tgt: [0.52, 1.42, -1.72], dir: [0.1, 0.34, 1], w: 1.5, h: 1.55 };
 const VIEW_STICK = { tgt: [0.6, 2.02, -1.82], dir: [0.04, 0.16, 1], w: 0.8, h: 1.3 };
 let timers = [];
 const later = (ms, fn) => timers.push(setTimeout(fn, ms));
+// 편지는 봉투에서 꺼내고, 다시 봉투로 넣는다
+let closing = 0;
 function showLetter(on) {
-  $('rcard').hidden = !on;
-  $('rcToggle').textContent = on ? '편지 접기' : '💌 편지 열기';
+  clearTimeout(closing);
+  const card = $('rcard'), env = $('env');
+  env.classList.toggle('open', on);
+  env.setAttribute('aria-label', on ? '편지를 봉투에 넣기' : '봉투를 열어 편지 읽기');
+  if (on) { card.classList.remove('closing'); card.hidden = false; return; }
+  if (card.hidden) return;
+  card.classList.add('closing');                      // 봉투 쪽으로 들어가는 움직임이 끝난 뒤 숨긴다
+  closing = setTimeout(() => { card.hidden = true; card.classList.remove('closing'); }, 320);
 }
 function setBar(opened) {
-  $('rcOpen').hidden = opened; $('rcOpen').disabled = false; $('rcToggle').hidden = !opened; $('rcMake').hidden = !opened;
-  $('rcHint').textContent = opened ? (best ? '완벽하게 만든 막대과자예요.' : '직접 구운 막대과자예요.') : '선물이 도착했어요.';
+  $('rcOpen').hidden = opened; $('rcOpen').disabled = false; $('rcMake').hidden = !opened;
+  $('rcHint').textContent = opened ? (best === 2 ? '완벽하게 만든 막대과자예요.' : best ? '정성껏 만든 막대과자예요.' : '직접 구운 막대과자예요.') : '선물이 도착했어요.';
   $('rcMake').textContent = back ? '내 주방으로' : '나도 만들기';
+  document.documentElement.style.setProperty('--barh', $('bottom').offsetHeight + 'px'); // 봉투를 아래 막대 바로 위에 둔다
   K.refit();
 }
 function sparkle() {
@@ -84,12 +94,14 @@ function receive(g, mine) {
   $('rcFrom').textContent = g.fr ? g.fr + ' 드림' : '';
   $('rcTo').hidden = !g.to; $('rcFrom').hidden = !g.fr;
   $('rcTitle').hidden = !g.q; $('rcStamp').hidden = !g.q; best = g.q;
-  $('recv').hidden = false; showLetter(false);
+  $('rcChip').textContent = g.q === 2 ? '🏅 최고급 수제 초콜릿' : '🎖 고급 수제 초콜릿'; $('rcChip').classList.toggle('silver', g.q === 1);
+  $('rcStamp').textContent = ''; $('rcStamp').appendChild(document.createTextNode(g.q === 2 ? '최고급' : '고급')); $('rcStamp').appendChild(document.createElement('br')); $('rcStamp').appendChild(document.createTextNode('수제 초콜릿'));
+  $('recv').hidden = false; $('rcard').hidden = true; $('env').hidden = true; $('env').classList.remove('open');
   setBar(false);
 }
 function endReceive() {
   timers.forEach(clearTimeout); timers = [];
-  document.body.classList.remove('recv'); $('recv').hidden = true; $('rcard').hidden = true;
+  document.body.classList.remove('recv'); $('recv').hidden = true; $('rcard').hidden = true; $('env').hidden = true;
   K.present(false); K.setStage(false); K.setView(null, 0); K.setLocked(false);
 }
 $('rcOpen').addEventListener('click', () => {
@@ -98,9 +110,9 @@ $('rcOpen').addEventListener('click', () => {
   K.dispatch({ t: 'st', s: 'pack', d: { open: 1 } }, true);     // 뚜껑이 열리면 솟아오른다
   later(700, () => { K.dispatch({ t: 'st', s: 'pack', d: { cheer: 1 } }, true); sparkle(); });
   later(1000, () => { K.setView(VIEW_STICK, 1000); setBar(true); });
-  later(2600, () => { if (document.body.classList.contains('recv')) showLetter(true); });
+  later(2100, () => { if (document.body.classList.contains('recv')) { $('env').hidden = false; $('rcHint').textContent = '봉투를 눌러 편지를 읽어 보세요.'; } });
 });
-$('rcToggle').addEventListener('click', () => showLetter($('rcard').hidden));
+$('env').addEventListener('click', () => showLetter(!$('env').classList.contains('open')));
 $('rcClose').addEventListener('click', () => showLetter(false));
 $('rcard').addEventListener('click', (e) => { if (e.target === $('rcard')) showLetter(false); }); // 편지 바깥을 눌러도 접힌다
 $('rcMake').addEventListener('click', () => {

@@ -259,8 +259,24 @@ function chocoGrade() {
 }
 function grades() {
   const q = { dough: mods.dough.grade(), cut: mods.cut.grade(), oven: mods.oven.grade(), choco: chocoGrade() };
-  q.perfect = q.dough === 2 && q.cut === 2 && q.oven === 2 && q.choco === 2;
+  const all = [q.dough, q.cut, q.oven, q.choco], stars = all.filter((v) => v === 2).length;
+  q.perfect = stars === 4;
+  q.tier = stars === 4 ? 2 : (all.every((v) => v >= 1) && stars >= 2 ? 1 : 0); // 2 최고급 수제, 1 고급 수제
   return q;
+}
+// 만드는 순서와 자리별 진행 (탭의 ☆★ 표시, 전체 화면의 다음 차례 안내에 쓴다)
+const ORDER = ['dough', 'cut', 'oven', 'choco', 'top', 'pack'];
+let tabsReady = false;
+function progress() {
+  const q = grades();
+  const pr = { dough: q.dough, cut: q.cut, oven: q.oven, choco: q.choco, top: S.grains.length || S.text ? 1 : 0, pack: mods.pack.packed() ? 1 : 0 };
+  pr.next = ORDER.find((id) => !pr[id]) || null;
+  return pr;
+}
+function updateTabs() {
+  if (!tabsReady) return;
+  const pr = progress();
+  for (const id of ORDER) { tabEls[id].dataset.g = pr[id] ? String(pr[id]) : ''; tabEls[id].classList.toggle('next', pr.next === id); }
 }
 function surfR(s) {
   let r = STICK.R;
@@ -298,6 +314,7 @@ function drawGrains(now) {
 const listeners = [];
 function dispatch(a, remote = false) {
   apply(a);
+  updateTabs();
   if (!remote) for (const f of listeners) f(a);
   poke(400);
 }
@@ -546,7 +563,12 @@ function renderPanel() {
   if (s === 'home' && homePanel) {
     homePanel(p, { el, button, hintEl });
   } else if (s === 'home') {
-    const r = el('div', 'row'); r.appendChild(hintEl('자리를 눌러 가까이 가 보세요.', '반죽부터 토핑까지 차례로 해 볼 수 있어요.'));
+    const r = el('div', 'row');
+    const pr = progress();
+    r.appendChild(hintEl(pr.next ? '다음 차례: ' + STN[pr.next].title : '선물이 완성됐어요!', pr.next ? '탭의 ☆ 는 완성, ★ 는 완벽이에요.' : '포장 자리에서 편지를 써서 보내 보세요.'));
+    const nb = button('btn', pr.next ? '하러 가기' : '포장 보기', () => dispatch({ t: 'go', s: pr.next || 'pack' })); nb.id = 'homeNext';
+    nb.style.cssText = 'background:var(--choc);border-color:var(--choc);color:#FFF4E0';
+    r.appendChild(nb);
     if (homeAction) { const b = button('btn', homeAction.label, homeAction.fn); b.id = 'homeAction'; r.appendChild(b); }
     p.appendChild(r);
   } else if (mods[s] && mods[s].panel) {
@@ -659,6 +681,7 @@ function setState(st, keepStation) {
   S.backup = null; S.text = cleanText(st.text); S.tc = TEXT_COLORS[st.tc] ? st.tc | 0 : -1;
   for (const id in mods) if (mods[id].set) mods[id].set(st.x ? st.x[id] : undefined);
   drawCoat(); drawText();
+  updateTabs();
   if (!keepStation && STN[st.station] && st.station !== S.station) go(st.station); else renderPanel();
   poke(400);
 }
@@ -850,6 +873,7 @@ canvas.addEventListener('webglcontextrestored', () => { poke(500); raf = request
 drawCoat();
 resize();
 go('home', true);
+tabsReady = true; updateTabs();
 raf = requestAnimationFrame(frame);
 requestAnimationFrame(() => { $('loading').classList.add('done'); setTimeout(() => $('loading').remove(), 500); });
 

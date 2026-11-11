@@ -9,8 +9,8 @@ export default function (kit) {
     { name: '초콜릿', hex: C.choc, ribbon: C.accent },
     { name: '분홍', hex: 0xF4B6C0, ribbon: 0xFFF6E2 },
   ];
-  const TITLE = '최고급 수제 초콜릿';
-  let box = 0, packed = false, busy = false, mine = false, seal = false;
+  const TITLES = ['', '고급 수제 초콜릿', '최고급 수제 초콜릿']; // 칭호 두 단계
+  let box = 0, packed = false, busy = false, mine = false, seal = 0;
 
   /* ── 상자 ── */
   const g = new THREE.Group(); g.position.set(POS.x, TOP_Y, POS.z); g.rotation.y = -0.12; scene.add(g);
@@ -27,9 +27,14 @@ export default function (kit) {
   put(new THREE.BoxGeometry(0.2, 0.26, 0.004), C.white, 0, BOX.h * 0.42, BOX.d / 2 + T / 2 + 0.002, g, false); // 이름표
   // 금박 딱지: 네 가지를 모두 완벽하게 만들었을 때만 붙는다
   const sealG = new THREE.Group(); sealG.position.set(0, BOX.h * 0.42, BOX.d / 2 + T / 2 + 0.006); sealG.rotation.x = Math.PI / 2; g.add(sealG); sealG.visible = false;
-  put(cyl(0.085, 0.085, 0.008, 12), 0xE7B441, 0, 0, 0, sealG, false);
-  put(cyl(0.062, 0.062, 0.012, 24), 0xF6D77A, 0, 0, 0, sealG, false);
-  put(cyl(0.03, 0.03, 0.016, 5), 0xE7B441, 0, 0, 0, sealG, false);
+  const sealA = new THREE.MeshLambertMaterial({ color: 0xE7B441 }), sealB = new THREE.MeshLambertMaterial({ color: 0xF6D77A });
+  put(cyl(0.085, 0.085, 0.008, 12), sealA, 0, 0, 0, sealG, false);
+  put(cyl(0.062, 0.062, 0.012, 24), sealB, 0, 0, 0, sealG, false);
+  put(cyl(0.03, 0.03, 0.016, 5), sealA, 0, 0, 0, sealG, false);
+  function showSeal() { // 최고급은 금박, 고급은 은박
+    sealG.visible = seal > 0; sealG.scale.setScalar(seal === 2 ? 1 : 0.8);
+    sealA.color.setHex(seal === 2 ? 0xE7B441 : 0xB9BCC2); sealB.color.setHex(seal === 2 ? 0xF6D77A : 0xE6E8EC);
+  }
   // 뚜껑: 뒤쪽 모서리를 축으로 열린다
   const lid = new THREE.Group(); lid.position.set(0, BOX.h, -BOX.d / 2); g.add(lid);
   put(rbox(BOX.w + 0.03, 0.03, BOX.d + 0.03, 0.01), boxMat, 0, 0.015, BOX.d / 2, lid);
@@ -70,7 +75,7 @@ export default function (kit) {
     kit.poke(300);
   }
   function settle() { // 움직임 없이 지금 상태대로 놓기
-    lid.rotation.x = packed ? 0 : OPEN; ribbon.visible = packed; ribbon.scale.setScalar(1); busy = false; sealG.visible = seal;
+    lid.rotation.x = packed ? 0 : OPEN; ribbon.visible = packed; ribbon.scale.setScalar(1); busy = false; showSeal();
     paint(); kit.restick(0);
   }
   function doPack() {
@@ -78,8 +83,8 @@ export default function (kit) {
     if (!kit.active()) { settle(); return; }
     kit.restick(650, () => {
       kit.tween(320, (k) => { lid.rotation.x = OPEN * (1 - kit.ease(k)); }, () => {
-        ribbon.visible = true; sealG.visible = seal;
-        if (seal && kit.active()) kit.toast(TITLE + ' 칭호를 받았어요!');
+        ribbon.visible = true; showSeal();
+        if (seal && kit.active()) kit.toast(TITLES[seal] + ' 칭호를 받았어요!');
         kit.tween(300, (k) => { ribbon.scale.setScalar(Math.max(0.01, kit.easeBack(k))); });
         hop(3, () => {
           busy = false; kit.repaint();
@@ -107,7 +112,7 @@ export default function (kit) {
     panel(p, ui) {
       const r = ui.el('div', 'row');
       if (packed) {
-        r.appendChild(ui.hintEl(busy ? '포장하는 중…' : seal ? '🏅 ' + TITLE : '포장 완료!', busy ? '반죽이가 좋아하고 있어요.' : seal ? '네 가지를 모두 완벽하게 해냈어요. 편지를 써서 보내 보세요.' : '편지를 써서 링크로 보내 보세요.'));
+        r.appendChild(ui.hintEl(busy ? '포장하는 중…' : seal ? (seal === 2 ? '🏅 ' : '🎖 ') + TITLES[seal] : '포장 완료!', busy ? '반죽이가 좋아하고 있어요.' : seal === 2 ? '네 가지를 모두 완벽하게 해냈어요. 편지를 써서 보내 보세요.' : seal ? '정성껏 잘 만들었어요. 편지를 써서 보내 보세요.' : '편지를 써서 링크로 보내 보세요.'));
         p.appendChild(r);
         const r2 = ui.el('div', 'row');
         const w = ui.button('btn', '편지 쓰기', () => window.dispatchEvent(new CustomEvent('kitchen:letter'))); w.id = 'packLetter'; mainStyle(w); w.disabled = busy;
@@ -116,8 +121,8 @@ export default function (kit) {
         return;
       }
       const q = kit.grades(), mk = (v) => (v === 2 ? '★' : v === 1 ? '☆' : '·');
-      r.appendChild(ui.hintEl('상자를 고르고 포장해 보세요.', `반죽 ${mk(q.dough)} 자르기 ${mk(q.cut)} 굽기 ${mk(q.oven)} 초콜릿 ${mk(q.choco)}` + (q.perfect ? ' · 모두 완벽!' : ' · ★ 넷이면 칭호')));
-      const done = ui.button('btn', '포장 완료', () => { mine = true; kit.send({ pack: 1, seal: kit.grades().perfect ? 1 : 0 }); }); done.id = 'packDone';
+      r.appendChild(ui.hintEl('상자를 고르고 포장해 보세요.', `반죽 ${mk(q.dough)} 자르기 ${mk(q.cut)} 굽기 ${mk(q.oven)} 초콜릿 ${mk(q.choco)}` + (q.tier === 2 ? ' · 최고급 수제!' : q.tier === 1 ? ' · 고급 수제! (★ 넷이면 최고급)' : ' · 다 하고 ★ 둘이면 고급, 넷이면 최고급')));
+      const done = ui.button('btn', '포장 완료', () => { mine = true; kit.send({ pack: 1, seal: kit.grades().tier }); }); done.id = 'packDone';
       mainStyle(done); done.style.flex = 'none'; done.style.minWidth = '104px';
       r.appendChild(done); p.appendChild(r);
       const r2 = ui.el('div', 'row');
@@ -132,14 +137,14 @@ export default function (kit) {
     enter() { if (!busy) { lid.rotation.x = packed ? 0 : OPEN; ribbon.visible = packed; } },
     apply(d) {
       if (typeof d.box === 'number' && BOXES[d.box]) { box = d.box; paint(); kit.repaint(); }
-      if (d.pack && !packed) { seal = !!d.seal; doPack(); }
+      if (d.pack && !packed) { seal = d.seal === 2 ? 2 : d.seal ? 1 : 0; doPack(); }
       if (d.open && packed) doOpen();
       if (d.cheer) hop(2);
     },
-    get() { return { box, packed: packed ? 1 : 0, seal: seal ? 1 : 0 }; },
-    title: TITLE,
+    get() { return { box, packed: packed ? 1 : 0, seal }; },
+    titles: TITLES,
     set(v) {
-      box = v && BOXES[v.box] ? v.box | 0 : 0; packed = !!(v && v.packed); seal = !!(v && v.seal && packed); mine = false;
+      box = v && BOXES[v.box] ? v.box | 0 : 0; packed = !!(v && v.packed); seal = v && packed ? (v.seal === 2 ? 2 : v.seal ? 1 : 0) : 0; mine = false;
       settle(); kit.repaint();
     },
   };
