@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>놀자방 · 친구랑 노는 미니게임</title>
+<meta name="description" content="심심할 때도, 기념일에도 열리는 놀이방. 친구랑, 연인이랑, 혼자서도 링크 하나로.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="놀자방 · 친구랑 노는 미니게임">
+<meta property="og:description" content="심심할 때도, 기념일에도 열리는 놀이방. 링크 하나로 같이 놀아요.">
+<meta property="og:url" content="https://the-anatomix.github.io/gift/nolja/">
+<meta name="theme-color" content="#FFF8EC">
+<meta name="color-scheme" content="light">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  /* 놀자방 홈: 게임(방) 목록. 새 방은 아래 ROOMS 에 한 줄 넣는다. */
+  :root {
+    --bg: #FFF8EC; --paper: #FFFDF8; --choc: #5A3824; --choc-soft: #8A6A55;
+    --accent: #D9483B; --accent-soft: #F6D6CF; --dough: #F7D48F; --line: #EADCC6;
+    --mint: #3E9A7E; --mint-soft: #D9F0E7; --shadow: 0 2px 0 #EADCC6, 0 10px 24px rgba(90,56,36,.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    background-image: radial-gradient(#F1E2C8 1.2px, transparent 1.2px);
+    background-size: 22px 22px;
+    color: var(--choc);
+    font-family: 'Noto Sans KR', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 460px; margin: 0 auto; padding: max(20px, env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom)); }
+
+  /* 간판 */
+  .sign { text-align: center; padding: 18px 0 6px; }
+  .mascot { width: 104px; height: 104px; display: block; margin: 0 auto -6px; animation: bob 2.6s ease-in-out infinite; }
+  @keyframes bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-5px) } }
+  .board {
+    display: inline-block; position: relative;
+    background: var(--choc); color: #FFF3DA;
+    font-family: 'Jua', sans-serif; font-size: 44px; letter-spacing: 2px; line-height: 1;
+    padding: 14px 28px 12px; border-radius: 18px;
+    box-shadow: 0 4px 0 #3B2619, 0 14px 28px rgba(59,38,25,.22);
+  }
+  .board::before, .board::after {
+    content: ""; position: absolute; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; border-radius: 50%;
+    background: var(--dough); box-shadow: 0 0 0 3px rgba(247,212,143,.25);
+  }
+  .board::before { left: 10px; } .board::after { right: 10px; }
+  .board .dot { color: var(--accent); }
+  .tag { margin: 16px 0 4px; font-size: 17px; font-weight: 700; }
+  .sub { margin: 0; font-size: 14px; color: var(--choc-soft); }
+  .who { display: flex; justify-content: center; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+  .chip {
+    font-size: 13px; font-weight: 700; padding: 6px 11px; border-radius: 999px;
+    background: var(--paper); border: 1.5px solid var(--line);
+  }
+
+  /* 방 목록 */
+  h2 { font-family: 'Jua', sans-serif; font-weight: 400; font-size: 20px; margin: 30px 2px 10px; display: flex; align-items: center; gap: 8px; }
+  h2 .live { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); animation: blink 1.6s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: .35 } }
+  .rooms { display: grid; gap: 12px; }
+  .room {
+    display: grid; grid-template-columns: 64px 1fr; gap: 14px; align-items: center;
+    background: var(--paper); border: 1.5px solid var(--line); border-radius: 20px;
+    padding: 14px; text-decoration: none; color: inherit; box-shadow: var(--shadow);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  a.room:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--line); }
+  .icon {
+    width: 64px; height: 64px; border-radius: 16px; display: grid; place-items: center;
+    font-size: 34px; background: var(--dough);
+  }
+  .room .name { font-weight: 900; font-size: 17px; margin: 0 0 3px; }
+  .room .desc { font-size: 13.5px; color: var(--choc-soft); margin: 0; line-height: 1.45; }
+  .meta { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+  .meta span { font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: var(--mint-soft); color: var(--mint); }
+  .meta span.day { background: var(--accent-soft); color: var(--accent); }
+  .enter {
+    grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    min-height: 48px; border-radius: 14px; background: var(--accent); color: #fff;
+    font-family: 'Jua', sans-serif; font-size: 19px; letter-spacing: .5px;
+    box-shadow: 0 3px 0 #A8352B;
+  }
+  .room.soon { box-shadow: none; background: rgba(255,253,248,.6); border-style: dashed; }
+  .room.soon .icon { background: #F1E7D6; filter: grayscale(.35); opacity: .8; }
+  .room.soon .name { color: var(--choc-soft); }
+  .room.soon .meta span { background: #F1E7D6; color: var(--choc-soft); }
+
+  /* 노는 법 */
+  .how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .step { background: var(--paper); border: 1.5px solid var(--line); border-radius: 16px; padding: 12px 8px; text-align: center; }
+  .step b { display: block; font-size: 26px; margin-bottom: 4px; }
+  .step span { font-size: 12.5px; font-weight: 700; line-height: 1.35; display: block; }
+
+  /* 공유 */
+  .share {
+    width: 100%; margin-top: 26px; min-height: 52px; border: 2px solid var(--choc); border-radius: 16px;
+    background: var(--paper); color: var(--choc); font: 400 18px 'Jua', sans-serif; cursor: pointer;
+    box-shadow: 0 3px 0 var(--choc);
+  }
+  .share:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--choc); }
+  .toast { text-align: center; font-size: 13px; color: var(--mint); font-weight: 700; height: 18px; margin-top: 8px; }
+
+  footer { margin-top: 18px; text-align: center; font-size: 12px; color: var(--choc-soft); line-height: 1.7; }
+  footer .acct { font-weight: 700; color: var(--choc); }
+  @media (prefers-reduced-motion: reduce) { .mascot, h2 .live { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="sign">
+    <!-- 반죽이: 요리사 모자를 쓴 반죽 -->
+    <svg class="mascot" viewBox="0 0 120 120" aria-hidden="true">
+      <ellipse cx="60" cy="112" rx="30" ry="5" fill="#5A3824" opacity=".12"/>
+      <circle cx="60" cy="76" r="34" fill="#F7D48F"/>
+      <circle cx="60" cy="76" r="34" fill="url(#g)" />
+      <defs><radialGradient id="g" cx=".38" cy=".32" r=".8"><stop offset="0" stop-color="#FFE6B0" stop-opacity=".9"/><stop offset="1" stop-color="#E9B96A" stop-opacity=".0"/></radialGradient></defs>
+      <g stroke="#D9C3A0" stroke-width="2.4" stroke-linejoin="round">
+        <rect x="45" y="34" width="30" height="18" rx="3" fill="#F5EAD6"/>
+        <circle cx="48" cy="27" r="11" fill="#FFFFFF"/><circle cx="72" cy="27" r="11" fill="#FFFFFF"/><circle cx="60" cy="20" r="13" fill="#FFFFFF"/>
+      </g>
+      <path d="M40 27 a11 11 0 0 1 9-10 a13 13 0 0 1 22 0 a11 11 0 0 1 9 10 l-2 8 h-36 z" fill="#FFFFFF"/>
+      <circle cx="49" cy="80" r="4" fill="#3B2619"/><circle cx="71" cy="80" r="4" fill="#3B2619"/>
+      <ellipse cx="41" cy="88" rx="6" ry="3.6" fill="#F28B7D" opacity=".85"/><ellipse cx="79" cy="88" rx="6" ry="3.6" fill="#F28B7D" opacity=".85"/>
+      <path d="M53 90 q7 7 14 0" stroke="#3B2619" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+    </svg>
+    <div class="board">놀자방<span class="dot">.</span></div>
+    <p class="tag">심심할 때도, 기념일에도 열리는 놀이방</p>
+    <p class="sub">설치·가입 없이 폰으로 바로 들어와요</p>
+    <div class="who"><span class="chip">🙋 혼자서</span><span class="chip">👫 친구랑</span><span class="chip">💑 연인이랑</span></div>
+  </header>
+
+  <h2><span class="live"></span>지금 열린 방</h2>
+  <div class="rooms" id="open"></div>
+
+  <h2>곧 열리는 방</h2>
+  <div class="rooms" id="soon"></div>
+
+  <h2>노는 법</h2>
+  <div class="how">
+    <div class="step"><b>🚪</b><span>방 고르고<br>입장</span></div>
+    <div class="step"><b>🔗</b><span>친구한테<br>링크 보내기</span></div>
+    <div class="step"><b>🎉</b><span>같이 놀거나<br>선물 보내기</span></div>
+  </div>
+
+  <button class="share" id="share" type="button">친구한테 놀자방 보내기</button>
+  <div class="toast" id="toast" aria-live="polite"></div>
+
+  <footer>
+    이름이나 연락처는 받지 않아요. 방 내용은 링크 안에만 담겨요.<br>
+    <span class="acct" id="acct"></span>
+  </footer>
+</div>
+
+<script>
+// 계정 표기. 인스타 아이디가 확정되면 여기만 채운다(비워 두면 안 보인다).
+const ACCOUNT = '';
+
+// 방 목록. open: true 면 입장 버튼이 생긴다. 새 방은 한 줄 추가.
+const ROOMS = [
+  { open: true, icon: '🍪', name: '막대과자 같이 굽기', href: '../kitchen/',
+    desc: '작은 3D 주방에서 반죽하고, 굽고, 꾸며서 편지랑 같이 선물해요.',
+    tags: ['혼자', '둘이 같이', '선물 링크'], day: '11월 11일' },
+  { open: false, icon: '🎄', name: '트리 같이 꾸미기', desc: '둘이 한 트리에 장식을 하나씩 달아요.', tags: ['둘이 같이'], day: '크리스마스' },
+  { open: false, icon: '🎯', name: '서로 얼마나 알까', desc: '친구가 낸 문제를 맞히고 점수를 비교해요.', tags: ['친구랑'] },
+  { open: false, icon: '💌', name: '새해 소원 쪽지', desc: '소원을 적어 접어 두면 정한 날에 열려요.', tags: ['혼자', '둘이'], day: '새해' },
+];
+
+function card(r) {
+  const el = document.createElement(r.open ? 'a' : 'div');
+  el.className = 'room' + (r.open ? '' : ' soon');
+  if (r.open) el.href = r.href;
+  const tags = (r.day ? `<span class="day">${r.day}</span>` : '') + r.tags.map(t => `<span>${t}</span>`).join('') + (r.open ? '' : '<span>준비 중</span>');
+  el.innerHTML = `<div class="icon">${r.icon}</div>
+    <div><p class="name">${r.name}</p><p class="desc">${r.desc}</p><div class="meta">${tags}</div></div>
+    ${r.open ? '<div class="enter">입장하기 ›</div>' : ''}`;
+  return el;
+}
+ROOMS.forEach(r => document.getElementById(r.open ? 'open' : 'soon').appendChild(card(r)));
+if (ACCOUNT) document.getElementById('acct').textContent = '@' + ACCOUNT;
+
+const toast = msg => { const t = document.getElementById('toast'); t.textContent = msg; clearTimeout(toast.k); toast.k = setTimeout(() => t.textContent = '', 2400); };
+document.getElementById('share').addEventListener('click', async () => {
+  const url = location.origin + location.pathname;
+  const data = { title: '놀자방', text: '심심하면 여기서 같이 놀자 🍪', url };
+  try {
+    if (navigator.share) { await navigator.share(data); return; }
+    await navigator.clipboard.writeText(url);
+    toast('링크를 복사했어요. 친구한테 붙여 넣어 보내세요');
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    prompt('이 링크를 복사해서 보내세요', url);
+  }
+});
+</script>
+</body>
+</html>

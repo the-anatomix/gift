@@ -33,6 +33,7 @@
 6. 선물 링크 미리보기 그림(og:image)을 주방 그림으로
 
 ## 구조
+- 놀자방 홈(`nolja/`) 추가. 새 방은 `nolja/index.html` 의 ROOMS 에 한 줄
 - `app.js` 주방·카메라·초콜릿·토핑, `stations/*.js` 자리별 조작(규칙은 `stations/README.md`)
 - `duo.js` 둘이 굽기, `net.js` 연결(PeerJS / 검사용 BroadcastChannel), `gift.js` 편지·선물 링크·받는 화면
 - `theme.js` 색·계절 소품·계정 표기, `vendor/` three.js·PeerJS(MIT)
