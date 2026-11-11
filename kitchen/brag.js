@@ -13,6 +13,9 @@ const FONT = '"Gaegu","Jua","Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic"
 const SANS = '"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif';
 // 상자, 꺼낸 과자, 반죽이가 한 화면에 들어오는 구도
 const SHOT = { tgt: [0.5, 1.62, -1.5], dir: [0.1, 0.2, 1], w: 1.55, h: 1.7 };
+const SHOT_MINE = { tgt: [0.52, 1.6, -1.5], dir: [0.1, 0.2, 1], w: 2.2, h: 1.62 };
+const STEPS = ['반죽', '자르기', '굽기', '초콜릿'], KEYS = ['dough', 'cut', 'oven', 'choco'];
+const verdict = (v) => (v === 2 ? 'PERFECT' : v === 1 ? 'GOOD' : '—');
 
 function rr(x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
 function wrap(text, maxW, maxLines) {
@@ -37,27 +40,75 @@ function polaroid(x, y, rot) { // 흰 테두리 사진
   c.save(); c.beginPath(); c.rect(px, py, ph, ph); c.clip();
   const s = Math.max(ph / photo.width, ph / photo.height), w = photo.width * s, h = photo.height * s;
   c.drawImage(photo, -w / 2, py + ph / 2 - h / 2, w, h); c.restore();
-  c.fillStyle = '#D9483B'; c.textAlign = 'center'; c.font = `700 46px ${FONT}`; c.fillText('잘 받았어 ♥', 0, fh / 2 - 26);
+  c.fillStyle = '#D9483B'; c.textAlign = 'center'; c.font = `700 46px ${FONT}`; c.fillText(gift && gift.mine ? '내가 만들었어 ♥' : '잘 받았어 ♥', 0, fh / 2 - 26);
   c.fillStyle = 'rgba(217,72,59,.5)'; c.save(); c.translate(0, -fh / 2 - 2); c.rotate(-0.06); c.fillRect(-56, -16, 112, 32); c.restore(); // 붙인 테이프
   c.restore();
 }
-function draw() {
+function chipTitle(x, y) { // 등급 띠
+  if (!gift || !gift.q) return;
+  const t = gift.q === 2 ? '🥇 최고급 수제 과자' : gift.q === 1 ? '🥈 고급 수제 과자' : '🥉 수제 과자';
+  c.textAlign = 'center'; c.font = `900 38px ${SANS}`; const tw = c.measureText(t).width + 70;
+  const gg = c.createLinearGradient(0, y, 0, y + 68);
+  if (gift.q === 2) { gg.addColorStop(0, '#F9E3A2'); gg.addColorStop(1, '#E7B441'); } else if (gift.q === 1) { gg.addColorStop(0, '#F1F2F4'); gg.addColorStop(1, '#C3C7CE'); } else { gg.addColorStop(0, '#F3D9BF'); gg.addColorStop(1, '#D29A66'); }
+  c.fillStyle = gg; rr(x, y, tw, 68, 34); c.fill();
+  c.fillStyle = '#4A3312'; c.fillText(t, x + tw / 2, y + 48);
+}
+function background() {
   const bg = c.createRadialGradient(W / 2, 520, 80, W / 2, 620, 1000);
   bg.addColorStop(0, '#FFF8EA'); bg.addColorStop(0.55, '#FBE6D2'); bg.addColorStop(1, '#F0CDB4');
   c.fillStyle = bg; c.fillRect(0, 0, W, H);
+}
+function footer() {
+  c.textAlign = 'center'; c.fillStyle = '#8A6A55'; c.font = `700 28px ${SANS}`;
+  c.fillText('갓 구운 선물 · 미니 주방' + (SITE.account ? ' · @' + SITE.account : ''), W / 2, 1312);
+}
+// 만든 사람의 카드: 완성된 과자 + 과정 사진 네 장 + 한마디
+function drawMine() {
+  background();
+  if (scene) c.drawImage(scene, 0, 20, W, 600);
+  chipTitle(50, 44);
+  if (photo) polaroid(880, 250, 0.09);
+  c.textAlign = 'left'; c.fillStyle = '#5A3824'; c.font = `700 54px ${FONT}`; c.fillText('이렇게 만들었어요', 56, 690);
+  const fw = 236, gap = 12, x0 = (W - (fw * 4 + gap * 3)) / 2, y0 = 718;
+  STEPS.forEach((name, i) => {
+    const x = x0 + i * (fw + gap), v = gift.p ? gift.p[i] : 0, shot = gift.shots && gift.shots[KEYS[i]];
+    c.save(); c.translate(x + fw / 2, y0 + 165); c.rotate((i % 2 ? 1 : -1) * 0.018);
+    c.shadowColor = 'rgba(59,38,25,.25)'; c.shadowBlur = 22; c.shadowOffsetY = 10; c.fillStyle = '#FFFFFF'; rr(-fw / 2, -165, fw, 330, 10); c.fill();
+    c.shadowColor = 'transparent';
+    if (shot) c.drawImage(shot, -fw / 2 + 12, -153, fw - 24, fw - 24);
+    else { c.fillStyle = '#F7E9D2'; c.fillRect(-fw / 2 + 12, -153, fw - 24, fw - 24); c.fillStyle = '#C9B299'; c.textAlign = 'center'; c.font = `700 34px ${SANS}`; c.fillText(v ? '완성' : '안 함', 0, -34); }
+    c.textAlign = 'center'; c.fillStyle = '#4A2F1F'; c.font = `900 34px ${SANS}`; c.fillText(name, 0, 100);
+    c.fillStyle = v === 2 ? '#E0A21B' : '#8A6A55'; c.font = `900 ${v === 2 ? 30 : 28}px ${SANS}`; c.fillText(verdict(v), 0, 142);
+    c.restore();
+  });
+  // 한마디
+  const py = 1090, ph = 170;
+  c.save(); c.shadowColor = 'rgba(59,38,25,.25)'; c.shadowBlur = 30; c.shadowOffsetY = 12; c.fillStyle = '#FFFDF6'; rr(70, py, W - 140, ph, 26); c.fill(); c.restore();
+  c.strokeStyle = '#E6CFA2'; c.lineWidth = 3; rr(82, py + 12, W - 164, ph - 24, 18); c.stroke();
+  c.fillStyle = '#4A2F1F'; c.textAlign = 'left'; c.font = `400 46px ${FONT}`;
+  const lines = wrap(gift.m || '반죽하고, 자르고, 굽고, 꾸며서 직접 만든 막대과자예요.', W - 250, 2);
+  lines.forEach((ln, i) => c.fillText(ln, 120, py + (lines.length === 1 ? 102 : 72) + i * 58));
+  footer();
+}
+function draw() {
+  if (gift && gift.mine) { drawMine(); return; }
+  background();
   if (scene) c.drawImage(scene, 0, 30, W, SCENE_H);
-  // 등급 띠
-  if (gift && gift.q) {
-    const t = gift.q === 2 ? '🥇 최고급 수제 과자' : gift.q === 1 ? '🥈 고급 수제 과자' : '🥉 수제 과자';
-    c.textAlign = 'center'; c.font = `900 38px ${SANS}`; const tw = c.measureText(t).width + 70;
-    const gg = c.createLinearGradient(0, 40, 0, 110);
-    if (gift.q === 2) { gg.addColorStop(0, '#F9E3A2'); gg.addColorStop(1, '#E7B441'); } else if (gift.q === 1) { gg.addColorStop(0, '#F1F2F4'); gg.addColorStop(1, '#C3C7CE'); } else { gg.addColorStop(0, '#F3D9BF'); gg.addColorStop(1, '#D29A66'); }
-    c.fillStyle = gg; rr(50, 44, tw, 68, 34); c.fill();
-    c.fillStyle = '#4A3312'; c.fillText(t, 50 + tw / 2, 92);
-  }
+  chipTitle(50, 44);
   if (photo) polaroid(852, 300, 0.09);
   // 편지지
-  const px = 70, py = 870, pw = W - 140, ph = 390;
+  let py = 870, ph = 390;
+  if (gift && gift.p && gift.p.some((v) => v)) { // 만든 과정: 자리별 결과
+    const cw = 232, gap = 12, x0 = (W - (cw * 4 + gap * 3)) / 2;
+    STEPS.forEach((name, i) => {
+      const v = gift.p[i], x = x0 + i * (cw + gap);
+      c.fillStyle = 'rgba(255,253,246,.92)'; rr(x, 840, cw, 58, 29); c.fill();
+      c.textAlign = 'center'; c.font = `900 26px ${SANS}`; c.fillStyle = v === 2 ? '#C98A0E' : '#6E5646';
+      c.fillText(name + ' ' + verdict(v), x + cw / 2, 878);
+    });
+    py = 918; ph = 348;
+  }
+  const px = 70, pw = W - 140;
   c.save();
   c.shadowColor = 'rgba(59,38,25,.3)'; c.shadowBlur = 40; c.shadowOffsetY = 16;
   const pg = c.createRadialGradient(W / 2, py, 40, W / 2, py + ph, 700); pg.addColorStop(0, '#FFFEFA'); pg.addColorStop(1, '#FBEBD3');
@@ -71,10 +122,9 @@ function draw() {
   if (gift && gift.to) { c.font = `700 52px ${FONT}`; c.fillText(gift.to, px + 56, y); y += 66; }
   c.font = `400 48px ${FONT}`;
   const room = gift && gift.fr ? 3 : 4;
-  wrap(gift ? gift.m : '', pw - 112, gift && gift.to ? room : room + 1).forEach((ln) => { c.fillText(ln, px + 56, y); y += 60; });
+  wrap(gift ? gift.m : '', pw - 112, (gift && gift.to ? room : room + 1) - (ph < 380 ? 1 : 0)).forEach((ln) => { c.fillText(ln, px + 56, y); y += 60; });
   if (gift && gift.fr) { c.textAlign = 'right'; c.font = `700 46px ${FONT}`; c.fillText(gift.fr, px + pw - 56, py + ph - 44); }
-  c.textAlign = 'center'; c.fillStyle = '#8A6A55'; c.font = `700 28px ${SANS}`;
-  c.fillText('갓 구운 선물 · 미니 주방' + (SITE.account ? ' · @' + SITE.account : ''), W / 2, 1312);
+  footer();
 }
 function refresh() {
   draw();
@@ -88,7 +138,7 @@ function refresh() {
 }
 export async function openBrag(g) {
   gift = g;
-  scene = K.snapScene(W, SCENE_H, SHOT);
+  scene = g.mine ? K.snapScene(W, 600, SHOT_MINE, true) : K.snapScene(W, SCENE_H, SHOT);
   $('brag').hidden = false;
   refresh();
   try { await document.fonts.load('700 60px Gaegu'); refresh(); } catch (_) { /* 기본 글꼴로 */ }

@@ -120,6 +120,9 @@ export default function (kit) {
         const w = ui.button('btn', '편지 쓰기', () => window.dispatchEvent(new CustomEvent('kitchen:letter'))); w.id = 'packLetter'; mainStyle(w); w.disabled = busy;
         const o = ui.button('btn', '다시 열기', () => kit.send({ open: 1 })); o.id = 'packOpen'; o.disabled = busy;
         r2.appendChild(w); r2.appendChild(o); p.appendChild(r2);
+        const r3 = ui.el('div', 'row');
+        const bg = ui.button('btn', '📸 만든 과정 자랑 카드', () => window.dispatchEvent(new CustomEvent('kitchen:brag'))); bg.id = 'packBrag'; bg.style.flex = '1'; bg.disabled = busy;
+        r3.appendChild(bg); p.appendChild(r3);
         return;
       }
       const q = kit.grades(), mk = (v) => (v === 2 ? '★' : v === 1 ? '☆' : '·');

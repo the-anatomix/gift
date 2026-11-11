@@ -16,7 +16,8 @@ const b64 = {
 
 function giftText() {
   const st = K.getState();
-  const o = { v: 1, f: 1, s: packState(st), b: (st.x.pack && st.x.pack.box) | 0, q: (st.x.pack && st.x.pack.seal) | 0, to: clip($('ltTo').value.trim(), LIM.to), fr: clip($('ltFrom').value.trim(), LIM.fr), m: clip($('ltMsg').value.trim(), LIM.m) };
+  const gr = K.grades();
+  const o = { v: 1, f: 1, p: [gr.dough, gr.cut, gr.oven, gr.choco], s: packState(st), b: (st.x.pack && st.x.pack.box) | 0, q: (st.x.pack && st.x.pack.seal) | 0, to: clip($('ltTo').value.trim(), LIM.to), fr: clip($('ltFrom').value.trim(), LIM.fr), m: clip($('ltMsg').value.trim(), LIM.m) };
   return b64.enc(JSON.stringify(o));
 }
 const giftUrl = () => location.origin + location.pathname + '#g=' + giftText();
@@ -28,7 +29,8 @@ function readGift(txt) {
   st.x.pack = { box: o.b | 0, packed: 1, seal: q };
   // f 가 없는 예전 링크는 이름만 담겨 있어서 "에게" / "드림" 을 붙여 준다
   const to = clip(o.to, LIM.to), fr = clip(o.fr, LIM.fr);
-  return { st, q, to: o.f || !to ? to : to + '에게', fr: o.f || !fr ? fr : fr + ' 드림', m: clip(o.m, LIM.m) };
+  const p = Array.isArray(o.p) && o.p.length === 4 ? o.p.map((v) => (v === 2 ? 2 : v === 1 ? 1 : 0)) : null; // 만든 과정: 자리별 0 안 함, 1 GOOD, 2 PERFECT
+  return { st, q, p, to: o.f || !to ? to : to + '에게', fr: o.f || !fr ? fr : fr + ' 드림', m: clip(o.m, LIM.m) };
 }
 
 /* ───────── 편지 쓰기 ───────── */
@@ -145,6 +147,12 @@ $('rcClose').addEventListener('click', () => showLetter(false));
 $('rcSound').addEventListener('click', () => {
   bgm.setMuted(!bgm.muted); if (!bgm.muted) bgm.play();
   $('rcSound').textContent = bgm.muted ? '🔇' : '🔈'; $('rcSound').setAttribute('aria-label', bgm.muted ? '음악 켜기' : '음악 끄기');
+});
+// 만든 사람의 자랑 카드: 찍어 둔 과정 사진과 결과, 등급, 완성된 과자
+window.addEventListener('kitchen:brag', () => {
+  const st = K.getState(), gr = K.grades();
+  openBrag({ mine: true, q: (st.x.pack && st.x.pack.seal) | 0, p: [gr.dough, gr.cut, gr.oven, gr.choco], shots: K.shots,
+    to: clip($('ltTo').value.trim(), LIM.to), fr: clip($('ltFrom').value.trim(), LIM.fr), m: clip($('ltMsg').value.trim(), LIM.m) });
 });
 $('rcBrag').addEventListener('click', () => { if (!$('rcard').hidden) showLetter(false); if (cur) openBrag(cur); });
 $('rcard').addEventListener('click', (e) => { if (e.target === $('rcard')) showLetter(false); }); // 편지 바깥을 눌러도 접힌다

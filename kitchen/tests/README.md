@@ -26,6 +26,8 @@ node cut.test.js      # 자르기
 node oven.test.js     # 굽기
 node pack.test.js     # 포장 · 편지 · 선물 링크 · 받는 화면
 node xmode.test.js    # 혼자/둘이 고르기 · 둘이 서로 선물
+node title.test.js    # 과자 등급 · PERFECT/GOOD 판정 · 순서 안내
+node brag.test.js     # 자랑 카드 · 만든 과정 사진
 ```
 
 결과는 줄마다 `통과` / `실패` 로 나오고, 화면 사진은 `out/` 에 남습니다(커밋하지 않음).

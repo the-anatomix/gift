@@ -499,6 +499,20 @@ function judge(v) {
   j.textContent = v === 2 ? 'PERFECT!' : 'GOOD'; j.className = v === 2 ? 'p' : 'g';
   j.hidden = false; j.style.animation = 'none'; void j.offsetWidth; j.style.animation = '';
   clearTimeout(judgeT); judgeT = setTimeout(() => { j.hidden = true; }, 1100);
+  // 제작 과정 사진: 판정이 난 자리의 화면을 잠시 뒤에 찍어 둔다 (자랑 카드용. 이 기기 메모리에만 있다)
+  const st = S.station;
+  setTimeout(() => { if (S.station === st && !document.hidden) { try { shots[st] = snapThumb(); } catch (_) { /* 못 찍으면 건너뜀 */ } } }, 420);
+}
+const shots = {};
+function snapThumb(size = 360) { // 지금 화면에서 아래 패널을 뺀 가운데를 네모로 잘라 온다
+  applyCam(); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+  renderer.shadowMap.needsUpdate = true; renderer.render(scene, camera);
+  const k = canvas.width / W, top = $('top').getBoundingClientRect().bottom, bot = $('bottom').getBoundingClientRect().top;
+  const side = Math.min(W, bot - top), cx = W / 2, cy = (top + bot) / 2;
+  const out = document.createElement('canvas'); out.width = size; out.height = size;
+  const g = out.getContext('2d'); g.fillStyle = '#FBEFD9'; g.fillRect(0, 0, size, size);
+  g.drawImage(canvas, (cx - side / 2) * k, (cy - side / 2) * k, side * k, side * k, 0, 0, size, size);
+  return out;
 }
 // 무대: 주방을 숨기고 선물 상자와 과자만 둥근 받침 위에 보여 준다
 let stageOn = false, stageSaved = null, stageDisc = null;
@@ -531,7 +545,10 @@ function setView(spec, ms) { // spec = { tgt:[x,y,z], dir:[x,y,z], w, h } 또는
   tween(ms, (k) => set(ease(k)));
 }
 // 지금 장면을 정해진 크기와 구도로 찍어 그림으로 돌려준다 (자랑 카드용). 바탕은 투명.
-function snapScene(w, h, spec) {
+function snapScene(w, h, spec, show) {
+  // show: 만든 사람의 카드. 주방 대신 무대 위에, 과자를 상자 앞에 꺼내 든 모습으로 잠깐 바꿔 찍는다
+  const was = { stage: stageOn, pres: presenting, p: stick.position.clone(), q: stick.quaternion.clone() };
+  if (show) { setStage(true); presenting = 2; const ps = stickPose(S.station); stick.position.copy(ps.p); stick.quaternion.copy(ps.q); }
   const pr = renderer.getPixelRatio();
   renderer.setPixelRatio(1); renderer.setSize(w, h, false);
   const cam2 = new THREE.PerspectiveCamera(FOV, w / h, 0.1, 60), tgt = V3(...spec.tgt);
@@ -540,6 +557,7 @@ function snapScene(w, h, spec) {
   renderer.shadowMap.needsUpdate = true; renderer.render(scene, cam2);
   const out = document.createElement('canvas'); out.width = w; out.height = h;
   out.getContext('2d').drawImage(canvas, 0, 0, w, h);
+  if (show) { presenting = was.pres; stick.position.copy(was.p); stick.quaternion.copy(was.q); setStage(was.stage); }
   renderer.setPixelRatio(pr); renderer.setSize(W, H, false); // 같은 순간에 원래 화면으로 되돌려 깜빡이지 않게
   applyCam(); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
   renderer.shadowMap.needsUpdate = true; renderer.render(scene, camera);
@@ -945,7 +963,7 @@ requestAnimationFrame(() => { $('loading').classList.add('done'); setTimeout(() 
 // 둘이 굽기·자동 검사에서 쓰는 창구
 export const kitchen = {
   S, CHOCO, KINDS, STICK, cleanText, dispatch, onLocal: (f) => listeners.push(f), onHand: (f) => handFns.push(f), toast, poke,
-  remoteTip, getState, setState, setLocked(v) { locked = !!v; }, setStage, setView, present, grades, DIP, snapStick, snapScene, setOrbit, judge, get yaw() { return yaw; },
+  remoteTip, getState, setState, setLocked(v) { locked = !!v; }, setStage, setView, present, grades, DIP, snapStick, snapScene, shots, setOrbit, judge, get yaw() { return yaw; },
   get stage() { return stageOn; }, get presenting() { return presenting; },
   setHomeAction(a, panel) { homeAction = a; homePanel = panel || null; panelKey = ''; renderPanel(); refit(); },
   refit, // 아래 패널 높이가 바뀌었을 때 카메라를 다시 맞춘다
