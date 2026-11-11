@@ -7,7 +7,7 @@ import { openBrag } from './brag.js';
 import { bgm } from './bgm.js';
 
 const $ = (id) => document.getElementById(id);
-const LIM = { to: 12, fr: 12, m: 200 };
+const LIM = { to: 20, fr: 20, m: 200 }; // 첫 줄·끝 줄은 쓴 그대로 보여 준다 (예: "사랑하는 지우에게", "너를 아끼는 민서가")
 const clip = (v, n) => Array.from(String(v == null ? '' : v)).slice(0, n).join('');
 const b64 = {
   enc(str) { let s = ''; for (const x of new TextEncoder().encode(str)) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); },
@@ -16,7 +16,7 @@ const b64 = {
 
 function giftText() {
   const st = K.getState();
-  const o = { v: 1, s: packState(st), b: (st.x.pack && st.x.pack.box) | 0, q: (st.x.pack && st.x.pack.seal) | 0, to: clip($('ltTo').value.trim(), LIM.to), fr: clip($('ltFrom').value.trim(), LIM.fr), m: clip($('ltMsg').value.trim(), LIM.m) };
+  const o = { v: 1, f: 1, s: packState(st), b: (st.x.pack && st.x.pack.box) | 0, q: (st.x.pack && st.x.pack.seal) | 0, to: clip($('ltTo').value.trim(), LIM.to), fr: clip($('ltFrom').value.trim(), LIM.fr), m: clip($('ltMsg').value.trim(), LIM.m) };
   return b64.enc(JSON.stringify(o));
 }
 const giftUrl = () => location.origin + location.pathname + '#g=' + giftText();
@@ -26,7 +26,9 @@ function readGift(txt) {
   const st = unpackState(o.s);
   st.station = 'pack'; st.x = st.x || {}; const q = o.q === 1 || o.q === 2 || o.q === 3 ? o.q : 0; // 2 최고급 수제, 1 고급 수제, 3 수제
   st.x.pack = { box: o.b | 0, packed: 1, seal: q };
-  return { st, q, to: clip(o.to, LIM.to), fr: clip(o.fr, LIM.fr), m: clip(o.m, LIM.m) };
+  // f 가 없는 예전 링크는 이름만 담겨 있어서 "에게" / "드림" 을 붙여 준다
+  const to = clip(o.to, LIM.to), fr = clip(o.fr, LIM.fr);
+  return { st, q, to: o.f || !to ? to : to + '에게', fr: o.f || !fr ? fr : fr + ' 드림', m: clip(o.m, LIM.m) };
 }
 
 /* ───────── 편지 쓰기 ───────── */
@@ -42,6 +44,17 @@ $('ltShare').addEventListener('click', async () => {
   if (how === 'manual') { const i = $('ltUrl'); i.value = url; i.hidden = false; $('ltUrlHint').hidden = false; }
 });
 $('ltUrl').addEventListener('focus', () => $('ltUrl').select());
+// 미리보기: 받는 사람이 볼 편지지 모양 그대로 보여 준다
+$('ltPreview').addEventListener('click', () => {
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  const to = clip($('ltTo').value.trim(), LIM.to), fr = clip($('ltFrom').value.trim(), LIM.fr), m = clip($('ltMsg').value.trim(), LIM.m);
+  $('pvTo').textContent = to; $('pvTo').hidden = !to;
+  $('pvMsg').textContent = m || '(편지를 적으면 여기에 보여요)';
+  $('pvFrom').textContent = fr; $('pvFrom').hidden = !fr;
+  $('ltPrev').hidden = false;
+});
+$('pvClose').addEventListener('click', () => { $('ltPrev').hidden = true; });
+$('ltPrev').addEventListener('click', (e) => { if (e.target === $('ltPrev')) $('ltPrev').hidden = true; });
 $('ltGive').addEventListener('click', () => { // 서로 선물: 연결된 상대에게 바로 보낸다
   if (!$('ltMsg').value.trim()) { K.toast('편지를 한 줄이라도 적어 주세요'); $('ltMsg').focus(); return; }
   if (give(giftText())) { K.toast('상대에게 선물을 보냈어요'); closeLetter(); } else K.toast('지금은 연결되어 있지 않아요. 링크로 보내 주세요');
@@ -102,9 +115,9 @@ function receive(g, mine) {
   K.dispatch({ t: 'go', s: 'pack' }, true);
   K.setStage(true); K.setOrbit(true);
   K.setView(VIEW_BOX, 0);
-  $('rcTo').textContent = g.to ? g.to + '에게' : '';
+  $('rcTo').textContent = g.to;
   $('rcMsg').textContent = g.m;
-  $('rcFrom').textContent = g.fr ? g.fr + ' 드림' : '';
+  $('rcFrom').textContent = g.fr;
   $('rcTo').hidden = !g.to; $('rcFrom').hidden = !g.fr;
   $('rcTitle').hidden = !g.q; best = g.q;
   $('rcChip').textContent = g.q === 2 ? '🥇 최고급 수제 과자' : g.q === 1 ? '🥈 고급 수제 과자' : '🥉 수제 과자';

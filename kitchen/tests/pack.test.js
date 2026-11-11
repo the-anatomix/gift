@@ -50,7 +50,13 @@ const audit = (p) => p.evaluate(() => {
     check('편지 칸 입력·버튼이 화면 안·44px 이상', (await audit(A)).length === 0, await audit(A));
     await A.tap('#ltShare');
     check('편지를 비우면 보내지 않고 안내', (await A.textContent('#toast')).includes('한 줄'));
-    await A.fill('#ltTo', '지우'); await A.fill('#ltFrom', '민서'); await A.fill('#ltMsg', '메리 크리스마스!\n<b>굵게</b> & "따옴표"');
+    await A.fill('#ltTo', '사랑하는 지우에게'); await A.fill('#ltFrom', '너를 아끼는 민서가'); await A.fill('#ltMsg', '메리 크리스마스!\n<b>굵게</b> & "따옴표"');
+    await A.tap('#ltPreview'); await sleep(900);
+    check('편지지 미리보기: 받는 사람이 볼 모양 그대로 보임', (await A.isVisible('#ltPrev')) && (await A.textContent('#pvTo')) === '사랑하는 지우에게' && (await A.textContent('#pvFrom')) === '너를 아끼는 민서가' && (await A.textContent('#pvMsg')).startsWith('메리 크리스마스!') && (await A.evaluate(() => !document.querySelector('#pvMsg b'))));
+    check('미리보기 버튼이 화면 안·44px 이상', (await audit(A)).length === 0, await audit(A));
+    await A.screenshot({ path: path.join(__dirname, 'out', 'letter-preview.png') });
+    await A.tap('#pvClose'); await sleep(200);
+    check('"편지 고치기"로 돌아오면 쓰던 글이 그대로', !(await A.isVisible('#ltPrev')) && (await A.inputValue('#ltMsg')).startsWith('메리 크리스마스!'));
     const url = await A.evaluate(() => window.__gift.giftUrl());
     check('선물 링크 생성 (#g=…, 6000자 이하)', /#g=[A-Za-z0-9_-]+$/.test(url) && url.length < 6000, url.length);
     await A.tap('#ltShare'); await sleep(400);
@@ -89,7 +95,7 @@ const audit = (p) => p.evaluate(() => {
     await R.tap('#env');
     check('봉투를 누르면 편지가 나옴', await until(() => R.isVisible('#rcard'), 3000) && (await R.evaluate(() => document.getElementById('env').classList.contains('open'))));
     check('편지 글이 글자 그대로 보임 (태그로 바뀌지 않음)', (await R.textContent('#rcMsg')) === '메리 크리스마스!\n<b>굵게</b> & "따옴표"' && (await R.evaluate(() => !document.querySelector('#rcMsg b')))
-      && (await R.textContent('#rcTo')) === '지우에게' && (await R.textContent('#rcFrom')) === '민서 드림');
+      && (await R.textContent('#rcTo')) === '사랑하는 지우에게' && (await R.textContent('#rcFrom')) === '너를 아끼는 민서가');
     await sleep(900);
     await R.screenshot({ path: path.join(__dirname, 'out', 'recv-letter.png') });
     const lay = await R.evaluate(() => { const s = window.__kitchen.stickScreen(), p = document.querySelector('.letterpaper').getBoundingClientRect(); return { tip: s.tip.y, end: s.end.y, paperTop: p.top, paperBottom: p.bottom, bar: document.getElementById('bottom').getBoundingClientRect().top }; });
@@ -137,6 +143,13 @@ const audit = (p) => p.evaluate(() => {
     await until(() => R.evaluate(() => !!(window.__kitchen && !location.hash)));
     await sleep(800);
     check('나도 만들기 → 빈 주방으로', !(await R.evaluate(() => location.hash)) && (await R.isVisible('#tabs')) && (await R.evaluate(() => window.__kitchen.S.grains.length)) === 0);
+    // 예전 방식 링크(이름만 담김)는 "에게" / "드림" 을 붙여 보여 준다
+    const oldUrl = await A.evaluate(() => { const g = window.__gift, u = g.giftUrl(), t = u.split('#g=')[1];
+      const o = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(t.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0)))); delete o.f; o.to = '지우'; o.fr = '민서';
+      let b = ''; for (const x of new TextEncoder().encode(JSON.stringify(o))) b += String.fromCharCode(x);
+      return u.split('#g=')[0] + '#g=' + btoa(b).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); });
+    const O = await open(ctx2, oldUrl);
+    check('먼저 나간 선물 링크도 그대로 열림 ("지우에게" / "민서 드림")', (await O.textContent('#rcTo')) === '지우에게' && (await O.textContent('#rcFrom')) === '민서 드림');
     await ctx2.close();
 
     // 포장한 채로 토핑 자리로 가면 다시 열림

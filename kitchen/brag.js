@@ -68,11 +68,11 @@ function draw() {
   c.fillStyle = '#D9483B'; c.textAlign = 'center'; c.font = `400 30px ${SANS}`; c.fillText('♥', W / 2, py + 63);
   c.fillStyle = '#4A2F1F'; c.textAlign = 'left';
   let y = py + 122;
-  if (gift && gift.to) { c.font = `700 52px ${FONT}`; c.fillText(gift.to + '에게', px + 56, y); y += 66; }
+  if (gift && gift.to) { c.font = `700 52px ${FONT}`; c.fillText(gift.to, px + 56, y); y += 66; }
   c.font = `400 48px ${FONT}`;
   const room = gift && gift.fr ? 3 : 4;
   wrap(gift ? gift.m : '', pw - 112, gift && gift.to ? room : room + 1).forEach((ln) => { c.fillText(ln, px + 56, y); y += 60; });
-  if (gift && gift.fr) { c.textAlign = 'right'; c.font = `700 46px ${FONT}`; c.fillText('— ' + gift.fr + ' 드림', px + pw - 56, py + ph - 44); }
+  if (gift && gift.fr) { c.textAlign = 'right'; c.font = `700 46px ${FONT}`; c.fillText(gift.fr, px + pw - 56, py + ph - 44); }
   c.textAlign = 'center'; c.fillStyle = '#8A6A55'; c.font = `700 28px ${SANS}`;
   c.fillText('갓 구운 선물 · 미니 주방' + (SITE.account ? ' · @' + SITE.account : ''), W / 2, 1312);
 }
