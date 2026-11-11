@@ -133,13 +133,17 @@ function refresh() {
   cv.toBlob((b) => {
     if (!b) return;
     if (lastUrl) URL.revokeObjectURL(lastUrl);
-    lastBlob = b; lastUrl = URL.createObjectURL(b); $('bgImg').src = lastUrl; // 그림으로 보여 줘서 길게 눌러 저장할 수도 있게
+    lastBlob = b; lastUrl = URL.createObjectURL(b);
+    // 그림으로 보여 줘서 길게 눌러 저장할 수도 있게. 앱 안 브라우저는 주소형(blob) 그림을 저장하지 못하는 경우가 많아 그림 내용을 직접 넣는다
+    $('bgImg').src = window.__inapp ? cv.toDataURL('image/png') : lastUrl;
   }, 'image/png');
 }
 export async function openBrag(g) {
   gift = g;
   scene = g.mine ? K.snapScene(W, 600, SHOT_MINE, true) : K.snapScene(W, SCENE_H, SHOT);
   $('brag').hidden = false;
+  $('bgNote').hidden = true;
+  if (window.__inapp && !canShareFiles()) noShare(false); // 앱 안 브라우저면 처음부터 알려 준다
   refresh();
   try { await document.fonts.load('700 60px Gaegu'); refresh(); } catch (_) { /* 기본 글꼴로 */ }
 }
@@ -167,7 +171,18 @@ $('bgShare').addEventListener('click', async () => {
     const f = new File([lastBlob], 'gift-card.png', { type: 'image/png' });
     if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: '갓 구운 선물' }); return; }
   } catch (e) { if (e && e.name === 'AbortError') return; }
-  save();
+  noShare(true);
 });
+// 그림 공유가 안 되는 브라우저(카카오톡 안 등): 말없이 내려받지 않고 방법을 알려 준다
+function canShareFiles() {
+  try { return !!(navigator.canShare && navigator.canShare({ files: [new File([new Blob(['x'])], 'a.png', { type: 'image/png' })] })); } catch (_) { return false; }
+}
+function noShare(clicked) {
+  const kakaoGift = window.__inappKind === 'kakao' && gift && !gift.mine && /^#g=/.test(location.hash); // 받은 선물은 주소에 담겨 있어 기본 브라우저로 그대로 넘어간다
+  $('bgNote').hidden = false;
+  $('bgExternal').hidden = !kakaoGift;
+  $('bgNoteSub').textContent = kakaoGift ? '기본 브라우저로 열면 바로 공유할 수 있어요. 또는 그림을 길게 눌러 저장하세요.' : '그림을 길게 눌러 저장하거나 "저장"을 누른 뒤 보내 주세요.';
+  if (clicked) K.toast('이 브라우저에서는 그림 공유가 막혀 있어요');
+}
 
 window.__brag = { openBrag, canvas: cv, hasPhoto: () => !!photo, hasScene: () => !!scene };

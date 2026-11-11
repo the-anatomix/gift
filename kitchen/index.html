@@ -234,8 +234,8 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels,body.recv #top
   <span class="links"><a href="../">2D 판</a><a href="../nolja/">놀자방 홈</a></span>
 </div>
 <div id="inapp" hidden>
-  <p>앱 안 브라우저로 열렸어요.<small>여기서는 3D 화면이나 "같이 굽기" 연결이 안 될 수 있어요. 주소를 복사해 기본 브라우저(사파리·크롬)에 붙여 열어 주세요.</small></p>
-  <div class="row"><button type="button" class="btn copyurl main" style="flex:1">주소 복사</button><button type="button" class="btn" id="inappClose">닫기</button></div>
+  <p>앱 안 브라우저로 열렸어요.<small>여기서는 그림 공유나 "같이 굽기" 연결이 안 될 수 있어요. 기본 브라우저(사파리·크롬)에서 열면 다 돼요.</small></p>
+  <div class="row"><button type="button" class="btn main openext" style="flex:1" hidden>기본 브라우저로 열기</button><button type="button" class="btn copyurl" style="flex:1">주소 복사</button><button type="button" class="btn" id="inappClose">닫기</button></div>
 </div>
 <div id="judge" hidden aria-live="polite"></div>
 <div id="toast" role="status" aria-live="polite"></div>
@@ -296,6 +296,10 @@ body.recv #tabs,body.recv #panel,body.recv #duo,body.recv #labels,body.recv #top
       <input type="file" id="bgFile" accept="image/*" hidden>
     </div>
     <div class="hint"><small>내 사진은 폴라로이드처럼 사진 속에 붙어요. 이 폰 안에서만 합쳐지고 어디에도 올라가지 않아요.</small></div>
+    <div id="bgNote" hidden>
+      <div class="hint">이 브라우저에서는 그림을 바로 공유할 수 없어요.<small id="bgNoteSub">그림을 길게 눌러 저장한 뒤 보내 주세요.</small></div>
+      <div class="row" style="margin-top:8px"><button type="button" class="btn main openext" id="bgExternal" style="flex:1" hidden>기본 브라우저로 열어서 공유</button></div>
+    </div>
     <div class="row"><button type="button" class="btn" id="bgSave" style="flex:1">저장</button><button type="button" class="btn main" id="bgShare" style="flex:1">공유</button></div>
   </div>
 </div>
@@ -318,6 +322,14 @@ window.__fallback = function () {
 (function () {
   var inapp = /KAKAOTALK|Instagram|FBAN|FBAV|FB_IAB|NAVER\(inapp|Line\/|DaumApps|everytimeApp|; wv\)/i.test(navigator.userAgent);
   window.__inapp = inapp;
+  // 카카오톡 안 브라우저는 지금 주소를 기본 브라우저로 넘겨 여는 방법을 제공한다 (선물 내용은 주소의 # 뒤에 있어 그대로 넘어간다)
+  var kakao = /KAKAOTALK/i.test(navigator.userAgent);
+  window.__inappKind = kakao ? 'kakao' : inapp ? 'other' : '';
+  window.__externalUrl = function () { return kakao ? 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href) : ''; };
+  Array.prototype.forEach.call(document.querySelectorAll('.openext'), function (b) {
+    b.hidden = !kakao;
+    b.addEventListener('click', function () { var u = window.__externalUrl(); if (u) location.href = u; });
+  });
   if (inapp) { document.getElementById('inapp').hidden = false; document.getElementById('fbInapp').hidden = false; }
   document.getElementById('inappClose').addEventListener('click', function () { document.getElementById('inapp').hidden = true; });
   function done(b, ok) { var t = b.textContent; b.textContent = ok ? '복사했어요' : '주소창에서 직접 복사해 주세요'; setTimeout(function () { b.textContent = t; }, 1800); }

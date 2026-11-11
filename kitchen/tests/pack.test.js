@@ -157,6 +157,23 @@ const audit = (p) => p.evaluate(() => {
     // 포장한 채로 토핑 자리로 가면 다시 열림
     await tab(A, '토핑');
     check('포장한 채 토핑 자리로 가면 상자가 다시 열림 (양쪽)', await until(async () => (await pack(A)).packed === 0 && (await pack(B)).packed === 0));
+    // 카카오톡 안 브라우저: 그림 공유가 막혀 있어도 다운로드로 넘어가지 않고 방법을 안내한다
+    const kctx = await browser.newContext({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true, userAgent: 'Mozilla/5.0 (Linux; Android 13; SM-S911N) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0 Mobile Safari/537.36 KAKAOTALK 10.4.5' });
+    const Kp = await open(kctx, url);
+    check('카카오톡 안: 안내에 "기본 브라우저로 열기" 버튼이 보임', (await Kp.isVisible('#inapp .openext')) && (await Kp.textContent('#inapp')).includes('기본 브라우저'));
+    const ext = await Kp.evaluate(() => window.__externalUrl());
+    check('"기본 브라우저로 열기"가 지금 선물 주소 그대로 넘김', ext.startsWith('kakaotalk://web/openExternal?url=') && decodeURIComponent(ext.split('url=')[1]) === url, ext.slice(0, 80));
+    await Kp.tap('#inappClose');
+    await Kp.tap('#rcOpen'); await until(() => Kp.isVisible('#rcBrag'), 9000); await sleep(1600);
+    let downloads = 0; Kp.on('download', () => downloads++);
+    await Kp.tap('#rcBrag'); await sleep(900);
+    check('카카오톡 안: 자랑 카드를 열면 공유 방법 안내가 먼저 보임', (await Kp.isVisible('#bgNote')) && (await Kp.isVisible('#bgExternal')));
+    await Kp.tap('#bgShare'); await sleep(600);
+    check('카카오톡 안: "공유"를 눌러도 다운로드로 넘어가지 않음', downloads === 0 && (await Kp.isVisible('#bgExternal')), downloads);
+    check('카카오톡 안: 길게 눌러 저장할 수 있게 그림 내용이 직접 들어감', await Kp.evaluate(() => document.getElementById('bgImg').src.startsWith('data:image/png')));
+    check('안내·버튼이 화면 안·44px 이상', (await audit(Kp)).length === 0, await audit(Kp));
+    await Kp.screenshot({ path: path.join(__dirname, 'out', 'kakao-brag.png') });
+    await kctx.close();
     const bad = await browser.newContext({ viewport: { width: 375, height: 812 } });
     const X = await open(bad, `${BASE}#g=AAAAAAAAAAAA`);
     check('깨진 선물 링크는 안내만 하고 주방은 그대로 열림', (await X.isVisible('#tabs')) && (await X.textContent('#toast')).includes('읽지 못했어요'));
