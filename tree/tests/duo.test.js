@@ -47,7 +47,7 @@ async function suite(browser, label, query, twoContexts) {
   console.log(`\n── 둘이 같이 꾸미기 (${label}) ──`);
   const vp = { viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true };
   const ctxA = await browser.newContext(vp), ctxB = twoContexts ? await browser.newContext(vp) : ctxA;
-  const url = (ns, room) => `${BASE}?${query}&ns=${ns}&st=3000&rt=500${room ? '#r=' + room : ''}`;
+  const url = (ns, room) => `${BASE}?${query}&ns=${ns}&st=3000&rt=500&cap=4&ecap=3${room ? '#r=' + room : ''}`; // 검사에서는 정원 4명, 꾸미는 사람 3명
 
   /* 방 만들기 */
   const A = await open(ctxA, url('a'));
@@ -55,19 +55,21 @@ async function suite(browser, label, query, twoContexts) {
   await T(A, () => window.__tree.dispatch({ t: 'orn', id: 'ao1', k: 'red', x: 0.3, y: 1.2, z: 0.4 }));
   check('혼자일 때는 연결 표시가 없음', (await mode(A)) === 'solo' && !(await A.isVisible('#net')));
   await A.tap('#tabs button[data-m="duo"]'); await sleep(200);
-  check('같이 탭: 친구 초대하기 단추가 보이고 44px 이상', (await A.isVisible('#duoInvite')) && (await A.textContent('#duoInvite')) === '친구 초대하기' && !(await A.isVisible('#duoLeave')) && (await audit(A)).length === 0, await audit(A));
+  check('같이 탭: 친구 초대하기 단추가 보이고 44px 이상', (await A.isVisible('#duoInvite')) && (await A.textContent('#duoInvite')) === '같이 꾸밀 친구 초대' && (await A.isVisible('#duoInviteV')) && !(await A.isVisible('#duoLeave')) && (await audit(A)).length === 0, await audit(A));
   await A.tap('#duoInvite');
   check('친구 초대하기를 누르면 방이 만들어지고 주인으로 기다림', await until(async () => (await mode(A)) === 'waiting') && (await role(A)) === 'host', await mode(A));
-  const room = await T(A, () => window.__duo.room), inv = await T(A, () => window.__duo.inviteUrl());
-  check('초대 링크는 #r=방이름(10자)으로 끝나고 검사용 옵션이 붙지 않음', /^[a-z0-9]{10}$/.test(room) && inv === `${BASE}#r=${room}` && (await A.evaluate(() => location.hash)) === '#r=' + room, inv);
-  check('위에 "친구 기다리는 중" 표시, 단추는 링크 다시 보내기 · 혼자 놀기', (await A.textContent('#net')) === '친구 기다리는 중' && (await A.textContent('#duoInvite')) === '링크 다시 보내기' && (await A.textContent('#duoLeave')) === '혼자 놀기' && (await audit(A)).length === 0, await audit(A));
+  const id = await T(A, () => window.__duo.room), inv = await T(A, () => window.__duo.inviteUrl()), vinv = await T(A, () => window.__duo.inviteUrl(false));
+  const room = inv.split('#r=')[1]; // 방이름-열쇠
+  check('같이 꾸미기 링크는 #r=방이름(10자)-열쇠(6자), 검사용 옵션은 붙지 않음', /^[a-z0-9]{10}$/.test(id) && new RegExp(`^${id}-[a-z0-9]{6}$`).test(room) && inv === `${BASE}#r=${room}` && (await A.evaluate(() => location.hash)) === '#r=' + room, inv);
+  check('구경 링크는 #v=방이름 (열쇠가 없다)', vinv === `${BASE}#v=${id}`, vinv);
+  check('위에 "친구 기다리는 중" 표시, 단추는 초대 두 가지 · 혼자 놀기', (await A.textContent('#net')) === '친구 기다리는 중' && (await A.isVisible('#duoInvite')) && (await A.isVisible('#duoInviteV')) && (await A.textContent('#duoLeave')) === '혼자 놀기' && (await audit(A)).length === 0, await audit(A));
   check('방을 만들어도 꾸민 것은 그대로', (await counts(A)).items === 2 && (await counts(A)).orns === 1);
   await A.screenshot({ path: path.join(__dirname, 'out', `duo-waiting-${label}.png`) });
 
   /* 들어오기 */
   // 이어지기 전에 손님이 빈 방에 뭔가 놓아 둔 경우: 주인의 방을 받으면서 사라져야 한다 (주인이 꾸민 방이 지워지면 안 된다)
   const B = await open(ctxB, url('b'));
-  await T(B, (r) => localStorage.setItem('nolja-tree-room.b-' + r, JSON.stringify({ v: 1, at: Date.now() + 5000, sync: 0, items: [['b9', 'plant', 15, 15, 0]], orns: [], lights: ['off', 'on'], wall: 'cream', floor: 'oak' })), room);
+  await T(B, (r) => localStorage.setItem('nolja-tree-room.b-' + r.split('-')[0], JSON.stringify({ v: 1, at: Date.now() + 5000, sync: 0, items: [['b9', 'plant', 15, 15, 0]], orns: [], lights: ['off', 'on'], wall: 'cream', floor: 'oak' })), room);
   await B.goto(url('b', room)); await sleep(400); await ready(B);
   if (await B.isVisible('#lookDone')) await B.click('#lookDone');
   check('링크로 들어오면 둘이 이어짐', await on(A, B) && (await role(B)) === 'guest', { a: await mode(A), b: await mode(B) });
@@ -81,7 +83,7 @@ async function suite(browser, label, query, twoContexts) {
   await until(async () => !(await T(B, () => window.__tree.me.moving)), 5000); await sleep(300);
   const mB = await me(B);
   check('같은 자리에 겹쳐 서지 않게 들어온 쪽이 비켜섬', Math.hypot(mA.x - mB.x, mA.z - mB.z) > 0.5, { mA, mB });
-  check('위에 "같이 노는 중" 표시', (await A.textContent('#net')) === '같이 노는 중' && (await B.textContent('#net')) === '같이 노는 중');
+  check('위에 "같이 노는 중 · 2명" 표시', (await A.textContent('#net')) === '같이 노는 중 · 2명' && (await B.textContent('#net')) === '같이 노는 중 · 2명');
 
   /* 서로 놓은 것이 바로 보임 */
   await put(A, 'a3', 'table', 4, 6, 1);
@@ -142,14 +144,67 @@ async function suite(browser, label, query, twoContexts) {
   await sleep(1500);
   check('잠시 뒤에도 두 방이 똑같음', await same(A, B));
 
-  /* 세 번째 사람 */
-  const C = await open(ctxB, url('c', room));
-  check('세 번째 사람은 들어오지 못하고 안내를 봄', await until(async () => (await mode(C)) === 'full', 15000) && (await C.textContent('#net')) === '방이 찼어요', await mode(C));
+  /* 세 번째: 구경하러 온 사람 */
+  const C = await open(ctxB, `${url('c')}#v=${id}`);
+  check('구경 링크로 들어오면 구경하는 사람으로 이어짐', await until(async () => (await mode(C)) === 'on' && (await T(C, () => window.__duo.canEdit)) === false, 15000), await mode(C));
+  await sleep(500);
+  check('구경하는 사람도 방을 그대로 봄', await same(A, C) && await T(C, () => window.__tree.itemObjs === window.__tree.S.items.size && window.__tree.ornObjs === window.__tree.S.orns.size));
+  const seen = async (p) => (await T(p, () => window.__duo.others)).length;
+  check('세 사람이 서로 보임', await until(async () => (await seen(A)) === 2 && (await seen(B)) === 2 && (await seen(C)) === 2, 5000), { a: await seen(A), b: await seen(B), c: await seen(C) });
+  check('사람 수 표시: 꾸미는 사람은 "같이 노는 중 · 3명", 구경하는 사람은 "구경 중 · 3명"', (await A.textContent('#net')) === '같이 노는 중 · 3명' && (await B.textContent('#net')) === '같이 노는 중 · 3명' && (await C.textContent('#net')) === '구경 중 · 3명', [await A.textContent('#net'), await B.textContent('#net'), await C.textContent('#net')]);
+  check('구경하는 사람에게는 가구·트리·벽바닥 탭이 없고 캐릭터·같이 탭만 있음', !(await C.isVisible('#tabs button[data-m="furn"]')) && !(await C.isVisible('#tabs button[data-m="tree"]')) && !(await C.isVisible('#tabs button[data-m="paint"]')) && (await C.isVisible('#tabs button[data-m="look"]')) && (await C.isVisible('#tabs button[data-m="duo"]')) && (await audit(C)).length === 0, await audit(C));
   await C.tap('#tabs button[data-m="duo"]'); await sleep(200);
-  check('"내 방으로 가기"를 누르면 혼자 노는 내 방으로', (await C.textContent('#duoLeave')) === '내 방으로 가기');
-  await C.tap('#duoLeave'); await ready(C);
-  check('세 번째 사람은 빈 내 방에서 혼자 놂, 둘의 연결은 그대로', (await mode(C)) === 'solo' && (await C.evaluate(() => location.hash)) === '' && (await counts(C)).items === 0 && (await mode(A)) === 'on' && (await mode(B)) === 'on');
+  check('구경하는 사람은 구경 링크만 보낼 수 있음', !(await C.isVisible('#duoInvite')) && (await C.isVisible('#duoInviteV')) && (await C.textContent('#duoLeave')) === '내 방으로 가기' && (await T(C, () => window.__duo.inviteUrl())) === `${BASE}#v=${id}` && (await audit(C)).length === 0);
+  await C.tap('#tabs button[data-m="duo"]');
+  const hA = await hash(A);
+  check('구경하는 사람은 방을 바꿀 수 없음 (화면에서 막힘)', (await put(C, 'c1', 'lamp', 9, 14)) === false && (await hash(C)) === hA);
+  await T(C, () => window.__duo.rawOp({ t: 'put', id: 'c2', k: 'lamp', i: 9, j: 14, r: 0 }));
+  await T(C, () => window.__duo.rawOp({ t: 'wall', v: 'rose' }));
+  await sleep(700);
+  check('구경하는 사람이 억지로 보낸 변화는 주인이 받지 않음', (await hash(A)) === hA && (await hash(B)) === hA && !(await T(A, () => window.__tree.S.items.has('c2'))));
+  await T(C, () => window.__tree.goTo(3.2, -3.2));
+  const cid = await T(C, () => window.__duo.me);
+  await until(() => T(C, () => !window.__tree.me.moving && !window.__tree.me.path.length), 12000);
+  const far = async (p) => { const o = (await T(p, () => window.__duo.others)).find((x) => x.id === cid), c = await me(C); return o ? Math.hypot(o.x - c.x, o.z - c.z) : 9; };
+  check('구경하는 사람이 걸어다니는 것이 주인과 다른 손님 모두에게 보임', await until(async () => (await far(A)) < 0.1 && (await far(B)) < 0.1, 6000), { a: await far(A), b: await far(B) });
+  await put(B, 'b2', 'giftG', 2, 13);
+  check('손님이 놓은 가구가 주인을 거쳐 구경하는 사람에게도 보임', await until(() => T(C, () => window.__tree.S.items.has('b2') && window.__tree.itemObjs === window.__tree.S.items.size), 5000), { b: await T(B, () => window.__tree.S.items.has('b2')), a: await T(A, () => window.__tree.S.items.has('b2')), c: await T(C, () => [...window.__tree.S.items.keys()]) });
+  await T(C, () => window.__tree.setLook({ gender: 'm', outfit: 'santa' }));
+  check('구경하는 사람이 옷을 바꾸면 다른 손님에게도 보임', await until(async () => { const o = (await T(B, () => window.__duo.others)).find((x) => x.id === cid); return o && o.look.outfit === 'santa'; }, 5000));
+
+  /* 네 번째: 꾸미는 사람이 한 명 더 */
+  const D = await open(ctxB, url('d', room));
+  check('같이 꾸미기 링크로 세 번째 꾸미는 사람이 들어옴', await until(async () => (await mode(D)) === 'on' && (await T(D, () => window.__duo.canEdit)) === true && (await T(D, () => window.__duo.others)).length > 0, 15000) && await same(A, D));
+  await sleep(400);
+  check('네 사람이 서로 보임', await until(async () => (await seen(A)) === 3 && (await seen(B)) === 3 && (await seen(C)) === 3 && (await seen(D)) === 3, 5000) && (await T(A, () => window.__duo.editors)) === 3, { s: [await seen(A), await seen(B), await seen(C), await seen(D)], e: await T(A, () => window.__duo.editors) });
+  await put(D, 'd1', 'plant', 15, 15);
+  check('새로 온 사람이 놓은 것이 모두에게 보임', await until(async () => (await T(A, () => window.__tree.S.items.has('d1'))) && (await T(B, () => window.__tree.S.items.has('d1'))) && (await T(C, () => window.__tree.S.items.has('d1'))), 5000) && await same(B, D) && await same(C, D));
+  await T(A, () => window.__tree.dispatch({ t: 'orn', id: 'ao9', k: 'bell', x: 0.2, y: 2.0, z: 0.2 }));
+  check('주인이 단 장식도 모두에게 보임', await until(async () => (await T(B, () => window.__tree.S.orns.has('ao9'))) && (await T(C, () => window.__tree.S.orns.has('ao9'))) && (await T(D, () => window.__tree.S.orns.has('ao9'))), 5000));
+  const slots = [await T(A, () => window.__duo.slot), await T(B, () => window.__duo.slot), await T(C, () => window.__duo.slot), await T(D, () => window.__duo.slot)];
+  check('트리 옆에 설 자리가 사람마다 다름', new Set(slots).size === 4, slots);
+  await A.screenshot({ path: path.join(__dirname, 'out', `duo-four-${label}.png`) });
+
+  /* 다섯 번째: 정원(검사에서는 4명)이 참 */
+  const E = await open(ctxB, url('e', room));
+  check('정원이 차면 더 들어오지 못하고 안내를 봄', await until(async () => (await mode(E)) === 'full', 15000) && (await E.textContent('#net')) === '방이 찼어요', await mode(E));
+  await E.tap('#tabs button[data-m="duo"]'); await sleep(200);
+  await E.tap('#duoLeave'); await ready(E);
+  check('"내 방으로 가기"를 누르면 혼자 노는 내 방으로, 다른 사람들의 연결은 그대로', (await mode(E)) === 'solo' && (await E.evaluate(() => location.hash)) === '' && (await counts(E)).items === 0 && (await mode(A)) === 'on' && (await seen(A)) === 3);
+  await E.close();
+
+  /* 구경하던 사람이 나가고, 꾸미는 자리가 다 찬 방에 꾸미기 링크로 들어옴 */
   await C.close();
+  check('한 명이 나가면 남은 사람들에게서 그 아바타만 사라짐', await until(async () => (await seen(A)) === 2 && (await seen(B)) === 2 && (await seen(D)) === 2, 12000) && (await A.textContent('#net')) === '같이 노는 중 · 3명');
+  const F = await open(ctxB, url('f', room));
+  check('꾸미는 자리(검사에서는 3명)가 다 차면 꾸미기 링크로 와도 구경으로 들어옴', await until(async () => (await mode(F)) === 'on' && (await T(F, () => window.__duo.canEdit)) === false && (await F.textContent('#net')).startsWith('구경 중'), 15000) && !(await F.isVisible('#tabs button[data-m="furn"]')), { m: await mode(F), e: await T(F, () => window.__duo.canEdit), n: await F.textContent('#net'), ed: await T(A, () => window.__duo.editors) });
+  await F.close(); await D.close();
+  check('둘이 나가면 다시 두 명', await until(async () => (await seen(A)) === 1 && (await seen(B)) === 1, 12000) && (await mode(A)) === 'on' && (await A.textContent('#net')) === '같이 노는 중 · 2명');
+
+  /* 구경 온 사람은 방을 대신 맡지 않는다 */
+  const V = await open(ctxB, `${url('v')}#v=zzzznobody`);
+  check('주인이 없는 방에 구경 오면 기다리라는 안내를 보고, 방을 꾸밀 수 없음', await until(async () => (await mode(V)) === 'away', 12000) && (await V.textContent('#net')) === '주인 없음' && (await T(V, () => window.__duo.role)) === null && (await put(V, 'v1', 'lamp', 3, 3)) === false && !(await V.isVisible('#tabs button[data-m="furn"]')));
+  await V.close();
 
   /* 손님이 나갔다 돌아옴 */
   const hBefore = await hash(A);
@@ -188,7 +243,7 @@ async function suite(browser, label, query, twoContexts) {
   /* 나가기 */
   const nA = (await counts(A4)).items;
   await A4.tap('#tabs button[data-m="duo"]'); await sleep(200);
-  check('연결 중에는 "혼자 놀기"(내가 만든 방) 단추만 보임', (await A4.textContent('#duoLeave')) === '혼자 놀기' && !(await A4.isVisible('#duoInvite')) && (await audit(A4)).length === 0, await audit(A4));
+  check('연결 중에도 초대할 수 있고, 내가 만든 방이면 "혼자 놀기" 단추가 보임', (await A4.textContent('#duoLeave')) === '혼자 놀기' && (await A4.isVisible('#duoInvite')) && (await A4.isVisible('#duoInviteV')) && (await A4.textContent('#duoMain')).includes('2명') && (await audit(A4)).length === 0, await audit(A4));
   await A4.screenshot({ path: path.join(__dirname, 'out', `duo-on-${label}.png`) });
   await A4.tap('#duoLeave'); await ready(A4);
   check('방을 만든 사람이 나가면 지금 방 모습 그대로 혼자 이어서 꾸밈', (await mode(A4)) === 'solo' && (await A4.evaluate(() => location.hash)) === '' && (await counts(A4)).items === nA && !(await A4.isVisible('#net')));

@@ -165,7 +165,7 @@ const throwAt = async (p, x, y) => { await T(p, (a) => window.__play.throwAt(a.x
     await furnish(P);
     await T(P, () => window.__duo.invite());
     await until(async () => (await T(P, () => window.__duo.mode)) === 'waiting');
-    const room = await T(P, () => window.__duo.room);
+    const room = (await T(P, () => window.__duo.inviteUrl())).split('#r=')[1]; // 방이름-열쇠 (열쇠가 있어야 같이 꾸밀 수 있다)
     const Q = await open(ctx2, `${BASE}?net=bc&ns=pb#r=${room}`);
     await until(async () => (await T(P, () => window.__duo.mode)) === 'on' && (await T(Q, () => window.__duo.mode)) === 'on', 15000);
     await sleep(500);
