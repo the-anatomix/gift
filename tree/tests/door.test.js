@@ -67,6 +67,7 @@ const audit = (p) => p.evaluate(() => {
     check('들어온 사람은 현관문 앞에 서 있음', Math.hypot(me[0] + 2.2, me[1] - 4.3) < 0.8, me);
     check('처음 온 사람은 들어온 다음에 캐릭터를 고름', (await B.isVisible('#look')) && !(await T(A, () => window.__duo.knocks.length)) && !(await A.isVisible('#knock')));
     await B.tap('#lookDone'); await sleep(300);
+    check('들어온 뒤에는 문 앞 카메라가 남지 않고 원래처럼 방을 내려다봄', await T(B, () => !window.__tree.eyeOn && window.__tree.meShown && window.__tree.pov === 'iso') && (await B.isVisible('#turn')));
     check('들어온 뒤에는 아래 탭이 다시 보임', (await B.isVisible('#tabs')) && (await B.isVisible('#tools')) && (await B.textContent('#net')) === '같이 노는 중 · 2명');
 
     /* 한 번 들인 친구는 다음부터 초인종만 누르면 바로 */

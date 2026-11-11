@@ -94,7 +94,7 @@ export function buildOutside(scene) {
       const a = Math.min(1, opening.t / 0.9), b = Math.max(0, Math.min(1, (opening.t - 0.3) / 1.8));
       hinge.rotation.y = -1.75 * (a * a * (3 - 2 * a));
       const p = pose(stand() - (stand() - 0.5) * (b * b * (3 - 2 * b)));
-      if (b >= 1) { const d = opening.done; opening = null; d(); }
+      if (b >= 1) { const d = opening.done; opening = null; d(); return null; } // 다 들어갔다: 이제 카메라는 방 안의 것
       return p;
     },
   };
