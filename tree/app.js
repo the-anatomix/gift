@@ -14,6 +14,7 @@ import { makeDuo, ROOM_RE, CAP, ECAP, DOOR } from './duo.js';
 import { buildOutside } from './door.js';
 import { makeMedia } from './media.js';
 import { makePlay } from './play.js';
+import { makeSnow } from './snow.js';
 import { makeCakeView, dressCake, flicker, pickTop, disposeCakeView } from './cake.js';
 
 const $ = (id) => document.getElementById(id);
@@ -632,6 +633,7 @@ function paintRole() {
   if (!canEdit && (mode === 'furn' || mode === 'tree' || mode === 'paint')) setMode(null);
 }
 const FX = { dart: 'number', fire: 'number', music: 'string', act: 'string', lie: 'string' };
+FX.snow = FX.hit = 'string'; // 마당 눈싸움 (snow.js)
 const duo = makeDuo({
   snapshot: () => ({ state: serialize(S), look, pos: [r3(me.x), r3(me.z)], mine: !!(cur && cur.mine) }),
   hash: roomHash,
@@ -678,6 +680,7 @@ const duo = makeDuo({
       a.lie(r); dirty = true;
       return true;
     }
+    if (m.k === 'snow' || m.k === 'hit') return snow.peerFx(m, id); // 마당 눈싸움
     play.peerFx(m);
     return true;
   },
@@ -950,6 +953,12 @@ const play = makePlay({
   resized: () => { if (mode === 'play') measure(false); },
   close: () => setMode(null),
 });
+// 마당 눈싸움 (snow.js)
+const snow = makeSnow({
+  scene, me, others: () => others, myId: () => duo.me, mode: () => mode, ghost: () => !!ghost, eye: () => usingEye(),
+  ray(px, py) { aimRay(px, py); return ray.ray; },
+  fx: (m) => duo.fx(m), toast: (m) => toast(m), dirty: () => { dirty = true; },
+});
 // 놀 수 있는 가구를 누르면: 그 앞으로 걸어가서 놀이를 연다
 // 가구 앞으로 걸어가서 then 을 한다 (이미 앞에 있거나 갈 수 없으면 바로)
 function approach(id, then) {
@@ -1201,6 +1210,7 @@ function lift(e, ok) {
   if (!still) return;
   if (mode === 'door') { aimRay(e.clientX, e.clientY); if (outside.hitBell(ray)) ring(); return; } // 초인종
   if (mode === 'play') { play.tap(e.clientX, e.clientY); return; }
+  if (snow.tap(e.clientX, e.clientY)) return; // 눈싸움 모드: 걸어가는 대신 눈덩이를 던진다
   if (mode === null) { const id = pickItem(e.clientX, e.clientY); if (id && useItem(id)) return; } // 케이크 내려놓기, 놀 수 있는 가구, 침대, 냉장고
   if (mode === 'tree') { treeTap(e.clientX, e.clientY); return; }
   if (mode === 'furn') { const id = pickItem(e.clientX, e.clientY); if (id) { ghostPick(id); return; } }
@@ -1502,6 +1512,7 @@ function frame(now) {
   for (const [id, v] of cakeObj) { const c = S.cakes.get(id); if (c && c.lit > 0) flicker(v, clock); }
   placeBubbles();
   play.tick(dt);
+  snow.tick(dt);
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
   renderer.render(scene, cam());
