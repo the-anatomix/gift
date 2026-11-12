@@ -304,7 +304,8 @@ export function makeSnowman(K, S) {
     if (show) btn.style.bottom = (base + 96) + 'px';
     go.hidden = !(show && on && b);
     if (!go.hidden) {
-      go.style.bottom = (S.eye() ? base + 116 : base) + 'px';
+      const st = document.getElementById('stick'), stTop = S.eye() && st && !st.hidden ? window.innerHeight - st.getBoundingClientRect().top + 8 : 0; // 1인칭: 조이스틱이 실제로 놓인 자리 위에 둔다
+      go.style.bottom = Math.max(S.eye() ? base + 116 : base, stTop) + 'px';
       const up = !!nearBase(), html = up ? '<b>⬆️</b>올리기' : '<b>📍</b>여기 두기';
       if (go.innerHTML !== html) { go.innerHTML = html; go.setAttribute('aria-label', up ? '몸통 위에 올리기' : '여기 두기'); }
     }
