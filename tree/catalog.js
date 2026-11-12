@@ -41,6 +41,31 @@ export const FURNITURE = [
 // 큰 가구: 방에 다른 사람이 있으면 놓인 것을 옮길 때 둘이 든다 (coop.js). 혼자 있으면 그대로 혼자 옮긴다
 for (const f of FURNITURE) if (f.id === 'sofa' || f.id === 'bed') f.heavy = true;
 
+// 3층 영화관 (cinema.js 가 모양을 만든다). 스크린은 TV 와 같은 화면을 크게 비춘다(play: 'tv').
+// sit = 앉을 수 있다(두 자리), rise = 계단식 좌석의 단 높이, munch = 팝콘을 꺼내 먹는다. 그림은 벽에 붙여 두고 밟고 지나갈 수 있다
+FURNITURE.push(
+  { id: 'screen', name: '영화관 스크린', icon: '🎬', w: 8, d: 1, solid: true, play: 'tv' },
+  { id: 'seat', name: '영화관 좌석', icon: '💺', w: 4, d: 2, solid: true, sit: true, rise: 0 },
+  { id: 'seat2', name: '영화관 좌석 2단', icon: '💺', w: 4, d: 2, solid: true, sit: true, rise: 0.2 },
+  { id: 'seat3', name: '영화관 좌석 3단', icon: '💺', w: 4, d: 2, solid: true, sit: true, rise: 0.4 },
+  { id: 'guide', name: '바닥 유도등', icon: '🔆', w: 6, d: 2, solid: false },
+  { id: 'popcorn', name: '팝콘 기계', icon: '🍿', w: 2, d: 1, solid: true, munch: true },
+  { id: 'art1', name: '그림: 겨울 언덕', icon: '🖼️', w: 2, d: 1, solid: false },
+  { id: 'art2', name: '그림: 트리', icon: '🖼️', w: 2, d: 1, solid: false },
+  { id: 'art3', name: '그림: 추상화', icon: '🖼️', w: 2, d: 1, solid: false },
+  { id: 'art4', name: '그림: 눈사람', icon: '🖼️', w: 2, d: 1, solid: false },
+  { id: 'art5', name: '그림: 오로라', icon: '🖼️', w: 2, d: 1, solid: false },
+);
+// 3층 영화관의 배치 [종류, 집 기준 칸 a, j, 돌린 횟수]. 서쪽 벽의 스크린, 계단식 좌석 세 줄(가운데 통로), 통로 유도등, 동쪽 벽의 팝콘 기계, 북·남쪽 벽의 그림
+export const CINEMA = [
+  ['screen', 0, 5, 1],
+  ['seat', 7, 4, 3], ['seat', 7, 10, 3], ['seat2', 11, 4, 3], ['seat2', 11, 10, 3], ['seat3', 15, 4, 3], ['seat3', 15, 10, 3],
+  ['guide', 5, 8, 0], ['guide', 11, 8, 0], ['guide', 17, 8, 0],
+  ['popcorn', 29, 6, 3],
+  ['art1', 0, 0, 0], ['art2', 7, 0, 0], ['art3', 11, 0, 0], ['art4', 17, 0, 0], ['art5', 21, 0, 0], ['art5', 8, 17, 2], ['art1', 15, 17, 2],
+];
+export const ADMINS = 8; // 공동 관리자 수 (admin.js)
+
 // 새로 시작하는 방에 처음부터 놓여 있는 가구 [종류, i, j, 돌린 횟수]. 놀 수 있는 가구들이고, 다른 가구처럼 옮기거나 치울 수 있다.
 export const STARTER = [['fire', 6, 0, 0], ['tv', 0, 6, 1], ['dart', 11, 0, 0], ['music', 15, 12, 3]];
 // 주방과 방에 처음부터 놓여 있는 가구. 거실만 있던 때(저장 형식 v 1)에 꾸민 방을 열 때도 이것만 더해 준다.
@@ -54,7 +79,7 @@ export const STARTER_EAST = [
 export const STARTER_UP = [
   ['snowman', 14, 21, 0], ['giftR', 12, 20, 0], ['giftG', 13, 21, 0],                                   // 마당
   ['rug', 32 + 8, 7, 0], ['sofa', 32 + 8, 4, 0], ['table', 32 + 8, 10, 0], ['shelf', 32 + 3, 0, 0], ['lamp', 32 + 13, 4, 0], // 2층: 쉬는 방
-  ['bed', 64 + 3, 1, 0], ['stand', 64 + 6, 1, 0], ['rug', 64 + 9, 8, 0], ['chair', 64 + 13, 8, 3], ['plant', 64 + 0, 17, 0], // 3층: 다락방
+  ...CINEMA.map(([k, a, j, r]) => [k, 64 + a, j, r]),                                                   // 3층: 영화관 (예전에는 다락방)
   ['guest', 6, 16, 2],                                                                                  // 현관 안쪽 옆의 방명록 (북쪽을 본다)
   ['advent', 14, 0, 0],                                                                                 // 거실 북쪽 벽, 리스와 액자 사이의 어드벤트 달력
 ];

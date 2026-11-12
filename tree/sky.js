@@ -431,7 +431,7 @@ export function makeSky(K) {
   function pressFire(mine) {
     const t = now();
     if (mine) {
-      if (!K.isHost()) {
+      if (!K.isHost() && !(K.admin && K.admin())) { // 방장과 공동 관리자(admin.js)는 아무 날에나
         if (!isXmas(t)) { K.toast('불꽃놀이는 크리스마스에만 할 수 있어요 (방장은 언제나)'); return false; }
         if (!K.canEdit()) { K.toast('불꽃놀이는 꾸미는 사람만 터뜨릴 수 있어요'); return false; }
       }
@@ -581,7 +581,7 @@ export function makeSky(K) {
   // 마지막으로 터진 불꽃이 다 사라지는 때
   function lastBurstEnd() { let e = 0; for (let n = 0; n < FN; n++) e = Math.max(e, fInfo[n * 4] + fInfo[n * 4 + 1]); return e; }
   function paintFireBtn() {
-    const on = (isXmas(now()) && K.canEdit()) || K.isHost();
+    const on = (isXmas(now()) && K.canEdit()) || K.isHost() || !!(K.admin && K.admin());
     if (fireRow.hidden === on) { fireRow.hidden = !on; K.resized(); }
   }
   update(true);
@@ -594,7 +594,7 @@ export function makeSky(K) {
       if (m.v !== 'fire' || !K.mayLead(id)) return false;
       const t = now(), d = new Date(t);
       // 방장이 받는 손님의 소식은 크리스마스 때만 (시계가 조금 다른 친구까지 24~26일). 손님은 방장이 걸러 보낸 것(방장 자신의 것 포함)을 그대로 받는다
-      if (K.isHost() && (d.getMonth() !== 11 || Math.abs(d.getDate() - 25) > 1)) return false;
+      if (K.isHost() && !(K.isAdmin && K.isAdmin(id)) && (d.getMonth() !== 11 || Math.abs(d.getDate() - 25) > 1)) return false;
       if ((t - lastFire) / 1000 < XMAS.gap - 5) return false;
       return pressFire(false);
     },

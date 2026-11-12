@@ -323,6 +323,7 @@ export function makeAvatar(look) {
         lying = -Math.PI / 2;
         P.lx = [0, 0]; P.ax = [0, 0]; P.az = [-0.16, 0.16]; P.by = 0; P.bx = 0; P.bz = 0; P.hx = 0; P.hz = 0; P.as = 1; spin = 0;
       }
+      if (A.rest && A.rest.sit) { lying = 0; P.lx = [-1.5, -1.5]; P.ax = [-0.55, -0.55]; P.az = [-0.12, 0.12]; } // 좌석에 앉았다 (cinema.js): 몸은 세우고 다리만 앞으로
       for (const k of [0, 1]) { legs[k].rotation.x = P.lx[k]; arms[k].rotation.x = P.ax[k]; arms[k].rotation.z = P.az[k]; arms[k].scale.y = P.as; }
       // 숙일 때는 엉덩이가 제자리에 있게 몸을 조금 뒤로 뺀다
       body.position.set(0, P.by + (lying ? Math.sin(A.t * 0.6) * 0.004 : 0), -Math.sin(P.bx) * 0.27 * SIZE);
@@ -330,7 +331,7 @@ export function makeAvatar(look) {
       head.rotation.set(P.hx, 0, P.hz);
       // 눈 깜빡임
       A.blink += dt; if (A.blink > 4.2) A.blink = Math.random() * 1.2;
-      for (const m of eyes) m.scale.y = m.userData.sy * (A.blink < 0.12 || A.rest ? 0.15 : 1);
+      for (const m of eyes) m.scale.y = m.userData.sy * (A.blink < 0.12 || (A.rest && !A.rest.sit) ? 0.15 : 1);
       // 가는 쪽으로 부드럽게 돌아선다
       let d = A.face - root.rotation.y;
       d = Math.atan2(Math.sin(d), Math.cos(d));
