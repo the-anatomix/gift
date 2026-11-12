@@ -1483,6 +1483,7 @@ function setMode(m) {
   mode = m;
   $('tabs').hidden = m === 'play'; $('tools').hidden = m === 'play'; // 놀이 중에는 놀이 판만 보인다
   for (const k in PANELS) $(PANELS[k]).hidden = k !== m;
+  if ($('giftBtn')) $('giftBtn').hidden = m !== null && m !== 'gift'; // 판이 열려 있을 때는 도구 줄이 두 줄이 되지 않게 숨긴다 (폰에서 판이 방을 가린다)
   for (const b of document.querySelectorAll('#tabs button')) b.setAttribute('aria-pressed', String(b.dataset.m === m));
   $('emo').setAttribute('aria-pressed', String(m === 'emo'));
   itemsG.visible = m !== 'tree'; // 트리를 꾸밀 때는 가구가 트리를 가리지 않게 잠깐 숨긴다
