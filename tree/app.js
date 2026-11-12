@@ -15,6 +15,7 @@ import { buildOutside } from './door.js';
 import { makeMedia } from './media.js';
 import { makePlay } from './play.js';
 import { makeBook } from './book.js';
+import { makeParty } from './party.js';
 import { makeCakeView, dressCake, flicker, pickTop, disposeCakeView } from './cake.js';
 
 const $ = (id) => document.getElementById(id);
@@ -639,7 +640,7 @@ function paintRole() {
   $('tabs').style.gridTemplateColumns = `repeat(${canEdit ? 6 : 3}, 1fr)`;
   if (!canEdit && (mode === 'furn' || mode === 'tree' || mode === 'paint')) setMode(null);
 }
-const FX = { dart: 'number', fire: 'number', music: 'string', act: 'string', lie: 'string' };
+const FX = { dart: 'number', fire: 'number', music: 'string', act: 'string', lie: 'string', show: 'string' };
 const duo = makeDuo({
   snapshot: () => ({ state: serialize(S), look, pos: [r3(me.x), r3(me.z)], mine: !!(cur && cur.mine) }),
   hash: roomHash,
@@ -686,6 +687,7 @@ const duo = makeDuo({
       a.lie(r); dirty = true;
       return true;
     }
+    if (m.k === 'show') return party.peerFx(m, id); // 점등식·단체 사진
     play.peerFx(m);
     return true;
   },
@@ -963,6 +965,17 @@ const play = makePlay({
 const book = makeBook({
   key, store, toast: (m) => toast(m), op: (o) => dispatch(o), canEdit: () => canEdit, newId,
   defName: () => nameOf(duo.me), notes: () => notesList(S), best: () => S.best, play, close: () => setMode(null),
+});
+/* ───────── 점등식과 단체 사진 (party.js) ───────── */
+const hemi = scene.children.find((o) => o.isHemisphereLight), BRIGHT = [hemi.intensity, sun.intensity];
+// 방 밝기(room)와 트리 둘레 빛(tree)을 원래의 몇 배로 한다. setBright(1, 1) 이면 정확히 원래대로.
+// 빛의 세기만 바뀌어서 그림자는 다시 그리지 않아도 된다(dirty 를 켜지 않는다).
+function setBright(room, tree) { hemi.intensity = BRIGHT[0] * room; sun.intensity = BRIGHT[1] * room; glow.intensity = (bulbs.on ? 2.6 : 1.6) * tree; }
+const party = makeParty({
+  canvas, toast: (m) => toast(m), fx: (m) => duo.fx(m), canEdit: () => canEdit,
+  mayLead: (id) => duo.role !== 'host' || duo.people.some((p) => p.id === id && p.edit), // 방장은 꾸미는 사람의 점등식만 받아 전한다
+  bright: setBright, lightsOn: () => bulbs.on, lightUp: () => dispatch({ t: 'lights', set: 'multi', blink: S.lights.blink }),
+  hasMusic: () => hasKind('music'), song: (id) => play.song(id),
 });
 // 놀 수 있는 가구를 누르면: 그 앞으로 걸어가서 놀이를 연다
 // 가구 앞으로 걸어가서 then 을 한다 (이미 앞에 있거나 갈 수 없으면 바로)
@@ -1528,9 +1541,11 @@ function frame(now) {
   for (const [id, v] of cakeObj) { const c = S.cakes.get(id); if (c && c.lit > 0) flicker(v, clock); }
   placeBubbles();
   play.tick(dt);
+  party.tick();
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
   renderer.render(scene, cam());
+  party.shot(); // 단체 사진: 방금 그린 화면을 같은 그림 안에서 찍는다
   frames++;
 }
 
@@ -1585,6 +1600,7 @@ window.__play = Object.assign(play.test, {
   close: () => setMode(null), peerFx: (m) => play.peerFx(m),
 });
 Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose }, id: { get: () => play.id }, spot: { get: () => play.spot } });
+window.__party = Object.assign(party.test, { bright: () => ({ hemi: hemi.intensity, sun: sun.intensity, glow: glow.intensity }) });
 window.__tree = {
   NX, NZ, GX, GZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, LEVELS, FLOOR_H, FLOOR_DX, LADDERS, FRONT, toWorld, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
   ghostNew, ghostPick, ghostMoveTo, ghostTurn, ghostDone, ghostCancel, ghostRemove, surfaceR, serialize: () => serialize(S),
