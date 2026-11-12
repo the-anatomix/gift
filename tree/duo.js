@@ -34,6 +34,7 @@ const OPT = { cap: CAP };
 export const DOOR = Q.get('door') !== '0'; // 초인종을 누르고 허락받아야 들어오는지 (검사용 ?door=0 은 바로 들어온다)
 export const ROOM_RE = /^[a-z0-9]{6,20}$/;
 const VIEW_OPS = new Set(['cakeBlow', 'cakeEat', 'note', 'best']); // 구경하는 사람도 할 수 있는 변화
+VIEW_OPS.add('snowman'); // 마당에서 같이 만든 눈사람 놓기 (state.js 가 마당 칸·개수를 따로 막는다)
 const rnd = (n) => { const a = new Uint8Array(n); crypto.getRandomValues(a); return Array.from(a, (x) => 'abcdefghijkmnpqrstuvwxyz23456789'[x % 32]).join(''); };
 
 export function makeDuo(K) {

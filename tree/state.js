@@ -22,7 +22,11 @@
 //   { t: 'note', id, name, text, at }  한마디 남기기 (at = 남긴 때 ms). NOTE.max 개가 넘치면 가장 오래된 것부터 빠진다
 //   { t: 'noteDel', id }               방명록 글 지우기
 //   { t: 'best', k, v, name }          이 방 최고 기록 (k = 'dart' | 'fire'). 지금 기록보다 높을 때만 받는다
+// 마당 눈사람 (구경하는 사람도 할 수 있다. 놓인 뒤에는 보통 가구 눈사람이라 'move'·'del' 로 옮기고 치운다. 저장도 가구로 한다)
+//   { t: 'snowman', id, i, j }         같이 만든 눈사람을 마당 칸 (i, j) 에 놓는다. 방에 눈사람이 SNOWMEN 개 있으면 더 놓지 못한다
 import { GX, GZ } from './path.js';
+import { zoneOf } from './path.js';
+import { SNOWMEN } from './catalog.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, CREAMS, TOPPINGS, CAKE, NOTE, BEST } from './catalog.js';
 
 const F = Object.fromEntries(FURNITURE.map((f) => [f.id, f]));
@@ -279,6 +283,16 @@ export function apply(S, op, fixed) {
       const now = S.best[op.k];
       if (now && op.v <= now.v) return false; // 지금 기록보다 높아야 한다
       S.best[op.k] = { v: op.v, name: op.name };
+      return true;
+    }
+    case 'snowman': { // 마당에서 같이 만든 눈사람: 마당 칸에만, 방에 눈사람이 SNOWMEN 개가 될 때까지
+      if (!okId(op.id) || S.items.has(op.id) || S.cakes.has(op.id) || S.items.size >= MAX_ITEMS || zoneOf(op.i, op.j) !== 'yard') return false;
+      let n = 0;
+      for (const o of S.items.values()) if (o.k === 'snowman') n++;
+      if (n >= SNOWMEN) return false;
+      const it = { id: op.id, k: 'snowman', i: op.i, j: op.j, r: 0 };
+      if (!canPlace(S, it, fixed)) return false;
+      S.items.set(it.id, it);
       return true;
     }
     case 'wall': if (!has(WALLS, op.v)) return false; S.wall = op.v; return true;

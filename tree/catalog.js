@@ -131,6 +131,7 @@ export const FLOORS = [
 
 export const MAX_ITEMS = 100;  // 가구는 이만큼까지
 export const MAX_ORNS = 150;   // 트리 장식은 이만큼까지
+export const SNOWMEN = 8;      // 마당에서 같이 만들어 놓는 눈사람('snowman' 변화)은 방에 눈사람이 이만큼 있을 때까지
 // 방명록: 글은 이만큼까지(넘치면 가장 오래된 것부터 빠진다), 이름·글의 글자 수, 한 사람이 다시 남기기까지 기다리는 시간
 export const NOTE = { max: 60, name: 10, text: 80, gap: 5000 };
 // 이 방 최고 기록을 남기는 놀이와 그 점수의 끝 (다트 = 화살 3개의 합, 마시멜로 = 구운 점수)

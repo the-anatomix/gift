@@ -147,12 +147,14 @@ function dropObj(map, id, parent, own) {
 // 방의 모든 변화는 여기를 지난다. from = 'me'(내가 함) | 'peer'(친구가 함) | 'load'(저장된 방을 여는 중)
 function dispatch(op, from = 'me') {
   if (op && op.t === 'cakeSet' && from !== 'load') return false; // 저장된 방을 풀 때만 쓰는 변화
+  if (from === 'me' && !canEdit && op && op.t === 'snowman') { canEdit = true; try { return dispatch(op, from); } finally { canEdit = false; } } // 마당에서 같이 만든 눈사람은 구경하는 사람도 놓는다 (snowman.js)
   if (from === 'me' && !canEdit && !(op && (op.t === 'cakeBlow' || op.t === 'cakeEat' || op.t === 'note' || op.t === 'best'))) { toast('구경하는 중에는 꾸밀 수 없어요'); return false; } // 촛불 불기, 케이크 먹기, 방명록 남기기, 이 방 최고 기록은 구경하는 사람도 된다
   const wasLit = op && typeof op.t === 'string' && op.t.startsWith('cake') && S.cakes.get(op.id) ? S.cakes.get(op.id).lit : 0;
   // 내가 들고 있는 가구를 친구가 옮기거나 치웠으면 손에서 내려놓는다
   const taken = from === 'peer' && ghost && ghost.id && op && ghost.id === op.id && (op.t === 'del' || op.t === 'move');
   if (!apply(S, op, noBuild)) return false;
   if (taken) ghost = null;
+  if (op.t === 'snowman') { const g = buildItem('snowman'); g.userData.item = op.id; seat(g, S.items.get(op.id)); itemsG.add(g); itemObj.set(op.id, g); paintLevels(); rebuildGrid(); } // 마당에서 같이 만든 눈사람: 보통 가구 눈사람으로 놓인다
   let eaten = false; // 이번에 케이크를 다 먹었는지
   if (op.t === 'put') {
     const g = buildItem(op.k);
@@ -680,6 +682,7 @@ const duo = makeDuo({
   },
   peerFx(m, id) {
     if (m && m.k === 'bell') { if (duo.role !== 'host') ding(false); return false; } // 초인종 소식은 방장만 전한다
+    if (m && (m.k === 'team' || m.k === 'ball' || m.k === 'made')) return snow.peerFx(m, id); // 눈싸움 팀전·눈사람 (소식이 길어서 snow.js 가 따로 살핀다)
     if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false;
     if (m.k === 'act') { const a = others.get(id); return !!(a && a.act(m.v)); } // 그 사람이 한 행동
     if (m.k === 'lie') { // 그 사람이 침대에 누웠거나('침대:자리') 일어났다('')
@@ -987,6 +990,9 @@ const snow = makeSnow({
   scene: snowG, me, others: () => others, myId: () => duo.me, mode: () => mode, ghost: () => !!ghost, eye: () => usingEye(),
   ray(px, py) { aimRay(px, py); return ray.ray; },
   fx: (m) => duo.fx(m), toast: (m) => toast(m), dirty: () => { dirty = true; },
+  // 팀전과 눈사람 (snowteam.js, snowman.js)
+  online: () => duo.mode === 'on', name: (id) => nameOf(id), newId: () => newId(), op: (o) => dispatch(o),
+  canPut: (i, j, avoid) => canPlace(S, { k: 'snowman', i, j, r: 0 }, noBuild, null, avoid),
 });
 // 놀 수 있는 가구를 누르면: 그 앞으로 걸어가서 놀이를 연다
 // 가구 앞으로 걸어가서 then 을 한다 (이미 앞에 있거나 갈 수 없으면 바로)
