@@ -42,19 +42,20 @@ export const FURNITURE = [
 for (const f of FURNITURE) if (f.id === 'sofa' || f.id === 'bed') f.heavy = true;
 
 // 3층 영화관 (cinema.js 가 모양을 만든다). 스크린은 TV 와 같은 화면을 크게 비춘다(play: 'tv').
-// sit = 앉을 수 있다(두 자리), rise = 계단식 좌석의 단 높이, munch = 팝콘을 꺼내 먹는다. 그림은 벽에 붙여 두고 밟고 지나갈 수 있다
+// sit = 앉을 수 있다(두 자리), rise = 계단식 좌석의 단 높이, munch = 팝콘을 꺼내 먹는다. 그림은 벽에 붙여 두고 밟고 지나갈 수 있다.
+// set = 영화관 묶음: 가구 탭의 목록에는 나오지 않고(폰에서 목록이 넘치지 않게) 영화관을 차릴 때만 놓인다. 놓인 뒤에는 보통 가구처럼 옮기고 치운다
 FURNITURE.push(
-  { id: 'screen', name: '영화관 스크린', icon: '🎬', w: 8, d: 1, solid: true, play: 'tv' },
-  { id: 'seat', name: '영화관 좌석', icon: '💺', w: 4, d: 2, solid: true, sit: true, rise: 0 },
-  { id: 'seat2', name: '영화관 좌석 2단', icon: '💺', w: 4, d: 2, solid: true, sit: true, rise: 0.2 },
-  { id: 'seat3', name: '영화관 좌석 3단', icon: '💺', w: 4, d: 2, solid: true, sit: true, rise: 0.4 },
-  { id: 'guide', name: '바닥 유도등', icon: '🔆', w: 6, d: 2, solid: false },
-  { id: 'popcorn', name: '팝콘 기계', icon: '🍿', w: 2, d: 1, solid: true, munch: true },
-  { id: 'art1', name: '그림: 겨울 언덕', icon: '🖼️', w: 2, d: 1, solid: false },
-  { id: 'art2', name: '그림: 트리', icon: '🖼️', w: 2, d: 1, solid: false },
-  { id: 'art3', name: '그림: 추상화', icon: '🖼️', w: 2, d: 1, solid: false },
-  { id: 'art4', name: '그림: 눈사람', icon: '🖼️', w: 2, d: 1, solid: false },
-  { id: 'art5', name: '그림: 오로라', icon: '🖼️', w: 2, d: 1, solid: false },
+  { id: 'screen', name: '영화관 스크린', icon: '🎬', w: 8, d: 1, set: 'cinema', solid: true, play: 'tv' },
+  { id: 'seat', name: '영화관 좌석', icon: '💺', w: 4, d: 2, set: 'cinema', solid: true, sit: true, rise: 0 },
+  { id: 'seat2', name: '영화관 좌석 2단', icon: '💺', w: 4, d: 2, set: 'cinema', solid: true, sit: true, rise: 0.2 },
+  { id: 'seat3', name: '영화관 좌석 3단', icon: '💺', w: 4, d: 2, set: 'cinema', solid: true, sit: true, rise: 0.4 },
+  { id: 'guide', name: '바닥 유도등', icon: '🔆', w: 6, d: 2, set: 'cinema', solid: false },
+  { id: 'popcorn', name: '팝콘 기계', icon: '🍿', w: 2, d: 1, set: 'cinema', solid: true, munch: true },
+  { id: 'art1', name: '그림: 겨울 언덕', icon: '🖼️', w: 2, d: 1, set: 'cinema', solid: false },
+  { id: 'art2', name: '그림: 트리', icon: '🖼️', w: 2, d: 1, set: 'cinema', solid: false },
+  { id: 'art3', name: '그림: 추상화', icon: '🖼️', w: 2, d: 1, set: 'cinema', solid: false },
+  { id: 'art4', name: '그림: 눈사람', icon: '🖼️', w: 2, d: 1, set: 'cinema', solid: false },
+  { id: 'art5', name: '그림: 오로라', icon: '🖼️', w: 2, d: 1, set: 'cinema', solid: false },
 );
 // 3층 영화관의 배치 [종류, 집 기준 칸 a, j, 돌린 횟수]. 서쪽 벽의 스크린, 계단식 좌석 세 줄(가운데 통로), 통로 유도등, 동쪽 벽의 팝콘 기계, 북·남쪽 벽의 그림
 export const CINEMA = [

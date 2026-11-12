@@ -1570,7 +1570,7 @@ picks($('pickOutfit'), OUTFITS, 'chip', (v) => setLook({ outfit: v }));
 picks($('faceList'), FACES, 'pick', (v) => setLook({ face: v }));
 picks($('actList'), ACTS, 'pick', (v) => doAct(v));
 $('emo').addEventListener('click', () => setMode('emo'));
-picks($('furnList'), FURNITURE, 'pick', (v) => ghostNew(v));
+picks($('furnList'), FURNITURE.filter((f) => !f.set), 'pick', (v) => ghostNew(v)); // 영화관 가구(set)는 목록에 넣지 않는다: 폰에서 목록이 판을 넘치지 않게 (cinema.js)
 picks($('ornList'), [...ORNAMENTS, { id: 'cut', name: '떼기', icon: '✂️' }], 'pick', (v) => { tool = v; paintPanels(); if (v === 'cut') toast('뗄 장식을 눌러요'); });
 picks($('lightList'), LIGHT_SETS, 'chip', (v) => dispatch({ t: 'lights', set: v, blink: S.lights.blink }));
 picks($('blinkList'), BLINKS, 'chip', (v) => dispatch({ t: 'lights', set: S.lights.set, blink: v }));
