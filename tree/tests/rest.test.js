@@ -1,4 +1,4 @@
-// 침대에 눕기 · 그 앞에서 스페이스바(할 수 있는 일 단추) · 냉장고 간식 · 옷장 검사. 실행: cd tree/tests && node rest.test.js
+// 침대에 눕기 · 그 앞에서 스페이스바(할 수 있는 일 단추) · 냉장고 열기 · 옷장 검사. 실행: cd tree/tests && node rest.test.js
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8183, BASE = `http://localhost:${PORT}/tree/`;
@@ -123,9 +123,13 @@ const stand = async (p, x, z) => { await T(p, (a) => { const W = window.__tree; 
     check('침대 앞: "🛏️ 눕기", 스페이스바로 누움', (await near(A)) === '🛏️ 눕기' && (await T(A, () => (window.__tree.pressSpace(), true))) && await until(async () => { const l = await lying(A); return l && l.id === 'bd2'; }, 12000), { near: await near(A), l: await lying(A) });
     await T(A, () => window.__tree.getUp());
     await stand(A, 3.5, -3.0);
-    check('냉장고 앞: "🍪 간식 꺼내 먹기"', (await near(A)) === '🍪 간식 꺼내 먹기', await near(A));
+    check('냉장고 앞: "🧊 냉장고 열기"', (await near(A)) === '🧊 냉장고 열기', await near(A));
     await A.tap('#act');
-    check('누르면 간식을 먹는 몸짓("eat")을 하고 무엇을 먹었는지 알려 줌', await until(() => T(A, () => window.__tree.me.acting === 'eat'), 3000) && /먹었|마셨|까먹/.test(await A.textContent('#toast')), { acting: await T(A, () => window.__tree.me.acting), toast: await A.textContent('#toast') });
+    check('누르면 냉장고 판이 열림(문이 열림)', await until(() => T(A, () => window.__tree.mode === 'fridge' && window.__food.open === 'fr'), 3000) && await A.isVisible('#fridgeP'));
+    await A.tap('#fridgeList .fd[data-v="cookie"]'); await sleep(400);
+    check('하나를 고르면 손에 들고, 할 일 단추로 먹는 몸짓("eat")을 함', (await near(A)).startsWith('🍪 쿠키 먹기') && (await T(A, () => (window.__tree.pressSpace(), true))) && await until(() => T(A, () => window.__tree.me.acting === 'eat'), 3000), { near: await near(A), acting: await T(A, () => window.__tree.me.acting) });
+    await T(A, () => window.__food.holding && window.__tree.useItem('fr')); await until(() => T(A, () => window.__tree.mode === 'fridge'), 3000);
+    await A.tap('#fridgeBack'); await A.tap('#fridgeClose');
     await sleep(2500);
     await stand(A, 4.75, 4.0);
     check('옷장 앞: "👕 옷 갈아입기"', (await near(A)) === '👕 옷 갈아입기', await near(A));

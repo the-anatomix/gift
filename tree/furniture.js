@@ -194,11 +194,37 @@ const B = {
     for (const x of [-0.24, 0.24]) { put(cyl(0.11, 0.11, 0.02, 14), 0x2B2420, x, 0.875, 0, g, false); put(ball(0.025, 8, 6), RED, x, 0.74, 0.24, g, false); }
     put(cyl(0.13, 0.11, 0.1, 14), 0xC8443A, -0.24, 0.94, 0, g);                // 냄비
   },
-  fridge(g) { // 2 × 1, 키 큰 냉장고
-    put(rbox(0.92, 1.75, 0.46, 0.04), 0xEEF2F4, 0, 0.9, 0, g);
-    put(new THREE.BoxGeometry(0.9, 0.012, 0.01), 0xB9C2C8, 0, 1.15, 0.232, g, false);
-    for (const y of [0.75, 1.4]) put(cyl(0.014, 0.014, 0.26, 6), 0x8C8478, 0.36, y, 0.25, g, false);
-    put(rbox(0.16, 0.12, 0.012, 0.004), RED, -0.2, 1.45, 0.236, g, false);     // 냉장고 자석 쪽지
+  fridge(g) { // 2 × 1, 키 큰 냉장고. 닫힌 모양(shut)만 미리 만들고, 문이 열리는 모양은 처음 열 때 만든다(food.js 가 연다)
+    const shut = new THREE.Group(); g.add(shut);
+    put(rbox(0.92, 1.75, 0.46, 0.04), 0xEEF2F4, 0, 0.9, 0, shut);
+    const front = (d) => { // 문 앞면의 줄·손잡이·자석 쪽지 (d = 붙일 곳, 문 왼쪽 아래 모서리가 0)
+      put(new THREE.BoxGeometry(0.9, 0.012, 0.01), 0xB9C2C8, 0.46, 1.15, 0.002, d, false);
+      for (const y of [0.75, 1.4]) put(cyl(0.014, 0.014, 0.26, 6), 0x8C8478, 0.82, y, 0.02, d, false);
+      put(rbox(0.16, 0.12, 0.012, 0.004), RED, 0.26, 1.45, 0.006, d, false);     // 냉장고 자석 쪽지
+    };
+    const f0 = new THREE.Group(); f0.position.set(-0.46, 0, 0.23); shut.add(f0); front(f0);
+    let open = null;
+    g.userData.fridge = {
+      shut,
+      // 열리는 모양 { root, door(경첩에서 돈다), inside(음식을 놓는 곳), glow(불빛) }. 처음 부를 때 만든다
+      open() {
+        if (open) return open;
+        const root = new THREE.Group(), W = 0xEEF2F4, IN = 0xF7FAFB;
+        put(new THREE.BoxGeometry(0.92, 1.75, 0.03), IN, 0, 0.9, -0.215, root);                 // 뒤판
+        for (const x of [-0.445, 0.445]) put(new THREE.BoxGeometry(0.03, 1.75, 0.42), W, x, 0.9, -0.02, root);
+        put(new THREE.BoxGeometry(0.92, 0.04, 0.42), W, 0, 1.755, -0.02, root, false);
+        put(new THREE.BoxGeometry(0.92, 0.1, 0.42), W, 0, 0.075, -0.02, root, false);
+        for (const y of [0.55, 0.95, 1.35]) put(new THREE.BoxGeometry(0.86, 0.014, 0.36), 0xCFE3EA, 0, y, -0.02, root, false); // 선반
+        const glow = put(new THREE.BoxGeometry(0.5, 0.03, 0.05), lit(0xFFF6D0), 0, 1.715, 0.1, root, false);   // 안쪽 등
+        const door = new THREE.Group(); door.position.set(-0.46, 0, 0.19); root.add(door);
+        put(rbox(0.92, 1.75, 0.04, 0.018), W, 0.46, 0.9, 0.02, door);
+        const f = new THREE.Group(); f.position.z = 0.04; door.add(f); front(f);
+        for (const y of [0.5, 1.0]) put(new THREE.BoxGeometry(0.7, 0.1, 0.07), 0xDCEAF0, 0.46, y, -0.035, door, false); // 문 안쪽 칸
+        const inside = new THREE.Group(); root.add(inside);
+        root.visible = false; g.add(root);
+        return (open = { root, door, inside, glow });
+      },
+    };
   },
   bed(g) { // 3 × 4, 머리맡이 뒤쪽(-z)
     put(rbox(1.42, 0.3, 1.94, 0.05), WOOD_D, 0, 0.17, 0, g);

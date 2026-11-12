@@ -22,6 +22,7 @@ import { makeGames } from './games.js';
 import { makeSky } from './sky.js';
 import { makeAdvent } from './advent.js';
 import { makeGift } from './gift.js';
+import { makeFoodPlay } from './food.js';
 import { makeCakeView, dressCake, flicker, pickTop, disposeCakeView } from './cake.js';
 
 const $ = (id) => document.getElementById(id);
@@ -695,6 +696,7 @@ const duo = makeDuo({
   peerFx(m, id) {
     if (m && m.k === 'bell') { if (duo.role !== 'host') ding(false); return false; } // 초인종 소식은 방장만 전한다
     if (m && m.k === 'gm') return games.peerFx(m, id); // 같이 놀기 (games.js)
+    if (m && m.k === 'food') return food.peerFx(m, id); // 냉장고와 먹기 (food.js)
     if (m && (m.k === 'team' || m.k === 'ball' || m.k === 'made')) return snow.peerFx(m, id); // 눈싸움 팀전·눈사람 (소식이 길어서 snow.js 가 따로 살핀다)
     if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false;
     if (m.k === 'act' && games.quiet(id)) return true; // 술래에게는 숨은 사람의 행동이 안 보인다
@@ -1051,6 +1053,14 @@ const gift = makeGift({
     if (mode === 'play' && play.kind === 'cake' && play.id === id) { if (!c || c.gone) setMode(null); else play.refresh(id); }
   },
 });
+// 냉장고와 먹기 (food.js): 판은 setMode('fridge') 로 연다
+const food = makeFoodPlay({
+  scene, me, avatar: (id) => others.get(id), itemObj: (id) => itemObj.get(id), S: () => S, approach: (id, then) => approach(id, then),
+  mode: () => mode, setMode: (m) => setMode(m), act: (id) => doAct(id), fx: (m) => duo.fx(m), online: () => duo.mode === 'on',
+  toast: (m) => toast(m), dirty: () => { dirty = true; }, busy: () => !!carried(),
+  ray(px, py) { aimRay(px, py); return ray.ray; },
+  resized: () => { if (mode === 'fridge') measure(false); },
+});
 // 놀 수 있는 가구를 누르면: 그 앞으로 걸어가서 놀이를 연다
 // 가구 앞으로 걸어가서 then 을 한다 (이미 앞에 있거나 갈 수 없으면 바로)
 function approach(id, then) {
@@ -1209,13 +1219,11 @@ const PLAY_LABEL = { dart: '🎯 다트 하기', tv: '📺 TV 보기', fire: '�
   $('tools').insertBefore(b, $('snap') || null);
 }
 PLAY_LABEL.advent = '🗓️ 어드벤트 달력'; // advent.js
-// 냉장고: 간식을 꺼내 먹는다
-const SNACKS = ['🍪 쿠키를 꺼내 먹었어요', '🥛 우유를 한 잔 마셨어요', '🍊 귤을 까먹었어요', '🍫 초콜릿을 꺼내 먹었어요'];
+// 냉장고: 앞으로 가서 문을 열고 먹을 것을 고른다 (food.js)
 function snack(id) {
   const it = S.items.get(id);
   if (!it || !kindOf(it.k).snack) return false;
-  approach(id, () => { if (mode === null && doAct('eat')) toast(SNACKS[Math.floor(Math.random() * SNACKS.length)]); });
-  return true;
+  return food.open(id);
 }
 // 옷장: 앞으로 가서 옷을 갈아입는다 (캐릭터 고르기 판이 열린다)
 function dress(id) {
@@ -1235,7 +1243,7 @@ function actionOf(it) {
   if (it.k === 'cake') return cakeAtBench(S, it.id) ? '🎂 케이크 꾸미기·먹기' : null;
   if (f.play) return f.play === 'bake' && !canEdit ? null : PLAY_LABEL[f.play] || null;
   if (f.lie) return '🛏️ 눕기';
-  if (f.snack) return '🍪 간식 꺼내 먹기';
+  if (f.snack) return food.label;
   if (f.dress) return '👕 옷 갈아입기';
   return null;
 }
@@ -1249,6 +1257,7 @@ function nearAction() {
   if (mode !== null || ghost || me.hop) return null;
   { const g = games.action(); if (g) return g; } // 같이 놀기 중에 할 수 있는 일 (찾았다·옷장·슬쩍)
   if (me.rest) return { label: '🛏️ 일어나기', run: getUp };
+  { const f = food.action(); if (f) return f; } // 손에 든 것 먹기·마시기 (food.js)
   // 트리 앞에서는: 진행 중인 놀이(위) > 별 달기 협동 > 트리 밑 선물. 혼자라서 별을 못 다는 때(weak)는 선물이 먼저이고, 선물은 도구 단추 🎁 로도 연다
   const starHint = coop.near();
   if (starHint && !starHint.weak) return starHint; // 받쳐 주기·별 달기·같이 들기 (coop.js)
@@ -1328,6 +1337,7 @@ function lift(e, ok) {
   if (snow.tap(e.clientX, e.clientY)) return; // 눈싸움 모드: 걸어가는 대신 눈덩이를 던진다
   if (games.tap(e.clientX, e.clientY)) return; // 숨바꼭질: 술래가 숨은 사람을 누름
   if ((mode === null || mode === 'gift') && gift.tap(e.clientX, e.clientY)) return; // 트리 밑 선물 상자
+  if (mode === 'fridge' && food.tap(e.clientX, e.clientY)) return; // 열린 냉장고 안의 음식
   if (mode === null) { const id = pickItem(e.clientX, e.clientY); if (id && useItem(id)) return; } // 케이크 내려놓기, 놀 수 있는 가구, 침대, 냉장고
   if (mode === 'tree') { treeTap(e.clientX, e.clientY); return; }
   if (mode === 'furn') { const id = pickItem(e.clientX, e.clientY); if (id && coop.heavyPick(id)) return; } // 큰 가구는 친구가 있으면 둘이 든다 (coop.js)
@@ -1473,6 +1483,7 @@ $('zout').addEventListener('click', () => zoomBy(1 / 1.35));
 
 const PANELS = { furn: 'furn', tree: 'treeP', paint: 'paint', look: 'look', duo: 'duoP', play: 'playP', chat: 'chatP', door: 'doorP', emo: 'emoP' };
 PANELS.gift = 'giftP'; // 트리 밑 선물 (gift.js)
+PANELS.fridge = 'fridgeP'; // 냉장고 (food.js)
 const cakeObj = new Map(); // 케이크 id → 모양 (cake.js 의 makeCakeView)
 function setMode(m) {
   if (mode === 'door') return; // 문 앞에서는 탭을 쓸 수 없다
@@ -1638,7 +1649,7 @@ function frame(now) {
   coop.tick(dt);
   games.tick();
   sky.tick(dt);
-  advent.tick(dt); gift.tick(dt);
+  advent.tick(dt); gift.tick(dt); food.tick(dt);
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
   renderer.render(scene, cam());
@@ -1699,6 +1710,7 @@ window.__play = Object.assign(play.test, {
 });
 Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose }, id: { get: () => play.id }, spot: { get: () => play.spot } });
 window.__sky = sky.test;
+window.__food = food.test;
 window.__party = Object.assign(party.test, { bright: () => ({ hemi: hemi.intensity, sun: sun.intensity, glow: glow.intensity }) });
 window.__tree = {
   NX, NZ, GX, GZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, LEVELS, FLOOR_H, FLOOR_DX, LADDERS, FRONT, toWorld, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
