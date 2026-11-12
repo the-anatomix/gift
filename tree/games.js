@@ -411,9 +411,9 @@ export function makeGames(K) {
       return (closetOf(me()) ? '🚪 옷장 안에 숨어 있어요' : '숨는 사람') + ` · 술래 ${who(G.sk)}`;
     }
     const n = `장식 ${G.st.length}/${G.goal}`;
-    if (isOut()) return `빠졌어요 · 구경 중 · ${n}`;
+    if (isOut()) return `${n} · 빠졌어요 · 구경 중`;
     if (amSanta()) { const cd = cdEnd - now(); return `🤫 너는 몰래 산타 · ${n} · ${cd > 0 ? `슬쩍 ${Math.ceil(cd / SEC)}초 뒤` : '슬쩍 가능'}`; }
-    return `누군가 장식을 훔치고 있어요 · ${n}`;
+    return `${n} · 누군가 장식을 훔치고 있어요`;
   }
   function paint() {
     if (!G) return;
