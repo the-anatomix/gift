@@ -246,6 +246,8 @@ const B = {
   },
 };
 
+// 다른 모듈이 가구 모양을 더한다 (어드벤트 달력과 거기서 풀리는 특별 가구: advent.js)
+export function addShape(k, fn) { B[k] = fn; }
 export function buildItem(k) {
   const g = new THREE.Group();
   B[k](g);

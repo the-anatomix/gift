@@ -27,6 +27,15 @@ export const FURNITURE = [
   { id: 'stand', name: '협탁', icon: '🕯️', w: 1, d: 1, solid: true },
   // 현관
   { id: 'guest', name: '방명록', icon: '📖', w: 1, d: 1, solid: true, play: 'guest' }, // 놀러 온 사람이 한마디 남긴다 (book.js)
+  { id: 'advent', name: '어드벤트 달력', icon: '🗓️', w: 2, d: 1, solid: true, play: 'advent' }, // 벽에 붙여 두는 달력. 12월 하루에 한 칸씩 연다 (advent.js)
+  // 어드벤트 달력의 칸을 열어야 놓을 수 있는 특별 가구 (day = 12월 며칠 칸. 모양은 advent.js)
+  { id: 'deer', name: '루돌프 인형', icon: '🦌', w: 1, d: 1, solid: true, day: 3 },
+  { id: 'bigcane', name: '큰 사탕 지팡이', icon: '🍭', w: 1, d: 1, solid: true, day: 7 },
+  { id: 'pile', name: '선물 더미', icon: '🎁', w: 2, d: 2, solid: true, day: 11 },
+  { id: 'train', name: '장난감 기차', icon: '🚂', w: 3, d: 1, solid: true, day: 15 },
+  { id: 'flake', name: '눈 결정 조명', icon: '✨', w: 1, d: 1, solid: true, day: 18 },
+  { id: 'ginger', name: '진저브레드 집', icon: '🏠', w: 2, d: 2, solid: true, day: 22 },
+  { id: 'sled', name: '산타 썰매', icon: '🛷', w: 3, d: 2, solid: true, day: 24 },
 ];
 
 // 새로 시작하는 방에 처음부터 놓여 있는 가구 [종류, i, j, 돌린 횟수]. 놀 수 있는 가구들이고, 다른 가구처럼 옮기거나 치울 수 있다.
@@ -44,6 +53,7 @@ export const STARTER_UP = [
   ['rug', 32 + 8, 7, 0], ['sofa', 32 + 8, 4, 0], ['table', 32 + 8, 10, 0], ['shelf', 32 + 3, 0, 0], ['lamp', 32 + 13, 4, 0], // 2층: 쉬는 방
   ['bed', 64 + 3, 1, 0], ['stand', 64 + 6, 1, 0], ['rug', 64 + 9, 8, 0], ['chair', 64 + 13, 8, 3], ['plant', 64 + 0, 17, 0], // 3층: 다락방
   ['guest', 6, 16, 2],                                                                                  // 현관 안쪽 옆의 방명록 (북쪽을 본다)
+  ['advent', 14, 0, 0],                                                                                 // 거실 북쪽 벽, 리스와 액자 사이의 어드벤트 달력
 ];
 
 // 케이크: 크림 색, 올릴 수 있는 장식, 치수(케이크 작업대 기준). r = 윗면 반지름, y = 윗면 높이, max = 장식 개수
@@ -100,6 +110,21 @@ export const ORNAMENTS = [
   { id: 'cane', name: '사탕', icon: '🍬' },
   { id: 'bow', name: '리본', icon: '🎀' },
   { id: 'bell', name: '종', icon: '🔔' },
+  // 어드벤트 달력의 칸을 열어야 달 수 있는 특별 장식 (day = 12월 며칠 칸. 모양은 advent.js)
+  { id: 'flake', name: '눈 결정', icon: '❄️', day: 1 },
+  { id: 'cookie', name: '진저쿠키', icon: '🍪', day: 2 },
+  { id: 'sock', name: '양말', icon: '🧦', day: 4 },
+  { id: 'cone', name: '솔방울', icon: '🌰', day: 6 },
+  { id: 'hat', name: '산타 모자', icon: '🎅', day: 8 },
+  { id: 'gem', name: '보석', icon: '💎', day: 10 },
+  { id: 'icicle', name: '고드름', icon: '🧊', day: 12 },
+  { id: 'kid', name: '꼬마 눈사람', icon: '⛄', day: 13 },
+  { id: 'heart', name: '하트', icon: '💗', day: 16 },
+  { id: 'apple', name: '사과', icon: '🍎', day: 17 },
+  { id: 'angel', name: '천사', icon: '👼', day: 19 },
+  { id: 'penguin', name: '펭귄', icon: '🐧', day: 21 },
+  { id: 'moon', name: '달', icon: '🌙', day: 23 },
+  { id: 'king', name: '황금 왕별', icon: '🌟', day: 25 }, // 25일: 스스로 빛나는 큰 별
 ];
 
 // 전구 색 묶음과 깜빡임
@@ -109,6 +134,8 @@ export const LIGHT_SETS = [
   { id: 'multi', name: '알록달록', colors: [0xFF3B30, 0x34D36B, 0x3D8BFF, 0xFFD21F] },
   { id: 'rg', name: '빨강초록', colors: [0xFF3B30, 0x34D36B] },
   { id: 'ice', name: '얼음', colors: [0x8FD3FF, 0xFFFFFF] },
+  { id: 'pink', name: '분홍', colors: [0xFF8FB8, 0xFFFFFF, 0xFFC2D6], day: 5, mark: '🌸' },      // 어드벤트 달력 5일 칸
+  { id: 'aurora', name: '오로라', colors: [0x5CF2C8, 0x9B7BFF, 0x4FC3FF, 0xB8FF8A], day: 20, mark: '🌌' }, // 어드벤트 달력 20일 칸
 ];
 export const BLINKS = [
   { id: 'on', name: '그대로' },
@@ -122,11 +149,13 @@ export const WALLS = [
   { id: 'sky', name: '하늘', wall: 0xDCE8F0, panel: 0xA9C0D4 },
   { id: 'rose', name: '분홍', wall: 0xF4DAD6, panel: 0xDDA9A2 },
   { id: 'pine', name: '짙은 초록', wall: 0x4F7A63, panel: 0xE9DCC3 },
+  { id: 'night', name: '눈 오는 밤', wall: 0x2F3D6B, panel: 0xE9DCC3, day: 9, mark: '🌃' }, // 어드벤트 달력 9일 칸
 ];
 export const FLOORS = [
   { id: 'oak', name: '밝은 나무', tones: ['#D9B285', '#D2A978', '#DDB98E', '#CDA472'] },
   { id: 'walnut', name: '짙은 나무', tones: ['#9C6B4A', '#8F6042', '#A67452', '#855838'] },
   { id: 'ash', name: '흰 나무', tones: ['#EADFCB', '#E3D6BF', '#EFE6D4', '#DDD0B8'] },
+  { id: 'candy', name: '사탕 마루', tones: ['#F4C6CF', '#FBEDEA', '#EFB3BF', '#FFF6F2'], day: 14, mark: '🍬' }, // 어드벤트 달력 14일 칸
 ];
 
 export const MAX_ITEMS = 100;  // 가구는 이만큼까지
@@ -135,3 +164,26 @@ export const MAX_ORNS = 150;   // 트리 장식은 이만큼까지
 export const NOTE = { max: 60, name: 10, text: 80, gap: 5000 };
 // 이 방 최고 기록을 남기는 놀이와 그 점수의 끝 (다트 = 화살 3개의 합, 마시멜로 = 구운 점수)
 export const BEST = { dart: { name: '다트', top: 180 }, fire: { name: '마시멜로 굽기', top: 100 } };
+
+// 어드벤트 달력 (advent.js): 12월 d 일이 되면 d 번 칸을 열 수 있고, 열면 그 방에 그날의 것이 풀린다.
+// 위 목록들에서 day 가 붙은 것이 그 칸의 선물이다. 하루에 하나씩, 25 칸 모두 다르다.
+// kind = 'furn'(가구) | 'orn'(트리 장식) | 'light'(전구) | 'wall'(벽지) | 'floor'(바닥)
+export const ADVENT_LISTS = { furn: FURNITURE, orn: ORNAMENTS, light: LIGHT_SETS, wall: WALLS, floor: FLOORS };
+export const ADVENT = Array.from({ length: 25 }, (_, k) => {
+  for (const [kind, list] of Object.entries(ADVENT_LISTS)) {
+    const x = list.find((o) => o.day === k + 1);
+    if (x) return { d: k + 1, kind, id: x.id, name: x.name, icon: x.icon || x.mark };
+  }
+  return null;
+});
+// 트리 밑 선물 (gift.js): 방 하나에 max 개까지, 이름·편지 글자 수, 한 사람이 다시 두기까지 기다리는 시간
+export const GIFT = { max: 24, name: 10, text: 80, gap: 5000 };
+// 포장지: box = 상자 색, band = 리본 색
+export const WRAPS = [
+  { id: 'red', name: '빨강', box: 0xD23A30, band: 0xE9B93A },
+  { id: 'green', name: '초록', box: 0x2F8F5F, band: 0xFFF4E0 },
+  { id: 'blue', name: '파랑', box: 0x3E6FC4, band: 0xDDE8FF },
+  { id: 'gold', name: '금빛', box: 0xE0AE3A, band: 0xC8332B },
+  { id: 'pink', name: '분홍', box: 0xF19BB6, band: 0xFFFFFF },
+  { id: 'white', name: '눈빛', box: 0xF6F2EA, band: 0x3E9A7E },
+];

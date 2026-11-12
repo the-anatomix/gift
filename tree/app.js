@@ -17,6 +17,8 @@ import { makePlay } from './play.js';
 import { makeBook } from './book.js';
 import { makeParty } from './party.js';
 import { makeSnow } from './snow.js';
+import { makeAdvent } from './advent.js';
+import { makeGift } from './gift.js';
 import { makeCakeView, dressCake, flicker, pickTop, disposeCakeView } from './cake.js';
 
 const $ = (id) => document.getElementById(id);
@@ -147,6 +149,7 @@ function dropObj(map, id, parent, own) {
 // 방의 모든 변화는 여기를 지난다. from = 'me'(내가 함) | 'peer'(친구가 함) | 'load'(저장된 방을 여는 중)
 function dispatch(op, from = 'me') {
   if (op && op.t === 'cakeSet' && from !== 'load') return false; // 저장된 방을 풀 때만 쓰는 변화
+  if (from === 'me' && !canEdit && op && (op.t === 'gift' || op.t === 'giftOpen')) from = 'mine'; // 트리 밑 선물은 구경하는 사람도 두고 연다 (gift.js)
   if (from === 'me' && !canEdit && !(op && (op.t === 'cakeBlow' || op.t === 'cakeEat' || op.t === 'note' || op.t === 'best'))) { toast('구경하는 중에는 꾸밀 수 없어요'); return false; } // 촛불 불기, 케이크 먹기, 방명록 남기기, 이 방 최고 기록은 구경하는 사람도 된다
   const wasLit = op && typeof op.t === 'string' && op.t.startsWith('cake') && S.cakes.get(op.id) ? S.cakes.get(op.id).lit : 0;
   // 내가 들고 있는 가구를 친구가 옮기거나 치웠으면 손에서 내려놓는다
@@ -183,6 +186,7 @@ function dispatch(op, from = 'me') {
   if (op.t === 'put' || op.t === 'move' || op.t === 'del') rebuildGrid();
   if (op.t === 'move' || op.t === 'del') restCheck(op.id); // 누워 있던 침대가 옮겨지거나 치워졌으면 일어난다
   dirty = true;
+  if (op.t === 'adv') advent.onOp(op, from); else if (op.t.startsWith('gift')) gift.onOp(op, from); // 어드벤트 달력, 트리 밑 선물
   if (from === 'load') return true;
   if (op.t === 'note' || op.t === 'noteDel' || op.t === 'best') book.onOp(op, from); // 방명록과 이 방 최고 기록
   if (mode === 'play' && play.id === op.id && (op.t === 'del' || op.t === 'move')) setMode(null); // 놀던 가구를 친구가 옮기거나 치움
@@ -193,6 +197,7 @@ function dispatch(op, from = 'me') {
   saveSoon();
   if (taken) ghostEnd(); else { if (ghost) ghostPaint(); paintPanels(); }
   if (from === 'me') duo.op(op);
+  if (from === 'mine') duo.op(op); // 구경하는 사람이 둔 선물
   return true;
 }
 
@@ -988,6 +993,24 @@ const snow = makeSnow({
   ray(px, py) { aimRay(px, py); return ray.ray; },
   fx: (m) => duo.fx(m), toast: (m) => toast(m), dirty: () => { dirty = true; },
 });
+// 어드벤트 달력 (advent.js): 달력 가구는 play 의 놀이 하나로 더해진다
+const advent = makeAdvent({
+  key, store, toast: (m) => toast(m), op: (o) => dispatch(o), load: (o) => dispatch(o, 'load'), canEdit: () => canEdit, defName: () => nameOf(duo.me),
+  S: () => S, play, close: () => setMode(null), itemObj: (id) => itemObj.get(id), scene, dirty: () => { dirty = true; },
+  findSpot: (k, r, x, z) => findSpot(k, r, x, z, []),
+});
+// 트리 밑 선물 (gift.js): 판은 setMode('gift') 로 연다
+const gift = makeGift({
+  key, store, toast: (m) => toast(m), op: (o) => dispatch(o), canEdit: () => canEdit, newId, defName: () => nameOf(duo.me),
+  S: () => S, g0: room.g0, me, mode: () => mode, setMode: (m) => setMode(m), act: (id) => doAct(id), dirty: () => { dirty = true; },
+  ray(px, py) { aimRay(px, py); return ray.ray; },
+  resized: () => { if (mode === 'gift') measure(false); },
+  cakeEaten(id) { // 선물에 케이크 한 조각을 담았다
+    syncCakes(id);
+    const c = S.cakes.get(id);
+    if (mode === 'play' && play.kind === 'cake' && play.id === id) { if (!c || c.gone) setMode(null); else play.refresh(id); }
+  },
+});
 // 놀 수 있는 가구를 누르면: 그 앞으로 걸어가서 놀이를 연다
 // 가구 앞으로 걸어가서 then 을 한다 (이미 앞에 있거나 갈 수 없으면 바로)
 function approach(id, then) {
@@ -1139,6 +1162,7 @@ $('lieUp').addEventListener('click', getUp);
 
 /* ───────── 그 앞에서 스페이스바: 가까이 있는 것으로 할 수 있는 일 ───────── */
 const PLAY_LABEL = { dart: '🎯 다트 하기', tv: '📺 TV 보기', fire: '🔥 마시멜로 굽기', music: '🎶 오르골 틀기', bake: '🍳 케이크 굽기', guest: '📖 방명록 쓰기' };
+PLAY_LABEL.advent = '🗓️ 어드벤트 달력'; // advent.js
 // 냉장고: 간식을 꺼내 먹는다
 const SNACKS = ['🍪 쿠키를 꺼내 먹었어요', '🥛 우유를 한 잔 마셨어요', '🍊 귤을 까먹었어요', '🍫 초콜릿을 꺼내 먹었어요'];
 function snack(id) {
@@ -1183,6 +1207,7 @@ function nearAction() {
     if (by(L.a)) return { label: `🪜 ${L.lv + 2}층으로 올라가기`, run: () => climb(L, true) };
     if (by(L.b)) return { label: `🪜 ${L.lv + 1}층으로 내려가기`, run: () => climb(L, false) };
   }
+  { const g = gift.near(); if (g) return g; } // 트리 앞: 트리 밑 선물 (gift.js)
   let best = null, bestS = Infinity;
   const fx = Math.sin(me.face), fz = Math.cos(me.face);
   for (const it of S.items.values()) {
@@ -1251,6 +1276,7 @@ function lift(e, ok) {
   if (mode === 'door') { aimRay(e.clientX, e.clientY); if (outside.hitBell(ray)) ring(); return; } // 초인종
   if (mode === 'play') { play.tap(e.clientX, e.clientY); return; }
   if (snow.tap(e.clientX, e.clientY)) return; // 눈싸움 모드: 걸어가는 대신 눈덩이를 던진다
+  if ((mode === null || mode === 'gift') && gift.tap(e.clientX, e.clientY)) return; // 트리 밑 선물 상자
   if (mode === null) { const id = pickItem(e.clientX, e.clientY); if (id && useItem(id)) return; } // 케이크 내려놓기, 놀 수 있는 가구, 침대, 냉장고
   if (mode === 'tree') { treeTap(e.clientX, e.clientY); return; }
   if (mode === 'furn') { const id = pickItem(e.clientX, e.clientY); if (id) { ghostPick(id); return; } }
@@ -1393,6 +1419,7 @@ $('zin').addEventListener('click', () => zoomBy(1.35));
 $('zout').addEventListener('click', () => zoomBy(1 / 1.35));
 
 const PANELS = { furn: 'furn', tree: 'treeP', paint: 'paint', look: 'look', duo: 'duoP', play: 'playP', chat: 'chatP', door: 'doorP', emo: 'emoP' };
+PANELS.gift = 'giftP'; // 트리 밑 선물 (gift.js)
 const cakeObj = new Map(); // 케이크 id → 모양 (cake.js 의 makeCakeView)
 function setMode(m) {
   if (mode === 'door') return; // 문 앞에서는 탭을 쓸 수 없다
@@ -1555,6 +1582,7 @@ function frame(now) {
   play.tick(dt);
   party.tick();
   snow.tick(dt);
+  advent.tick(dt); gift.tick(dt);
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
   renderer.render(scene, cam());
@@ -1574,6 +1602,7 @@ function frame(now) {
     if ((!saved && !cur) || (saved && saved.v === 1)) STARTER_EAST.forEach(([k, i, j, r], n) => dispatch({ t: 'put', id: 'east' + n, k, i, j, r }, 'load'));
     // 마당과 2층의 기본 가구: 새 방, 그리고 마당·2층이 없던 때에 꾸민 방(up 표시가 없다)을 처음 열 때
     if ((!saved && !cur) || (saved && !saved.up)) STARTER_UP.forEach(([k, i, j, r], n) => dispatch({ t: 'put', id: 'up' + n, k, i, j, r }, 'load'));
+    advent.starter(saved, !!cur); // 어드벤트 달력이 없던 때에 꾸민 방에도 달력을 하나 놓는다
   }
 }
 addEventListener('resize', () => measure());

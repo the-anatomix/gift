@@ -22,8 +22,16 @@
 //   { t: 'note', id, name, text, at }  한마디 남기기 (at = 남긴 때 ms). NOTE.max 개가 넘치면 가장 오래된 것부터 빠진다
 //   { t: 'noteDel', id }               방명록 글 지우기
 //   { t: 'best', k, v, name }          이 방 최고 기록 (k = 'dart' | 'fire'). 지금 기록보다 높을 때만 받는다
+// 어드벤트 달력 (advent.js). 칸을 열어야 풀리는 특별 가구·장식·전구·벽지·바닥(catalog.js 의 day)은 그 전에는 놓거나 고를 수 없다
+//   { t: 'adv', d, name, at }          12월 d 일 칸을 연다 (name = 연 사람, at = 연 때 ms). 한 칸은 한 번만
+// 트리 밑 선물 (gift.js). 구경하는 사람도 두고 열 수 있다. 치우기는 꾸밀 수 있는 사람만
+//   { t: 'gift', id, to, from, text, wrap, at, cake }  선물 두기. cake = 한 조각 담을 케이크 id (그 케이크가 한 조각 줄어든다).
+//                                       저장된 방을 열 때는 cake = true(이미 담긴 것), open = true 면 열린 선물
+//   { t: 'giftOpen', id }              선물 열기 (몇 시부터 열 수 있는지는 화면에서 본다)
+//   { t: 'giftDel', id }               선물 치우기
 import { GX, GZ } from './path.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, CREAMS, TOPPINGS, CAKE, NOTE, BEST } from './catalog.js';
+import { GIFT, WRAPS } from './catalog.js';
 
 const F = Object.fromEntries(FURNITURE.map((f) => [f.id, f]));
 const has = (list, id) => typeof id === 'string' && list.some((x) => x.id === id);
@@ -113,7 +121,8 @@ export function makeState() {
   // at = 마지막으로 꾸민 때(ms, 한 번도 안 꾸몄으면 0).
   // sync = 친구의 방과 똑같다고 마지막으로 확인했을 때의 at (한 번도 맞춘 적 없으면 0). at > sync 면 헤어진 뒤 혼자 꾸민 것이다.
   // notes = 방명록 (id → { id, name, text, at }), best = 이 방 최고 기록 (놀이 → { v, name })
-  return { items: new Map(), orns: new Map(), cakes: new Map(), notes: new Map(), best: {}, lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id, at: 0, sync: 0 };
+  // adv = 어드벤트 달력에서 연 칸 (d → { name, at }), gifts = 트리 밑 선물 (id → { id, to, from, text, wrap, at, cake, open })
+  return { items: new Map(), orns: new Map(), cakes: new Map(), notes: new Map(), best: {}, lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id, at: 0, sync: 0, adv: new Map(), gifts: new Map() };
 }
 
 // 그 자리에 놓을 수 있는지. fixed(i, j) = 트리처럼 처음부터 막힌 칸. ignoreId = 옮기는 중인 자기 자신.
@@ -135,9 +144,29 @@ export function canPlace(S, it, fixed, ignoreId = null, avoid = []) {
   return true;
 }
 
+// 어드벤트 달력: 그 목록의 id 가 칸을 열어야 풀리는 것인데 아직 안 열었으면 그 칸(12월 며칠), 아니면 0
+export function lockDay(S, list, id) {
+  const x = list.find((o) => o.id === id);
+  return x && x.day && !(S.adv && S.adv.has(x.day)) ? x.day : 0;
+}
+// 아직 풀리지 않은 것을 놓거나 고르는 변화인지 (저장된 방을 열 때는 ops() 가 연 칸을 먼저 넣으므로 그대로 들어간다)
+function locked(S, op) {
+  switch (op.t) {
+    case 'put': return !!lockDay(S, FURNITURE, op.k);
+    case 'orn': return !!lockDay(S, ORNAMENTS, op.k);
+    case 'lights': return !!lockDay(S, LIGHT_SETS, op.set);
+    case 'wall': return !!lockDay(S, WALLS, op.v);
+    case 'floor': return !!lockDay(S, FLOORS, op.v);
+    default: return false;
+  }
+}
+// 트리 밑 선물을 둔 차례대로 (같은 때면 id 순)
+export const giftsList = (S) => [...S.gifts.values()].sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
 // 바꿨으면 true. 규칙에 어긋나면 아무것도 바꾸지 않고 false.
 export function apply(S, op, fixed) {
   if (!op || typeof op !== 'object') return false;
+  if (locked(S, op)) return false; // 어드벤트 달력에서 아직 풀지 않은 것
   switch (op.t) {
     case 'put': {
       if (!okId(op.id) || S.items.has(op.id) || S.cakes.has(op.id) || S.items.size >= MAX_ITEMS) return false;
@@ -281,6 +310,26 @@ export function apply(S, op, fixed) {
       S.best[op.k] = { v: op.v, name: op.name };
       return true;
     }
+    case 'adv': {
+      if (!isInt(op.d) || op.d < 1 || op.d > 25 || S.adv.has(op.d) || !okWords(op.name, NOTE.name) || !isInt(op.at) || op.at <= 0 || op.at > 1e13) return false;
+      S.adv.set(op.d, { name: op.name, at: op.at });
+      return true;
+    }
+    case 'gift': {
+      if (!okId(op.id) || S.gifts.has(op.id) || S.gifts.size >= GIFT.max || !okWords(op.to, GIFT.name) || !okWords(op.from, GIFT.name)) return false;
+      if (!(op.text === '' || okWords(op.text, GIFT.text)) || !has(WRAPS, op.wrap) || !isInt(op.at) || op.at <= 0 || op.at > 1e13) return false;
+      if (![undefined, null, '', true, false].includes(op.open)) return false;
+      const packed = op.cake === true;
+      if (!packed && ![undefined, null, '', false].includes(op.cake)) { // 케이크 한 조각을 담는다: 먹을 수 있는 케이크여야 한다
+        const c = cakeOf(S, op.cake, false) || (isBench(S, op.cake) && !S.cakes.has(op.cake) ? newCake() : null);
+        if (!c || c.lit || c.by || !(c.left > 0)) return false;
+        if (!apply(S, { t: 'cakeEat', id: op.cake }, fixed)) return false;
+      }
+      S.gifts.set(op.id, { id: op.id, to: op.to, from: op.from, text: op.text, wrap: op.wrap, at: op.at, cake: packed || !!op.cake, open: op.open === true });
+      return true;
+    }
+    case 'giftOpen': { const g = S.gifts.get(op.id); if (!g || g.open) return false; g.open = true; return true; }
+    case 'giftDel': return S.gifts.delete(op.id);
     case 'wall': if (!has(WALLS, op.v)) return false; S.wall = op.v; return true;
     case 'floor': if (!has(FLOORS, op.v)) return false; S.floor = op.v; return true;
     default: return false;
@@ -303,6 +352,8 @@ export function serialize(S) {
     lights: [S.lights.set, S.lights.blink], wall: S.wall, floor: S.floor,
     notes: [...S.notes.values()].map((o) => [o.id, o.name, o.text, o.at]), // 방명록 [id, 이름, 글, 남긴 때]
     best: Object.fromEntries(Object.entries(S.best).map(([k, b]) => [k, [b.v, b.name]])), // 이 방 최고 기록 { 놀이: [점수, 이름] }
+    adv: [...S.adv].sort((a, b) => a[0] - b[0]).map(([d, o]) => [d, o.name, o.at]), // 어드벤트 달력에서 연 칸 [날, 연 사람, 연 때]. 이 항목이 없으면 달력이 없던 때의 방
+    gifts: giftsList(S).map((g) => [g.id, g.to, g.from, g.text, g.wrap, g.at, g.cake ? 1 : 0, g.open ? 1 : 0]), // 트리 밑 선물 [id, 받는 사람, 보낸 사람, 편지, 포장, 둔 때, 케이크, 열림]
   };
 }
 // 저장된 방이나 친구가 보낸 방의 때 표시. 모양이 이상하거나 터무니없는 값이면 0(꾸민 적 없음)으로 본다.
@@ -331,6 +382,7 @@ export function ops(data) {
   const out = [];
   if (!data || typeof data !== 'object' || (data.v !== 1 && data.v !== 2)) return out;
   const rows = (a) => (Array.isArray(a) ? a.filter(Array.isArray) : []);
+  for (const [d, name, at] of rows(data.adv)) out.push({ t: 'adv', d, name, at }); // 연 칸을 먼저: 거기서 풀린 가구·장식을 놓을 수 있게
   for (const [id, k, i, j, r] of rows(data.items)) out.push({ t: 'put', id, k, i, j, r });
   for (const [id, k, x, y, z] of rows(data.orns)) out.push({ t: 'orn', id, k, x, y, z });
   // 케이크는 한 줄에 cakeSet 하나. 작업대를 떠난 케이크(다 먹었거나, 들었거나, 탁자 위)를 먼저 놓아야 작업대 자리가 빈다
@@ -344,5 +396,6 @@ export function ops(data) {
   out.push({ t: 'wall', v: data.wall }, { t: 'floor', v: data.floor });
   for (const [id, name, text, at] of rows(data.notes)) out.push({ t: 'note', id, name, text, at }); // 방명록이 없던 때의 방은 빈 방명록
   if (data.best && typeof data.best === 'object' && !Array.isArray(data.best)) for (const k of Object.keys(BEST)) if (Array.isArray(data.best[k])) out.push({ t: 'best', k, v: data.best[k][0], name: data.best[k][1] });
+  for (const [id, to, from, text, wrap, at, cake, open] of rows(data.gifts)) out.push({ t: 'gift', id, to, from, text, wrap, at, cake: cake === 1 || cake === true, open: open === 1 || open === true }); // 선물이 없던 때의 방은 빈 트리 밑
   return out;
 }
