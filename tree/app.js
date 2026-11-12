@@ -204,7 +204,8 @@ function loadRoom(data, fromPeer = false) {
   bulbs.set(S.lights.set, S.lights.blink); glow.intensity = 1.6;
   room.setWall(S.wall); room.setFloor(S.floor);
   // 예전에 놓은 가구가 지금은 비워 둬야 하는 칸(사다리 앞, 현관)에 걸려 있으면 가까운 자리로 옮겨 놓는다
-  for (const op of ops(data)) if (!dispatch(op, 'load') && op.t === 'put' && !S.items.has(op.id) && kindOf(op.k) && Number.isInteger(op.i) && Number.isInteger(op.j) && [0, 1, 2, 3].includes(op.r)) {
+  // (그 칸만 아니면 놓을 수 있었던 가구만 옮긴다. 격자 밖이거나 다른 가구와 겹치는 것은 예전처럼 버린다)
+  for (const op of ops(data)) if (!dispatch(op, 'load') && op.t === 'put' && !S.items.has(op.id) && canPlace(S, op, fixedCell) && !canPlace(S, op, noBuild)) {
     const spot = findSpot(op.k, op.r, X0 + op.i * CELL, Z0 + op.j * CELL, []);
     if (spot) dispatch({ ...op, i: spot[0], j: spot[1] }, 'load');
   }
@@ -971,6 +972,7 @@ function startPlay(id, cakeId = null) {
   if (!kind || !g) return false;
   if (kind === 'cake' && !cakeId) cakeId = cakeAtBench(S, id); // 작업대 위에 있는 케이크
   if (kind === 'cake' && !cakeId) return false;
+  if (kind === 'bake' && !canEdit) { toast('구경하는 중에는 케이크를 구울 수 없어요'); return true; }
   if (kind === 'bake' && !freeBench()) { toast(hasKind('cake') ? '작업대가 비어 있어야 새 케이크를 구울 수 있어요. 케이크를 탁자로 옮기거나 다 먹으면 비어요' : '케이크 작업대가 있어야 구울 수 있어요'); return true; }
   const pid = cakeId || id;
   approach(id, () => { if (S.items.has(id) && (!cakeId || cakeObj.has(cakeId)) && mode === null) { setMode('play'); if (!play.start(pid, kind)) setMode(null); } });
@@ -1129,7 +1131,7 @@ function actionOf(it) {
   if (mine && it.id === benchOf(mine, S.cakes.get(mine))) return cakeAtBench(S, it.id) ? null : '🎂 작업대에 두기';
   if (f.holds) return cakeOn(it.id) ? '🍰 케이크 먹기·꾸미기' : null;
   if (it.k === 'cake') return cakeAtBench(S, it.id) ? '🎂 케이크 꾸미기·먹기' : null;
-  if (f.play) return PLAY_LABEL[f.play] || null;
+  if (f.play) return f.play === 'bake' && !canEdit ? null : PLAY_LABEL[f.play] || null;
   if (f.lie) return '🛏️ 눕기';
   if (f.snack) return '🍪 간식 꺼내 먹기';
   if (f.dress) return '👕 옷 갈아입기';

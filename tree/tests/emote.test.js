@@ -1,4 +1,4 @@
-// 표정과 행동 검사 (표정 6가지, 행동 6가지, 친구에게 보이는지). 실행: cd tree/tests && node emote.test.js
+// 표정과 행동 검사 (표정 6가지, 행동 7가지(냠냠 포함), 친구에게 보이는지). 실행: cd tree/tests && node emote.test.js
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8169, BASE = `http://localhost:${PORT}/tree/`;
@@ -43,7 +43,7 @@ const audit = (p) => p.evaluate(() => {
     /* 표정과 행동 판 */
     check('도구 단추에 표정·행동 단추(👋)가 있고 화면 안·44px 이상', (await A.isVisible('#emo')) && (await audit(A)).length === 0, await audit(A));
     await A.tap('#emo'); await sleep(400);
-    check('누르면 표정 6가지와 행동 6가지가 한 줄씩 다 보임 (옆으로 넘기지 않아도)', (await A.isVisible('#emoP')) && (await A.locator('#faceList .pick').count()) === 6 && (await A.locator('#actList .pick').count()) === 6 && (await audit(A)).length === 0 && await T(A, () => [...document.querySelectorAll('#emoP .pick')].every((b) => { const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; })), await audit(A));
+    check('누르면 표정 6가지와 행동 7가지(냠냠 포함)가 한 줄씩 다 보임 (옆으로 넘기지 않아도)', (await A.isVisible('#emoP')) && (await A.locator('#faceList .pick').count()) === 6 && (await A.locator('#actList .pick').count()) === 7 && (await audit(A)).length === 0 && await T(A, () => [...document.querySelectorAll('#emoP .pick')].every((b) => { const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; })), await audit(A));
     check('처음 표정은 "기본"이 눌려 있음', (await A.getAttribute('#faceList .pick[data-v="smile"]', 'aria-pressed')) === 'true' && (await me(A)).face === 'smile' && (await me(A)).eyes === 2);
     await T(A, () => window.__tree.snapView());
     await A.screenshot({ path: path.join(__dirname, 'out', 'emote-panel.png') });
@@ -81,6 +81,8 @@ const audit = (p) => p.evaluate(() => {
     await A.tap('#actList .pick[data-v="bow"]'); await sleep(800);
     m = await me(A);
     check('"꾸벅"은 몸을 숙임', m.acting === 'bow' && m.bx > 0.25, m);
+    await A.tap('#actList .pick[data-v="eat"]'); await sleep(500);
+    check('"냠냠"은 먹는 몸짓', (await me(A)).acting === 'eat' && (await A.getAttribute('#actList .pick[data-v="eat"]', 'aria-label') || await A.textContent('#actList .pick[data-v="eat"]')).includes('냠냠'), await me(A));
     await A.tap('#actList .pick[data-v="dance"]'); await sleep(600);
     check('"춤"을 추는 중', (await me(A)).acting === 'dance');
     await A.screenshot({ path: path.join(__dirname, 'out', 'emote-dance.png') });

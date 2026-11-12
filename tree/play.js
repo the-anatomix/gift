@@ -306,6 +306,7 @@ export function makePlay(K) {
   const BATTER = [[0, 0xF6E7A8], [0.45, 0xF2D27A], [0.7, 0xD9A24E], [0.9, 0xA8692E], [1.15, 0x3B2619]];
   const bake = {
     start(c) {
+      if (!K.canEdit()) { K.toast('구경하는 중에는 케이크를 구울 수 없어요'); return false; }
       if (!K.bakeTarget()) { K.toast('작업대가 비어 있어야 새 케이크를 구울 수 있어요'); return false; }
       c.m = new THREE.Group(); // 오른쪽 화구 위의 둥근 케이크 틀
       c.tin = new THREE.MeshLambertMaterial({ color: 0xA9B0B6, side: THREE.DoubleSide });

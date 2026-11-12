@@ -48,6 +48,8 @@ const audit = (p) => p.evaluate(() => {
       const s = await T(p, (a) => { const W = window.__tree, it = W.S.items.get(a.id), big = it.k === 'cake' || it.k === 'table'; return W.screenOf(-4 + (it.i + (big ? 1.5 : 0.5)) * 0.5, -4 + (it.j + (big ? 1 : 0.5)) * 0.5, a.y); }, { id, y });
       await p.touchscreen.tap(s.x, s.y);
     };
+    // 탁자 위의 케이크 판을 연다 (__play.open 은 작업대 위의 케이크만 바로 연다. 탁자는 눌러서 걸어가 연다)
+    const openOnTable = async (p, tid = 'tb') => { await T(p, (t) => window.__tree.useItem(t), tid); await until(() => T(p, () => window.__play.on && window.__play.id === 'ck'), 15000); await sleep(300); };
     const settle = (p) => until(() => T(p, () => !window.__tree.me.moving && !window.__tree.me.path.length), 12000);
 
     /* 혼자: 들기와 내려놓기 */
@@ -83,7 +85,7 @@ const audit = (p) => p.evaluate(() => {
     await A.tap('#playGo'); await sleep(200); await A.tap('#playGo'); await sleep(300);
     check('탁자 위에서 촛불을 다 불면 축하가 나옴', await T(A, () => window.__tree.S.cakes.get('ck').lit) === 0 && (await A.locator('#party i').count()) > 0);
     check('놀던 케이크의 탁자를 옮기면 놀이가 닫히고 케이크는 탁자를 따라감', await T(A, () => window.__tree.dispatch({ t: 'move', id: 'tb', i: 13, j: 6, r: 1 })) && !(await T(A, () => window.__play.on)) && (await at(A)).where === 'item:tb');
-    await T(A, () => window.__play.open('ck')); await sleep(400);
+    await openOnTable(A);
     await A.tap('#playCarry'); await sleep(400);
     check('탁자에서 다시 들 수 있고, 탁자의 소품이 돌아옴', (await at(A)).where === 'me' && await T(A, () => window.__tree.cakeAt('ck').on === null));
     await A.tap('#carryBack'); await sleep(300);
@@ -142,9 +144,9 @@ const audit = (p) => p.evaluate(() => {
     await until(async () => (await T(A, () => window.__duo.count)) === 3, 8000);
     await T(A, () => window.__tree.putDown('tb'));
     check('방장이 탁자에 올려놓으면 모두에게 탁자 위로 보임', await until(async () => (await at(B)).where === 'item:tb' && (await at(C)).where === 'item:tb', 4000) && (await hash(A)) === (await hash(B)));
-    await T(C, () => window.__play.open('ck')); await sleep(400);
+    await openOnTable(C);
     check('구경하는 사람의 케이크 판에는 "들고 가기"가 없고, 들 수도 없음', !(await C.isVisible('#playCarry')) && !(await T(C, () => window.__tree.dispatch({ t: 'cakeTake', id: 'ck', by: window.__duo.me }))) && (await at(A)).on === 'tb');
-    await T(B, () => window.__play.open('ck')); await sleep(400);
+    await openOnTable(B);
     await B.tap('#playCarry');
     check('친구가 탁자에서 케이크를 들면 방장과 구경하는 사람에게 친구 손에 들린 것으로 보임', await until(async () => (await at(A)).where === 'peer:' + bid && (await at(C)).where === 'peer:' + bid, 4000) && (await at(B)).where === 'me', { a: await at(A), c: await at(C) });
     check('보던 케이크를 누가 들고 가면 그 케이크 판은 닫힘', await until(() => T(C, () => !window.__play.on), 3000));
