@@ -22,6 +22,9 @@
 //   { t: 'note', id, name, text, at }  한마디 남기기 (at = 남긴 때 ms). NOTE.max 개가 넘치면 가장 오래된 것부터 빠진다
 //   { t: 'noteDel', id }               방명록 글 지우기
 //   { t: 'best', k, v, name }          이 방 최고 기록 (k = 'dart' | 'fire'). 지금 기록보다 높을 때만 받는다
+// 꼭대기 별 (coop.js. 한 명이 받치고 한 명이 올라가 단다. 구경하는 사람도 달 수 있다)
+//   { t: 'star', on: true, by, name, help }  별을 단다 (by = 올라간 사람 id(방장이 보낸 사람과 맞춰 본다), name = 단 사람, help = 받친 사람 이름)
+//   { t: 'star', on: false }                 별을 뗀다. S.star = { name, help } 또는 null(저장값에 없으면 안 달린 것)
 import { GX, GZ } from './path.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, CREAMS, TOPPINGS, CAKE, NOTE, BEST } from './catalog.js';
 
@@ -281,6 +284,12 @@ export function apply(S, op, fixed) {
       S.best[op.k] = { v: op.v, name: op.name };
       return true;
     }
+    case 'star': { // 꼭대기 별 (S.star 가 없던 때의 방은 안 달린 것)
+      if (op.on === false) { const had = !!S.star; S.star = null; return had; }
+      if (op.on !== true || S.star || !okWords(op.name, NOTE.name) || !okWords(op.help, NOTE.name) || (op.by !== undefined && !okPid(op.by))) return false;
+      S.star = { name: op.name, help: op.help };
+      return true;
+    }
     case 'wall': if (!has(WALLS, op.v)) return false; S.wall = op.v; return true;
     case 'floor': if (!has(FLOORS, op.v)) return false; S.floor = op.v; return true;
     default: return false;
@@ -303,6 +312,7 @@ export function serialize(S) {
     lights: [S.lights.set, S.lights.blink], wall: S.wall, floor: S.floor,
     notes: [...S.notes.values()].map((o) => [o.id, o.name, o.text, o.at]), // 방명록 [id, 이름, 글, 남긴 때]
     best: Object.fromEntries(Object.entries(S.best).map(([k, b]) => [k, [b.v, b.name]])), // 이 방 최고 기록 { 놀이: [점수, 이름] }
+    ...(S.star ? { star: [S.star.name, S.star.help] } : {}), // 꼭대기 별 [단 사람, 받친 사람] (안 달렸으면 없다)
   };
 }
 // 저장된 방이나 친구가 보낸 방의 때 표시. 모양이 이상하거나 터무니없는 값이면 0(꾸민 적 없음)으로 본다.
@@ -344,5 +354,6 @@ export function ops(data) {
   out.push({ t: 'wall', v: data.wall }, { t: 'floor', v: data.floor });
   for (const [id, name, text, at] of rows(data.notes)) out.push({ t: 'note', id, name, text, at }); // 방명록이 없던 때의 방은 빈 방명록
   if (data.best && typeof data.best === 'object' && !Array.isArray(data.best)) for (const k of Object.keys(BEST)) if (Array.isArray(data.best[k])) out.push({ t: 'best', k, v: data.best[k][0], name: data.best[k][1] });
+  out.push(Array.isArray(data.star) ? { t: 'star', on: true, name: data.star[0], help: data.star[1] } : { t: 'star', on: false }); // 꼭대기 별이 없던 때의 방은 안 달린 채로 연다
   return out;
 }
