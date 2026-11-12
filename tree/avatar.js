@@ -337,6 +337,18 @@ export function makeAvatar(look) {
     },
   };
   A.setLook(look);
+  // 눈덩이에 맞은 모습: 머리와 두 어깨에 흰 눈 뭉치를 얹는다. on = false 면 털어 낸다.
+  // 생김새를 바꿔 몸을 새로 만들었으면 다시 부르면 새 몸에 얹는다. 지금 얹혀 있는지는 A.snowy
+  A.snowed = (on) => {
+    const s = A.snowy;
+    if (s && (!on || s.parts !== parts)) { for (const g of s.gs) { if (g.parent) g.parent.remove(g); g.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); } A.snowy = null; }
+    if (!on || A.snowy) return;
+    const top = new THREE.Group(), sh = new THREE.Group(), w = M(0xFFFFFF);
+    for (const [x, y, z, r] of [[0, 0.27, 0.02, 0.15], [-0.12, 0.23, -0.04, 0.11], [0.13, 0.22, 0.05, 0.1], [0.04, 0.33, -0.05, 0.09], [-0.05, 0.2, 0.17, 0.07]]) put(ball(r, 10, 8), w, x, y, z, top).scale.y = 0.75;
+    for (const s2 of [-1, 1]) for (const [x, y, z, r] of [[0.17, 0.63, 0, 0.085], [0.11, 0.66, 0.05, 0.065], [0.21, 0.6, -0.04, 0.06]]) put(ball(r, 10, 8), w, x * s2, y, z, sh).scale.y = 0.8;
+    parts.head.add(top); parts.body.add(sh);
+    A.snowy = { parts, gs: [top, sh] };
+  };
   return A;
 }
 

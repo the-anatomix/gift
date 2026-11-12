@@ -23,6 +23,7 @@ node chat.test.js     # 채팅: 말풍선 · 지난 말 목록 · 여러 명에�
 node emote.test.js    # 표정과 행동: 표정 6가지 · 행동 6가지 · 1인칭에서 · 친구와 구경하는 사람에게 보이는지
 node carry.test.js    # 케이크 들고 다니기: 들기 · 탁자에 올려놓기 · 규칙 · 저장 · 여럿이 볼 때와 나갔을 때
 node book.test.js     # 방명록과 이 방 최고 기록: 글 규칙 · 판(폰) · 저장 · 구경하는 사람의 글과 기록 · 방장의 걸러내기
+node snow.test.js     # 마당 눈싸움: 눈덩이 단추 · 던지기(거리·벽 제한) · 1인칭과 F 키 · 친구에게 보이기 · 맞히기와 눈 뒤집어쓰기
 node duo.test.js      # 같이 꾸미기: 방 만들기·들어가기·서로 보이기·여러 명과 구경·끊김·다시 만나 맞추기 (같은 브라우저 안 통신)
 node duo.test.js --peer   # 위에 더해 로컬 PeerJS 브로커로 실제 WebRTC 데이터 채널까지
 node media.test.js    # 보이스와 TV 같이 보기 (로컬 PeerJS 브로커와 가짜 마이크로 실제 WebRTC 소리·영상)
