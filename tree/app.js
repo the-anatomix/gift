@@ -3,18 +3,18 @@
 // 2단계: 가구 놓기·옮기기, 벽지·바닥, 트리 장식과 전구
 // 정적 파일만 쓴다.
 import { THREE } from './kit.js';
-import { Grid, NX, NZ, CELL, X0, Z0, X1, Z1, cellOf, centerOf } from './path.js';
-import { buildRoom, WALL_H, TREE, fixedCell, surfaceR } from './room.js';
+import { Grid, NX, NZ, CELL, X0, Z0, X1, Z1, GX, GZ, GX1, GZ1, LOFT, LOFT_X, LOFT_DX, LADDER, cellOf, centerOf, levelOf, levelOfCell, zoneOf, toWorld } from './path.js';
+import { buildRoom, WALL_H, HIGH_H, TREE, FRONT, fixedCell, noBuild, surfaceR } from './room.js';
 import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, FACES, ACTS, BODY_R, SPEED } from './avatar.js';
-import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER, STARTER_EAST, CAKE } from './catalog.js';
-import { makeState, apply, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake } from './state.js';
+import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER, STARTER_EAST, STARTER_UP, CAKE } from './catalog.js';
+import { makeState, apply, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake, benchOf, cakesList, cakeAtBench, cakeOnTable, sendHome } from './state.js';
 import { buildItem } from './furniture.js';
 import { buildOrnament, buildLights } from './decor.js';
 import { makeDuo, ROOM_RE, CAP, ECAP, DOOR } from './duo.js';
 import { buildOutside } from './door.js';
 import { makeMedia } from './media.js';
 import { makePlay } from './play.js';
-import { dressCake, flicker, pickTop } from './cake.js';
+import { makeCakeView, dressCake, flicker, pickTop, disposeCakeView } from './cake.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('c');
@@ -47,11 +47,11 @@ scene.add(new THREE.HemisphereLight(0xFFEFD8, 0xB98F66, 1.35));
 const sun = new THREE.DirectionalLight(0xFFDDB0, 1.9);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-// 해는 집 한가운데를 비춘다. 그림자는 집 전체를 덮는다.
-const CX = (X0 + X1) / 2, CZ = (Z0 + Z1) / 2, SH = Math.max(X1 - X0, Z1 - Z0) / 2 + 1.5;
+// 해는 집과 마당의 한가운데를 비춘다. 그림자는 집과 마당 전체를 덮는다.
+const CX = (X0 + X1) / 2, CZ = (Z0 + GZ1) / 2, SH = Math.max(X1 - X0, GZ1 - Z0) / 2 + 1.5;
 sun.position.set(CX + 2.5, 9, CZ + 4.5); sun.target.position.set(CX, 0, CZ); scene.add(sun.target);
 sun.shadow.camera.left = -SH; sun.shadow.camera.right = SH; sun.shadow.camera.top = SH; sun.shadow.camera.bottom = -SH;
-sun.shadow.camera.near = 1; sun.shadow.camera.far = 30;
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 34;
 sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02; sun.shadow.radius = 5;
 scene.add(sun);
 const glow = new THREE.PointLight(0xFFC27A, 1.6, 6, 1.6); // 트리 둘레의 은은한 빛. 전구를 켜면 더 밝아진다
@@ -112,12 +112,14 @@ const newId = () => myTag + (seq++).toString(36);
 
 let dirty = true;                // 그림자를 다시 그려야 하는지
 let saveK = 0;
-const saveSoon = () => { clearTimeout(saveK); if (cur && cur.view) return; saveK = setTimeout(() => store.set(slot(), serialize(S)), 300); }; // 구경하는 방은 내 기기에 남기지 않는다
+// 기기에 남기는 모양. up = 마당과 2층의 기본 가구를 이미 놓아 본 방이라는 표시
+const forDisk = () => ({ ...serialize(S), up: 1 });
+const saveSoon = () => { clearTimeout(saveK); if (cur && cur.view) return; saveK = setTimeout(() => store.set(slot(), forDisk()), 300); }; // 구경하는 방은 내 기기에 남기지 않는다
 
 // 걸을 수 있는 칸을 다시 계산한다 (트리 + 놓인 가구)
 function rebuildGrid() {
   grid.b.fill(0);
-  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) if (fixedCell(i, j)) grid.block(i, j);
+  for (let j = 0; j < GZ; j++) for (let i = 0; i < GX; i++) if (fixedCell(i, j)) grid.block(i, j);
   for (const it of S.items.values()) if (kindOf(it.k).solid) for (const [i, j] of cellsOf(it)) grid.block(i, j);
   if (!grid.fits(me.x, me.z, BODY_R)) { // 내 자리에 가구가 놓였으면 가까운 빈칸으로 비켜선다
     const [i, j] = cellOf(me.x, me.z), c = grid.nearestFree(i, j, me.x, me.z);
@@ -126,42 +128,45 @@ function rebuildGrid() {
   if (me.path.length) { const [tx, tz] = me.path[me.path.length - 1]; const f = me.onArrive; me.stop(); if (goTo(tx, tz)) me.onArrive = f; }
 }
 function seat(g, it) {
-  const [w, d] = footprint(it.k, it.r);
-  g.position.set(X0 + (it.i + w / 2) * CELL, 0, Z0 + (it.j + d / 2) * CELL);
+  const [w, d] = footprint(it.k, it.r), p = toWorld(X0 + (it.i + w / 2) * CELL, Z0 + (it.j + d / 2) * CELL); // 2층에 놓인 가구는 위로 올라간다
+  g.position.set(p[0], p[1], p[2]);
   g.rotation.y = it.r * Math.PI / 2;
 }
 function dropObj(map, id, parent, own) {
   const g = map.get(id);
   if (!g) return;
   parent.remove(g); map.delete(id);
-  if (g.userData.cake) g.add(g.userData.cake.root); // 손이나 탁자에 가 있던 케이크도 같이 치운다
+  for (const v of cakeObj.values()) if (v.root.parent === g) g.remove(v.root); // 그 위에 놓인 케이크 모양은 따로 다룬다(syncCakes)
   if (own) g.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); // 장식은 도형을 나눠 쓰므로 지우지 않는다
 }
 
 // 방의 모든 변화는 여기를 지난다. from = 'me'(내가 함) | 'peer'(친구가 함) | 'load'(저장된 방을 여는 중)
 function dispatch(op, from = 'me') {
-  if (from === 'me' && !canEdit && !(op && op.t === 'cakeBlow')) { toast('구경하는 중에는 꾸밀 수 없어요'); return false; } // 촛불 불기는 구경하는 사람도 된다
+  if (op && op.t === 'cakeSet' && from !== 'load') return false; // 저장된 방을 풀 때만 쓰는 변화
+  if (from === 'me' && !canEdit && !(op && (op.t === 'cakeBlow' || op.t === 'cakeEat'))) { toast('구경하는 중에는 꾸밀 수 없어요'); return false; } // 촛불 불기와 케이크 먹기는 구경하는 사람도 된다
   const wasLit = op && typeof op.t === 'string' && op.t.startsWith('cake') && S.cakes.get(op.id) ? S.cakes.get(op.id).lit : 0;
   // 내가 들고 있는 가구를 친구가 옮기거나 치웠으면 손에서 내려놓는다
   const taken = from === 'peer' && ghost && ghost.id && op && ghost.id === op.id && (op.t === 'del' || op.t === 'move');
-  if (!apply(S, op, fixedCell)) return false;
+  if (!apply(S, op, noBuild)) return false;
   if (taken) ghost = null;
+  let eaten = false; // 이번에 케이크를 다 먹었는지
   if (op.t === 'put') {
     const g = buildItem(op.k);
     g.userData.item = op.id;
     seat(g, S.items.get(op.id));
     itemsG.add(g); itemObj.set(op.id, g);
-    if (op.k === 'cake') dressCake(g, newCake());
+    if (op.k === 'cake') syncCakes();
+    paintLevels();
   } else if (op.t.startsWith('cake')) {
-    const k = S.cakes.get(op.id) || newCake();
-    dressCake(itemObj.get(op.id), k);
-    if (op.t === 'cakeTake' || op.t === 'cakeDrop') seatCakes();
+    const k = S.cakes.get(op.id);
+    eaten = op.t === 'cakeEat' && (!k || k.gone);
+    syncCakes(op.id);
     if (from !== 'load') {
       play.refresh(op.id);
-      if (wasLit > 0 && k.lit === 0 && op.t === 'cakeBlow') celebrate(); // 마지막 촛불이 꺼졌다
+      if (wasLit > 0 && k && k.lit === 0 && op.t === 'cakeBlow') celebrate(); // 마지막 촛불이 꺼졌다
     }
-  } else if (op.t === 'move') seat(itemObj.get(op.id), S.items.get(op.id));
-  else if (op.t === 'del') { seatCakes(); dropObj(itemObj, op.id, itemsG, true); } // 치우는 탁자 위의 케이크는 먼저 작업대로 돌려놓는다
+  } else if (op.t === 'move') { seat(itemObj.get(op.id), S.items.get(op.id)); paintLevels(); }
+  else if (op.t === 'del') { dropObj(itemObj, op.id, itemsG, true); syncCakes(); } // 치운 탁자 위의 케이크는 작업대로 돌아가 있다
   else if (op.t === 'orn') {
     const g = buildOrnament(S.orns.get(op.id));
     g.userData.orn = op.id;
@@ -172,11 +177,13 @@ function dispatch(op, from = 'me') {
   else if (op.t === 'wall') room.setWall(S.wall);
   else if (op.t === 'floor') room.setFloor(S.floor);
   if (op.t === 'put' || op.t === 'move' || op.t === 'del') rebuildGrid();
+  if (op.t === 'move' || op.t === 'del') restCheck(op.id); // 누워 있던 침대가 옮겨지거나 치워졌으면 일어난다
   dirty = true;
   if (from === 'load') return true;
   if (mode === 'play' && play.id === op.id && (op.t === 'del' || op.t === 'move')) setMode(null); // 놀던 가구를 친구가 옮기거나 치움
   // 꾸미던 케이크를 누가 들고 갔거나, 케이크가 놓인 탁자를 옮기거나 치움
-  if (mode === 'play' && play.kind === 'cake' && (((op.t === 'cakeTake' || op.t === 'cakeDrop') && play.id === op.id) || ((op.t === 'del' || op.t === 'move') && play.spot === op.id))) setMode(null);
+  if (mode === 'play' && play.kind === 'cake' && (((op.t === 'cakeTake' || op.t === 'cakeDrop' || eaten) && play.id === op.id) || ((op.t === 'del' || op.t === 'move') && play.spot === op.id))) setMode(null);
+  if (eaten) toast('케이크를 다 먹었어요! 오븐에서 새로 구울 수 있어요 🍰');
   S.at = Date.now();
   saveSoon();
   if (taken) ghostEnd(); else { if (ghost) ghostPaint(); paintPanels(); }
@@ -188,17 +195,23 @@ function dispatch(op, from = 'me') {
 function loadRoom(data, fromPeer = false) {
   if (mode === 'play') setMode(null);
   if (ghost) ghostCancel();
+  for (const v of cakeObj.values()) disposeCakeView(v);
+  cakeObj.clear();
   for (const id of [...itemObj.keys()]) dropObj(itemObj, id, itemsG, true);
   for (const id of [...ornObj.keys()]) dropObj(ornObj, id, ornG, false);
   pops.length = 0;
   Object.assign(S, makeState());
   bulbs.set(S.lights.set, S.lights.blink); glow.intensity = 1.6;
   room.setWall(S.wall); room.setFloor(S.floor);
-  for (const op of ops(data)) dispatch(op, 'load');
+  // 예전에 놓은 가구가 지금은 비워 둬야 하는 칸(사다리 앞, 현관)에 걸려 있으면 가까운 자리로 옮겨 놓는다
+  for (const op of ops(data)) if (!dispatch(op, 'load') && op.t === 'put' && !S.items.has(op.id) && kindOf(op.k) && Number.isInteger(op.i) && Number.isInteger(op.j) && [0, 1, 2, 3].includes(op.r)) {
+    const spot = findSpot(op.k, op.r, X0 + op.i * CELL, Z0 + op.j * CELL, []);
+    if (spot) dispatch({ ...op, i: spot[0], j: spot[1] }, 'load');
+  }
   S.at = stampOf(data);
   S.sync = fromPeer ? S.at : syncOf(data);
-  if (!fromPeer) for (const c of S.cakes.values()) c.by = null; // 저장해 둔 방을 열 때는 아무도 케이크를 들고 있지 않다
-  seatCakes();
+  if (!fromPeer) for (const [id, c] of [...S.cakes]) if (c.by) sendHome(S, id); // 저장해 둔 방을 열 때는 아무도 케이크를 들고 있지 않다
+  syncCakes();
   rebuildGrid();
   paintPanels();
   dirty = true;
@@ -238,7 +251,8 @@ function measure(snap = true) {
   aimCamera(yawOf(yawK)); // 집이 정사각형이 아니라서 보는 방향마다 차지하는 범위가 다르다
   camera.matrixWorld.extractBasis(vR, vU, vF);
   let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
-  for (const x of [X0 - 0.3, X1 + 0.3]) for (const z of [Z0 - 0.3, Z1 + 0.3]) for (const y of [-0.25, Math.max(WALL_H, TREE.top) + 0.15]) {
+  // 집(2층에 선 사람 머리까지)과 마당이 차지하는 범위
+  for (const [za, zb, top] of [[Z0 - 0.3, Z1 + 0.3, Math.max(WALL_H, TREE.top, LOFT.y + 1.1) + 0.15], [Z1, GZ1 + 0.45, 1.6]]) for (const x of [X0 - 0.45, X1 + 0.45]) for (const z of [za, zb]) for (const y of [-0.25, top]) {
     vP.set(x, y, z).sub(camera.position);
     const u = vP.dot(vR), v = vP.dot(vU);
     u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v);
@@ -255,6 +269,7 @@ function measure(snap = true) {
   updateView(0);
   edges();
   $('stick').style.bottom = (view.bottom + 6) + 'px';
+  $('act').style.bottom = (view.bottom + 8) + 'px';
 }
 
 function zoomGoal() {
@@ -285,7 +300,7 @@ function updateView(dt) {
   if (Math.abs(zg - view.z) < 1e-3) view.z = zg;
   const s = view.sFit / view.z;
   camera.matrixWorld.extractBasis(vR, vU, vF);
-  if (tree) vP.set(0, 1.42, 0); else vP.set(me.x, 0.75, me.z);
+  if (tree) vP.set(0, 1.42, 0); else vP.set(me.root.position.x, me.root.position.y + 0.75, me.root.position.z);
   vP.sub(camera.position);
   let cu = vP.dot(vR), cv = vP.dot(vU) + s * (view.top - view.bottom) / 2;
   if (!tree) {
@@ -305,6 +320,7 @@ function updateView(dt) {
 // 카메라 쪽 벽 두 면은 숨긴다
 function showWalls() {
   dirty = true;
+  paintLevels();
   room.ceil.visible = usingEye();
   for (const m of room.inner) m.visible = usingEye(); // 방 사이 벽의 윗부분
   if (usingEye()) { for (const k in room.walls) room.walls[k].upper.visible = true; return; } // 1인칭에서는 네 면과 천장이 다 보인다
@@ -340,10 +356,12 @@ function updateEye() {
   const w = window.innerWidth, h = window.innerHeight;
   if (pose) { eye.position.set(pose.pos[0], pose.pos[1], pose.pos[2]); eye.fov = pose.fov || 60; eye.lookAt(pose.at[0], pose.at[1], pose.at[2]); }
   else {
-    const c = Math.cos(fpitch);
-    eye.position.set(me.x, EYE_H, me.z);
+    // 눈은 내 머리 자리에 (2층이면 위에, 누워 있으면 베개 위에)
+    const c = Math.cos(fpitch), p = me.root.position, r = me.rest;
+    const ex = r ? r.head[0] : p.x, ey = r ? r.head[1] + 0.32 : p.y + EYE_H, ez = r ? r.head[2] : p.z;
+    eye.position.set(ex, ey, ez);
     eye.fov = Math.min(95, fpFov * (w < h ? 1.25 : 1)); // 세로 화면은 좌우가 좁으니 조금 더 넓게 본다
-    eye.lookAt(me.x - Math.sin(fy) * c, EYE_H + Math.sin(fpitch), me.z - Math.cos(fy) * c);
+    eye.lookAt(ex - Math.sin(fy) * c, ey + Math.sin(fpitch), ez - Math.cos(fy) * c);
   }
   // 보는 가운데가 위 막대와 아래 판 사이의 한가운데에 오게 한다
   const d = (view.bottom - view.top) / 2;
@@ -365,38 +383,59 @@ function applyPov() {
 function setPov(on) {
   fp = !!on;
   store.set(POV_KEY, fp ? 'fp' : 'iso');
-  if (fp) { fy = Math.atan2(me.x, me.z); fpitch = -0.06; } // 처음에는 방 한가운데(트리) 쪽을 본다
+  if (fp) { fy = Math.atan2(me.root.position.x, me.root.position.z); fpitch = -0.06; } // 처음에는 방 한가운데(트리) 쪽을 본다
   applyPov();
   if (fp && mode === 'tree') lookAtTree();
   toast(fp ? '1인칭으로 보는 중. 화면을 끌어서 둘러봐요' : '내려다보는 중');
 }
 function lookAtTree() { fy = Math.atan2(me.x, me.z); fpitch = 0.06; }
 
+/* ───────── 층: 1층·마당과 2층 ───────── */
+// 2층이 보이는지: 내가 2층에 있거나 1인칭일 때. 1층에서 내려다볼 때는 아래층을 가리지 않게 2층 마루와 가구를 숨긴다
+// (비쳐 보이는 판만 남고, 2층에 있는 사람은 보인다).
+let myLv = 0;
+const loftOn = () => usingEye() || myLv === 1;
+function paintLevels() {
+  const on = loftOn();
+  room.setLoft(on, usingEye());
+  for (const [id, g] of itemObj) { const it = S.items.get(id); g.visible = on || !it || !levelOfCell(it.i); }
+  dirty = true;
+}
+
 /* ───────── 걷기 ───────── */
 function goTo(x, z) {
+  if (me.hop) return false; // 사다리를 타는 중에는 끝까지 간다
   const pts = grid.route(me.x, me.z, x, z);
   me.onArrive = null;
   if (!pts || !pts.length) return false;
+  if (me.rest) getUp();
   me.walk(pts);
-  const [tx, tz] = pts[pts.length - 1];
-  pin.position.x = tx; pin.position.z = tz; pinT = 1;
+  const [tx, tz] = pts[pts.length - 1], w = toWorld(tx, tz);
+  pin.position.set(w[0], w[1] + 0.045, w[2]); pinT = 1;
   return true;
 }
 
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3();
+const loftPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -LOFT.y);
 function aimRay(px, py) {
   ndc.set((px / window.innerWidth) * 2 - 1, -(py / window.innerHeight) * 2 + 1);
   ray.setFromCamera(ndc, cam());
 }
-// 화면의 한 점이 가리키는 바닥 자리. inside = true 면 방 안일 때만.
+// 화면의 한 점이 가리키는 바닥 자리(격자의 자리). inside = true 면 집 안이나 마당, 2층일 때만.
+// 2층 마루가 보이고 위에서 내려다보는 선이면 2층 마루부터 본다.
 function floorAt(px, py, inside = true) {
   aimRay(px, py);
+  if (loftOn() && ray.ray.origin.y > LOFT.y && ray.ray.intersectPlane(loftPlane, hit)) {
+    const x = hit.x + LOFT_DX;
+    if (x >= LOFT_X && x <= GX1 && hit.z >= Z0 && hit.z <= Z1) return { x, z: hit.z };
+  }
   if (!ray.ray.intersectPlane(ground, hit)) return null;
-  if (inside && (hit.x < X0 || hit.x > X1 || hit.z < Z0 || hit.z > Z1)) return null;
-  return { x: hit.x, z: hit.z };
+  if (inside && (hit.x < X0 || hit.x > X1 || hit.z < Z0 || hit.z > GZ1)) return null;
+  return { x: Math.min(hit.x, X1 - 1e-3), z: hit.z }; // 집 동쪽 밖은 격자에서 2층 자리라서 넘어가지 않게 한다
 }
+// 격자의 자리 (x, z), 바닥에서 높이 y 인 점이 화면의 어디인지
 function screenOf(x, z, y = 0) {
-  const v = new THREE.Vector3(x, y, z).project(cam());
+  const w = toWorld(x, z), v = new THREE.Vector3(w[0], w[1] + y, w[2]).project(cam());
   return { x: (v.x + 1) / 2 * window.innerWidth, y: (1 - v.y) / 2 * window.innerHeight };
 }
 // 누른 것이 딸린 묶음(가구·장식)의 이름표를 찾는다
@@ -421,24 +460,27 @@ function myCells() {
   }
   return out;
 }
-// 아바타에게서 가까운 순서로, 놓을 수 있는 첫 자리
-function findSpot(k, r) {
-  const [w, d] = footprint(k, r), avoid = myCells();
+// (x, z) 에서 가까운 순서로, 놓을 수 있는 첫 자리 (같은 층에서 찾는다). 기본은 내 옆
+function findSpot(k, r, x = me.x, z = me.z, avoid = myCells()) {
+  const [w, d] = footprint(k, r), lv = levelOf(x);
   let best = null, bestD = Infinity;
-  for (let j = 0; j <= NZ - d; j++) for (let i = 0; i <= NX - w; i++) {
-    const dist = Math.hypot(X0 + (i + w / 2) * CELL - me.x, Z0 + (j + d / 2) * CELL - me.z);
-    if (dist < bestD && canPlace(S, { k, i, j, r }, fixedCell, null, avoid)) { bestD = dist; best = [i, j]; }
+  for (let j = 0; j <= GZ - d; j++) for (let i = 0; i <= GX - w; i++) {
+    if (levelOfCell(i) !== lv) continue;
+    const dist = Math.hypot(X0 + (i + w / 2) * CELL - x, Z0 + (j + d / 2) * CELL - z);
+    if (dist < bestD && canPlace(S, { k, i, j, r }, noBuild, null, avoid)) { bestD = dist; best = [i, j]; }
   }
   return best;
 }
 function ghostPaint() {
   const [w, d] = footprint(ghost.k, ghost.r);
   seat(ghost.g, ghost);
-  ghost.g.position.y = 0.1;
-  ghost.ok = canPlace(S, ghost, fixedCell, ghost.id, myCells());
+  ghost.y = ghost.g.position.y; // 놓일 바닥의 높이 (2층이면 위)
+  ghost.g.position.y = ghost.y + 0.1;
+  ghost.g.visible = true;
+  ghost.ok = canPlace(S, ghost, noBuild, ghost.id, myCells());
   plate.visible = true;
   plate.scale.set(w * CELL, 1, d * CELL);
-  plate.position.x = ghost.g.position.x; plate.position.z = ghost.g.position.z;
+  plate.position.set(ghost.g.position.x, ghost.y + 0.05, ghost.g.position.z);
   plate.material.color.setHex(ghost.ok ? 0x5BE08A : 0xFF6A5C);
   dirty = true;
 }
@@ -460,8 +502,8 @@ function ghostPick(id) {
 }
 function ghostMoveTo(x, z) {
   const [w, d] = footprint(ghost.k, ghost.r);
-  ghost.i = clamp(Math.round((x - X0) / CELL - w / 2), 0, NX - w);
-  ghost.j = clamp(Math.round((z - Z0) / CELL - d / 2), 0, NZ - d);
+  ghost.i = clamp(Math.round((x - X0) / CELL - w / 2), 0, GX - w);
+  ghost.j = clamp(Math.round((z - Z0) / CELL - d / 2), 0, GZ - d);
   ghostPaint();
 }
 function ghostTurn() {
@@ -469,10 +511,10 @@ function ghostTurn() {
   const [w0, d0] = footprint(ghost.k, ghost.r), cx = ghost.i + w0 / 2, cz = ghost.j + d0 / 2;
   ghost.r = (ghost.r + 1) % 4;
   const [w, d] = footprint(ghost.k, ghost.r);
-  ghost.i = clamp(Math.round(cx - w / 2), 0, NX - w); ghost.j = clamp(Math.round(cz - d / 2), 0, NZ - d);
+  ghost.i = clamp(Math.round(cx - w / 2), 0, GX - w); ghost.j = clamp(Math.round(cz - d / 2), 0, GZ - d);
   ghostPaint();
 }
-function ghostEnd() { ghost = null; plate.visible = false; dirty = true; paintPanels(); measure(false); }
+function ghostEnd() { ghost = null; plate.visible = false; dirty = true; paintPanels(); paintLevels(); measure(false); }
 function ghostDone() {
   if (!ghost) return;
   if (!ghost.ok) { toast('여기에는 놓을 수 없어요'); return; }
@@ -533,12 +575,12 @@ const others = new Map();         // 다른 사람들의 아바타 (이름 → �
 let canEdit = !(cur && cur.view), mySlot = 0; // 내가 꾸밀 수 있는지(구경이면 false), 트리 옆에서 내 자리
 let sentAt = 0, sentX = Infinity, sentZ = Infinity; // 친구에게 마지막으로 알린 내 자리
 let manualUrl = null;             // 공유도 복사도 안 되는 브라우저에서 직접 복사하게 보여 줄 링크
-const okXZ = (x, z) => typeof x === 'number' && typeof z === 'number' && x >= X0 && x <= X1 && z >= Z0 && z <= Z1; // 집 안의 자리인지 (NaN 은 걸러진다)
+const okXZ = (x, z) => typeof x === 'number' && typeof z === 'number' && x >= X0 && x <= GX1 && z >= Z0 && z <= GZ1; // 격자 안의 자리인지 (NaN 은 걸러진다)
 // 방의 지문: 두 사람의 방이 같은지 견주는 짧은 글자 (놓은 순서가 달라도 같은 방이면 같게 나온다)
 function roomHash() {
   const d = serialize(S), byId = (a, b) => (a[0] < b[0] ? -1 : 1);
   // 케이크 장식은 올린 순서가 사람마다 다를 수 있어 자리 순으로 맞춰서 견준다
-  const cakes = d.cakes.map(([id, cream, lit, tops, by, on]) => [id, cream, lit, tops.map((t) => t.join(',')).sort(), by || '', on || '']).sort(byId);
+  const cakes = d.cakes.map((r) => [r[0], r[1], r[2], r[3].map((t) => t.join(',')).sort(), r[4] || '', r[5] || '', ...r.slice(6)]).sort(byId);
   const txt = JSON.stringify([d.items.sort(byId), d.orns.sort(byId), d.lights, d.wall, d.floor, cakes]);
   let h = 5381;
   for (let k = 0; k < txt.length; k++) h = ((h << 5) + h + txt.charCodeAt(k)) | 0;
@@ -560,7 +602,7 @@ function setPeer(id, lk, pos, pj) {
   else if (c) a.setLook(c);
   if (Array.isArray(pos) && okXZ(pos[0], pos[1])) { a.stop(); a.place(pos[0], pos[1]); }
   if (okPj(pj)) a.pj = pj; // 소리·영상을 직접 걸 때 쓰는 이름
-  sentX = Infinity; // 내 자리도 다시 알린다
+  sentX = Infinity; tellLie = true; // 내 자리도(누워 있으면 그것도) 다시 알린다
   if (ghost) ghostPaint();
   dirty = true;
   media.refresh();
@@ -570,8 +612,8 @@ function dropPeer(id) {
   const a = others.get(id);
   if (!a) return;
   let had = false;
-  for (const c of S.cakes.values()) if (c.by === id) { c.by = null; had = true; } // 들고 있던 케이크는 작업대로 돌아간다
-  if (had) seatCakes();
+  for (const [cid, c] of [...S.cakes]) if (c.by === id) { sendHome(S, cid); had = true; } // 들고 있던 케이크는 작업대로 돌아간다
+  if (had) syncCakes();
   scene.remove(a.root);
   a.root.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
   others.delete(id);
@@ -589,7 +631,7 @@ function paintRole() {
   $('tabs').style.gridTemplateColumns = `repeat(${canEdit ? 6 : 3}, 1fr)`;
   if (!canEdit && (mode === 'furn' || mode === 'tree' || mode === 'paint')) setMode(null);
 }
-const FX = { dart: 'number', fire: 'number', music: 'string', act: 'string' };
+const FX = { dart: 'number', fire: 'number', music: 'string', act: 'string', lie: 'string' };
 const duo = makeDuo({
   snapshot: () => ({ state: serialize(S), look, pos: [r3(me.x), r3(me.z)], mine: !!(cur && cur.mine) }),
   hash: roomHash,
@@ -617,7 +659,9 @@ const duo = makeDuo({
   peerPos(id, x, z) {
     const a = others.get(id);
     if (!a || !okXZ(x, z)) return false;
-    if (Math.hypot(x - a.x, z - a.z) > 3) a.place(x, z); // 너무 멀어졌으면 바로 옮긴다
+    const far = Math.hypot(x - a.x, z - a.z);
+    if (a.rest && far < 0.05) return true; // 누운 채 그대로다
+    if (levelOf(x) === a.level && far > 3) a.place(x, z); // 너무 멀어졌으면 바로 옮긴다 (층이 바뀌었으면 사다리를 탄다)
     a.walk([[x, z]]);
     return true;
   },
@@ -625,6 +669,15 @@ const duo = makeDuo({
     if (m && m.k === 'bell') { if (duo.role !== 'host') ding(false); return false; } // 초인종 소식은 방장만 전한다
     if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false;
     if (m.k === 'act') { const a = others.get(id); return !!(a && a.act(m.v)); } // 그 사람이 한 행동
+    if (m.k === 'lie') { // 그 사람이 침대에 누웠거나('침대:자리') 일어났다('')
+      const a = others.get(id);
+      if (!a) return false;
+      if (!m.v) { a.rise(); dirty = true; return true; }
+      const [bid, side] = m.v.split(':'), r = lieSpot(bid, side === '1' ? 1 : 0);
+      if (!r) return false;
+      a.lie(r); dirty = true;
+      return true;
+    }
     play.peerFx(m);
     return true;
   },
@@ -715,7 +768,8 @@ function leaveDoor() {
 function ring() { if (duo.mode !== 'door' || outside.opening) return; ding(true); duo.knock(); syncDoor(); }
 // 문을 지나 방 안 현관 앞에 선다
 function comeIn() {
-  me.stop(); me.place(-2.2, 4.3); me.turnTo(0, -1); me.root.rotation.y = me.face;
+  if (me.rest) getUp();
+  me.stop(); me.place(FRONT.x, 4.3); me.turnTo(0, -1); me.root.rotation.y = me.face;
   fy = 0; fpitch = -0.05;
   if (mode === 'door') leaveDoor();
   duo.enter();
@@ -755,7 +809,7 @@ async function invite(edit = true) {
     const id = duo.create();
     cur = { id, mine: true, key: duo.key, view: false, friends: [], banned: [] };
     store.set(CUR_KEY, cur);
-    store.set(slot(), serialize(S));
+    store.set(slot(), forDisk());
     history.replaceState(null, '', location.pathname + location.search + '#r=' + id + '-' + cur.key);
   }
   const url = duo.inviteUrl(edit && canEdit);
@@ -770,7 +824,7 @@ async function invite(edit = true) {
 function leaveRoom() {
   if (!cur) return;
   clearTimeout(saveK);
-  if (cur.mine) store.set(ROOM_KEY, serialize(S));
+  if (cur.mine) store.set(ROOM_KEY, forDisk());
   store.del(slot()); store.del(CUR_KEY);
   cur = null;
   duo.leave();
@@ -837,10 +891,21 @@ function celebrate() {
 }
 
 /* ───────── 놀이 (다트, TV, 마시멜로, 오르골, 케이크) ───────── */
+const hasKind = (k) => { for (const it of S.items.values()) if (it.k === k) return true; return false; };
+// 케이크가 올라가 있지 않은 작업대 (나에게서 가까운 것부터). 새 케이크를 구우면 여기에 나온다
+function freeBench() {
+  let best = null, bestD = Infinity;
+  for (const it of S.items.values()) {
+    if (it.k !== 'cake' || cakeAtBench(S, it.id)) continue;
+    const d = Math.hypot(X0 + (it.i + 1.5) * CELL - me.x, Z0 + (it.j + 1) * CELL - me.z);
+    if (d < bestD) { bestD = d; best = it.id; }
+  }
+  return best;
+}
 const play = makePlay({
   key, store, toast: (m) => toast(m),
   itemObj: (id) => itemObj.get(id),
-  hasKind: (k) => { for (const it of S.items.values()) if (it.k === k) return true; return false; },
+  hasKind: (k) => hasKind(k),
   aspect: () => eye.aspect,
   // 화면의 한 점이 가구 앞 세워진 면(가구 기준 at 을 지나고 앞을 보는 면)의 어디인지 → 가구 기준 { x, y }
   pointOn(g, px, py, at) {
@@ -858,17 +923,27 @@ const play = makePlay({
   cake: (id) => S.cakes.get(id) || newCake(),
   // 케이크가 지금 놓인 곳: g = 작업대나 탁자, top = 그 가구에서 잰 케이크 윗면 높이
   cakeSpot(id) {
-    const c = S.cakes.get(id), t = c && !c.by && c.on ? itemObj.get(c.on) : null;
-    return t ? { id: c.on, g: t, top: kindOf(S.items.get(c.on).k).holds + (CAKE.y - CAKE.base) * CAKE.onTable } : { id, g: itemObj.get(id), top: CAKE.y };
+    const c = S.cakes.get(id) || newCake(), t = !c.by && c.on ? itemObj.get(c.on) : null, b = benchOf(id, c);
+    return t ? { id: c.on, g: t, top: kindOf(S.items.get(c.on).k).holds + (CAKE.y - CAKE.base) * CAKE.onTable } : { id: b, g: itemObj.get(b), top: CAKE.y };
   },
+  // 한 조각 먹는다 (구경하는 사람도 된다)
+  eat(id) { if (!dispatch({ t: 'cakeEat', id })) return false; doAct('eat'); return true; },
+  munch(text) { doAct('eat'); toast(text); },
+  // 새 케이크를 구워 올릴 수 있는 빈 작업대 (없으면 null), 굽기
+  bakeTarget: () => freeBench(),
+  bake() { const home = freeBench(), old = home && S.cakes.get(home); return !!home && dispatch({ t: 'cakeBake', id: old && old.gone ? home : newId(), home }); },
   carry(id) { if (!dispatch({ t: 'cakeTake', id, by: duo.me })) { if (canEdit) toast(carried() ? '케이크는 한 번에 하나만 들 수 있어요' : '지금은 들 수 없어요'); return; } toast('케이크를 들었어요. 탁자나 작업대를 누르면 내려놓아요'); },
   canEdit: () => canEdit,
   op: (o) => dispatch(o),
   // 화면에서 누른 자리가 케이크 윗면의 어디인지
-  pickCake(id, px, py) { const g = itemObj.get(id); if (!g) return null; aimRay(px, py); return pickTop(g, ray); },
+  pickCake(id, px, py) { const v = cakeObj.get(id); if (!v) return null; aimRay(px, py); return pickTop(v, ray); },
   // 놀이 중 카메라 자리. inside = 방 안으로 당겨 둔다(벽 뒤로 나가지 않게)
   setPose(p) {
-    if (p && p.inside) { p.pos[0] = clamp(p.pos[0], X0 + 0.25, X1 - 0.25); p.pos[2] = clamp(p.pos[2], Z0 + 0.25, Z1 - 0.25); }
+    if (p && p.inside) { // 놀이 가구가 있는 곳(집 안·마당·2층) 안으로
+      const it = S.items.get(play.spot), zone = it ? zoneOf(it.i, it.j) : 'house';
+      p.pos[0] = clamp(p.pos[0], (zone === 'loft' ? LOFT_X - LOFT_DX : X0) + 0.25, X1 - 0.25);
+      p.pos[2] = zone === 'yard' ? clamp(p.pos[2], Z1 + 0.4, GZ1 - 0.1) : clamp(p.pos[2], Z0 + 0.25, Z1 - 0.25);
+    }
     pose = p; applyPov(); dirty = true;
   },
   fx: (m) => duo.fx(m),
@@ -882,34 +957,51 @@ function approach(id, then) {
   g.updateMatrixWorld();
   // 여럿이 같은 가구 앞에 모일 때 겹치지 않게 사람마다 조금씩 옆으로 선다
   const p = g.localToWorld(new THREE.Vector3(0.45 - 0.5 * ((mySlot + 1) >> 1) * (mySlot % 2 ? 1 : -1), 0, kindOf(it.k).d * CELL / 2 + 0.5));
-  if (Math.hypot(p.x - me.x, p.z - me.z) < 0.4 || !goTo(p.x, p.z)) then(); else me.onArrive = then;
+  const x = p.x + (levelOfCell(it.i) ? LOFT_DX : 0); // 2층 가구는 격자에서 옆으로 밀려 있다
+  if (Math.hypot(x - me.x, p.z - me.z) < 0.4 || !goTo(x, p.z)) then(); else me.onArrive = then;
 }
 // id = 누른 가구. cakeId 가 있으면 그 가구(탁자) 위에 놓인 케이크로 논다
 function startPlay(id, cakeId = null) {
-  const it = S.items.get(id), kind = cakeId ? 'cake' : it && kindOf(it.k).play, g = itemObj.get(id), pid = cakeId || id;
+  const it = S.items.get(id), kind = cakeId ? 'cake' : it && kindOf(it.k).play, g = itemObj.get(id);
   if (!kind || !g) return false;
-  approach(id, () => { if (S.items.has(id) && S.items.has(pid) && mode === null) { setMode('play'); if (!play.start(pid, kind)) setMode(null); } });
+  if (kind === 'cake' && !cakeId) cakeId = cakeAtBench(S, id); // 작업대 위에 있는 케이크
+  if (kind === 'cake' && !cakeId) return false;
+  if (kind === 'bake' && !freeBench()) { toast(hasKind('cake') ? '작업대가 비어 있어야 새 케이크를 구울 수 있어요. 케이크를 탁자로 옮기거나 다 먹으면 비어요' : '케이크 작업대가 있어야 구울 수 있어요'); return true; }
+  const pid = cakeId || id;
+  approach(id, () => { if (S.items.has(id) && (!cakeId || cakeObj.has(cakeId)) && mode === null) { setMode('play'); if (!play.start(pid, kind)) setMode(null); } });
   return true;
 }
 
 /* ───────── 케이크 들고 다니기 ───────── */
 // 케이크는 작업대 위(기본), 누군가의 손(by), 탁자 위(on) 중 한 곳에 있다. 방의 상태라서 모두에게 같게 보인다.
-const carried = () => { for (const [id, c] of S.cakes) if (c.by === duo.me) return id; return null; }; // 내가 든 케이크
-const cakeOn = (tid) => { for (const [id, c] of S.cakes) if (c.on === tid && !c.by) return id; return null; };
+// 작업대의 케이크를 옮기거나 다 먹으면 오븐에서 새로 구울 수 있어서, 케이크는 여러 개일 수 있다(케이크마다 모양 하나: cakeObj).
+const carried = () => { for (const [id, c] of S.cakes) if (c.by === duo.me && !c.gone) return id; return null; }; // 내가 든 케이크
+const cakeOn = (tid) => cakeOnTable(S, tid);
 const avatarOf = (pid) => (pid === duo.me ? me : others.get(pid));
+// 케이크 모양을 방 상태에 맞춘다: 없어진 것은 지우고, 새로 생긴 것은 만들고, changed(없으면 전부)는 다시 차린다
+function syncCakes(changed) {
+  const list = cakesList(S), live = new Set(list.map(([id]) => id));
+  for (const [id, v] of [...cakeObj]) if (!live.has(id)) { disposeCakeView(v); cakeObj.delete(id); }
+  for (const [id, c] of list) {
+    let v = cakeObj.get(id);
+    if (!v) { v = makeCakeView(); v.root.userData.cakeRoot = true; cakeObj.set(id, v); dressCake(v, c); }
+    else if (changed === undefined || changed === id) dressCake(v, c);
+  }
+  seatCakes(list);
+}
 // 케이크 모양을 지금 있어야 할 곳(작업대·손·탁자)에 붙인다
-function seatCakes() {
+function seatCakes(list = cakesList(S)) {
   const held = new Set();
-  for (const [id, g] of itemObj) {
-    const cv = g.userData.cake;
-    if (!cv) continue;
-    const c = S.cakes.get(id), a = c && c.by ? avatarOf(c.by) : null, t = c && !c.by && c.on ? itemObj.get(c.on) : null;
-    let parent = g, y = 0, z = 0, sc = 1;
+  for (const [id, c] of list) {
+    const v = cakeObj.get(id);
+    if (!v) continue;
+    const a = c.by ? avatarOf(c.by) : null, t = !c.by && c.on ? itemObj.get(c.on) : null;
+    let parent = itemObj.get(benchOf(id, c)), y = 0, z = 0, sc = 1;
     if (a) { parent = a.root; sc = CAKE.inHand; y = 0.64 - CAKE.base * sc; z = 0.43; held.add(a); }
     else if (t) { parent = t; sc = CAKE.onTable; y = kindOf(S.items.get(c.on).k).holds - CAKE.base * sc; }
-    cv.root.userData.cakeRoot = true;
-    if (cv.root.parent !== parent) parent.add(cv.root);
-    cv.root.position.set(0, y, z); cv.root.scale.setScalar(sc);
+    if (!parent) { if (v.root.parent) v.root.parent.remove(v.root); continue; }
+    if (v.root.parent !== parent) parent.add(v.root);
+    v.root.position.set(0, y, z); v.root.scale.setScalar(sc);
   }
   for (const a of [me, ...others.values()]) a.hold = held.has(a);
   for (const [id, g] of itemObj) if (g.userData.deco) g.userData.deco.visible = !cakeOn(id); // 케이크가 놓인 탁자의 소품은 치워 둔다
@@ -919,8 +1011,8 @@ function seatCakes() {
 // 방에 없는 사람이 들고 있다고 적힌 케이크는 작업대로 돌려놓는다 (누가 나갔을 때, 연결이 끊겼을 때)
 function tidyCarry() {
   const here = new Set([duo.me, ...others.keys()]);
-  for (const c of S.cakes.values()) if (c.by && !here.has(c.by)) c.by = null;
-  seatCakes();
+  for (const [id, c] of [...S.cakes]) if (c.by && !here.has(c.by)) sendHome(S, id);
+  syncCakes();
 }
 function paintCarry() {
   const el = $('carryP'), was = el.hidden;
@@ -928,26 +1020,151 @@ function paintCarry() {
   if (was !== el.hidden) measure(false); // 아래 판 높이가 바뀌었다
 }
 function putDown(on) { const id = carried(); return !!id && dispatch({ t: 'cakeDrop', id, by: duo.me, on }); }
-$('carryBack').addEventListener('click', () => { if (putDown(null)) toast('케이크를 작업대에 돌려놓았어요'); });
+$('carryBack').addEventListener('click', () => { if (putDown(null)) toast('케이크를 작업대에 돌려놓았어요'); else if (carried()) toast('작업대에 이미 다른 케이크가 있어요. 탁자에 올려놓아 보세요'); });
 // 케이크와 얽힌 가구를 눌렀을 때. 여기서 처리했으면 true
 function cakeTap(id) {
   const it = S.items.get(id), mine = carried();
   if (!it) return false;
   const holds = !!kindOf(it.k).holds;
   if (mine) { // 들고 있을 때: 탁자나 그 케이크의 작업대를 누르면 가서 내려놓는다
-    if (id !== mine && !holds) return false;
+    const home = benchOf(mine, S.cakes.get(mine));
+    if (id !== home && !holds) return false;
     if (holds && cakeOn(id)) { toast('그 탁자에는 이미 케이크가 있어요'); return true; }
-    approach(id, () => { if (carried() === mine && S.items.has(id) && putDown(id === mine ? null : id)) toast(id === mine ? '케이크를 작업대에 돌려놓았어요' : '케이크를 탁자에 올려놓았어요'); });
+    if (!holds && cakeAtBench(S, id)) { toast('작업대에 이미 다른 케이크가 있어요. 탁자에 올려놓아 보세요'); return true; }
+    approach(id, () => { if (carried() === mine && S.items.has(id) && putDown(holds ? id : null)) toast(holds ? '케이크를 탁자에 올려놓았어요' : '케이크를 작업대에 돌려놓았어요'); });
     return true;
   }
-  if (holds) { const cid = cakeOn(id); return !!cid && startPlay(id, cid); } // 탁자 위의 케이크로 논다 (촛불 켜기·불기, 다시 들기)
+  if (holds) { const cid = cakeOn(id); return !!cid && startPlay(id, cid); } // 탁자 위의 케이크로 논다 (촛불 켜기·불기, 먹기, 다시 들기)
   if (it.k === 'cake') {
-    const c = S.cakes.get(id);
-    if (c && c.by) { toast('친구가 케이크를 들고 다니는 중이에요'); return true; }
-    if (c && c.on) { toast('케이크는 탁자 위에 있어요. 탁자를 눌러 보세요'); return true; }
+    const cid = cakeAtBench(S, id);
+    if (cid) return startPlay(id, cid);
+    // 작업대가 비어 있다: 케이크가 어디 갔는지 알려 준다
+    const away = cakesList(S).filter(([x, c]) => benchOf(x, c) === id);
+    if (away.some(([, c]) => c.by)) toast('친구가 케이크를 들고 다니는 중이에요');
+    else if (away.length) toast('케이크는 탁자 위에 있어요. 탁자를 눌러 보세요. 새 케이크는 오븐에서 구워요');
+    else toast('작업대가 비어 있어요. 오븐에서 새 케이크를 구워 보세요');
+    return true;
   }
   return false;
 }
+
+/* ───────── 침대에 눕기 ───────── */
+// 누운 자리: 침대(가구 id)의 왼쪽(side 0)이나 오른쪽(1) 베개. pos = 발끝, head = 머리(1인칭 눈이 놓이는 곳), 모두 세상 좌표
+function lieSpot(id, side) {
+  const it = S.items.get(id), g = itemObj.get(id);
+  if (!it || !g || !kindOf(it.k).lie) return null;
+  g.updateMatrixWorld();
+  const x = side ? 0.35 : -0.35, p = g.localToWorld(new THREE.Vector3(x, 0.4, 0.455)), h = g.localToWorld(new THREE.Vector3(x, 0.52, -0.6));
+  return { id, side, pos: [p.x, p.y, p.z], head: [h.x, h.y, h.z], ry: g.rotation.y };
+}
+let tellLie = false; // 새로 온 사람에게 내가 누워 있다는 것을 다시 알려야 하는지
+function paintLie() {
+  const el = $('lieP'), was = el.hidden;
+  el.hidden = !(me.rest && mode === null);
+  if (was !== el.hidden) measure(false);
+}
+// 침대를 눌렀을 때: 발치로 걸어가서 빈 베개 쪽에 눕는다
+function lieDown(id) {
+  const it = S.items.get(id);
+  if (!it || !kindOf(it.k).lie) return false;
+  if (me.rest && me.rest.id === id) return true;
+  if (carried()) { toast('케이크를 들고는 누울 수 없어요'); return true; }
+  approach(id, () => {
+    if (mode !== null || carried()) return;
+    const taken = [...others.values()].filter((a) => a.rest && a.rest.id === id).map((a) => a.rest.side);
+    const side = [0, 1].find((k) => !taken.includes(k));
+    const r = side === undefined ? null : lieSpot(id, side);
+    if (!r) { if (S.items.has(id)) toast('침대에 누울 자리가 없어요'); return; }
+    me.lie(r);
+    if (fp) { fy = r.ry; fpitch = 0.45; } // 1인칭: 발치 쪽 천장을 올려다본다
+    duo.fx({ k: 'lie', v: id + ':' + side });
+    paintLie(); dirty = true;
+    toast('침대에 누웠어요 😴 걸으면 일어나요');
+  });
+  return true;
+}
+function getUp() {
+  if (!me.rise()) return;
+  duo.fx({ k: 'lie', v: '' });
+  paintLie(); dirty = true;
+}
+// 침대가 옮겨졌으면 누운 사람도 따라가고, 치워졌으면 일어난다
+function restCheck(id) {
+  for (const a of [me, ...others.values()]) {
+    if (!a.rest || a.rest.id !== id) continue;
+    const r = lieSpot(id, a.rest.side);
+    if (r) a.lie(r); else if (a === me) getUp(); else a.rise();
+  }
+}
+$('lieUp').addEventListener('click', getUp);
+
+/* ───────── 그 앞에서 스페이스바: 가까이 있는 것으로 할 수 있는 일 ───────── */
+const PLAY_LABEL = { dart: '🎯 다트 하기', tv: '📺 TV 보기', fire: '🔥 마시멜로 굽기', music: '🎶 오르골 틀기', bake: '🍳 케이크 굽기' };
+// 냉장고: 간식을 꺼내 먹는다
+const SNACKS = ['🍪 쿠키를 꺼내 먹었어요', '🥛 우유를 한 잔 마셨어요', '🍊 귤을 까먹었어요', '🍫 초콜릿을 꺼내 먹었어요'];
+function snack(id) {
+  const it = S.items.get(id);
+  if (!it || !kindOf(it.k).snack) return false;
+  approach(id, () => { if (mode === null && doAct('eat')) toast(SNACKS[Math.floor(Math.random() * SNACKS.length)]); });
+  return true;
+}
+// 가구를 눌렀을 때(또는 그 앞에서 스페이스바): 케이크 내려놓기·먹기, 놀이, 눕기, 간식
+const useItem = (id) => cakeTap(id) || startPlay(id) || lieDown(id) || snack(id);
+// 그 가구로 지금 할 수 있는 일의 이름 (없으면 null)
+function actionOf(it) {
+  const f = kindOf(it.k), mine = carried();
+  if (mine && f.holds) return cakeOn(it.id) ? null : '🎂 케이크 내려놓기';
+  if (mine && it.id === benchOf(mine, S.cakes.get(mine))) return cakeAtBench(S, it.id) ? null : '🎂 작업대에 두기';
+  if (f.holds) return cakeOn(it.id) ? '🍰 케이크 먹기·꾸미기' : null;
+  if (it.k === 'cake') return cakeAtBench(S, it.id) ? '🎂 케이크 꾸미기·먹기' : null;
+  if (f.play) return PLAY_LABEL[f.play] || null;
+  if (f.lie) return '🛏️ 눕기';
+  if (f.snack) return '🍪 간식 꺼내 먹기';
+  return null;
+}
+// 사다리를 타고 lv 층(1 = 2층)으로 간다
+function climb(lv) {
+  const c = lv ? LADDER.top : LADDER.foot;
+  return goTo(...centerOf(c[0], c[1]));
+}
+// 지금 서 있는 자리에서 할 수 있는 일 { label, run }. 누워 있으면 일어나기, 사다리 옆이면 오르내리기, 아니면 가장 가까운(바라보는) 가구
+function nearAction() {
+  if (mode !== null || ghost || me.hop) return null;
+  if (me.rest) return { label: '🛏️ 일어나기', run: getUp };
+  const [ci, cj] = cellOf(me.x, me.z), by = (c) => Math.abs(ci - c[0]) <= 1 && Math.abs(cj - c[1]) <= 1;
+  if (by(LADDER.foot)) return { label: '🪜 2층으로 올라가기', run: () => climb(1) };
+  if (by(LADDER.top)) return { label: '🪜 1층으로 내려가기', run: () => climb(0) };
+  let best = null, bestS = Infinity;
+  const fx = Math.sin(me.face), fz = Math.cos(me.face);
+  for (const it of S.items.values()) {
+    if (levelOfCell(it.i) !== me.level) continue;
+    const [w, d] = footprint(it.k, it.r), x0 = X0 + it.i * CELL, z0 = Z0 + it.j * CELL, x1 = x0 + w * CELL, z1 = z0 + d * CELL;
+    const dist = Math.hypot(me.x - clamp(me.x, x0, x1), me.z - clamp(me.z, z0, z1));
+    if (dist > 0.8) continue;
+    const label = actionOf(it);
+    if (!label) continue;
+    const dx = (x0 + x1) / 2 - me.x, dz = (z0 + z1) / 2 - me.z, score = dist - 0.3 * (dx * fx + dz * fz) / (Math.hypot(dx, dz) || 1);
+    if (score < bestS) { bestS = score; best = { label, run: () => useItem(it.id) }; }
+  }
+  return best;
+}
+// 스페이스바: 놀이 중이면 그 놀이의 큰 단추(던지기, 굽기, 불기, 먹기 …), 아니면 가까이 있는 것
+function pressSpace() {
+  if (mode === 'play') { if (play.kind === 'tv') return; const b = $('playGo') || $('playEat'); if (b) b.click(); return; }
+  const a = nearAction();
+  if (a) a.run();
+}
+// 할 수 있는 일이 있으면 화면에 단추로도 보여 준다 (폰에서는 이 단추를 누른다)
+let actLabel = null;
+function paintAct() {
+  const a = nearAction(), label = a ? a.label : null;
+  if (label === actLabel) return;
+  actLabel = label;
+  const el = $('act');
+  el.hidden = !label;
+  if (label) el.textContent = label + (matchMedia('(pointer: fine)').matches ? ' · 스페이스' : '');
+}
+$('act').addEventListener('click', () => { const a = nearAction(); if (a) a.run(); paintAct(); });
 
 /* ───────── 누르기 ───────── */
 // 손가락 하나를 거의 움직이지 않고 뗐을 때가 "누르기". 두 손가락은 크게·작게 보기.
@@ -984,7 +1201,7 @@ function lift(e, ok) {
   if (!still) return;
   if (mode === 'door') { aimRay(e.clientX, e.clientY); if (outside.hitBell(ray)) ring(); return; } // 초인종
   if (mode === 'play') { play.tap(e.clientX, e.clientY); return; }
-  if (mode === null) { const id = pickItem(e.clientX, e.clientY); if (id && (cakeTap(id) || startPlay(id))) return; } // 케이크 내려놓기, 놀 수 있는 가구
+  if (mode === null) { const id = pickItem(e.clientX, e.clientY); if (id && useItem(id)) return; } // 케이크 내려놓기, 놀 수 있는 가구, 침대, 냉장고
   if (mode === 'tree') { treeTap(e.clientX, e.clientY); return; }
   if (mode === 'furn') { const id = pickItem(e.clientX, e.clientY); if (id) { ghostPick(id); return; } }
   const p = floorAt(e.clientX, e.clientY);
@@ -1000,6 +1217,12 @@ const KEY = { ArrowUp: 'u', KeyW: 'u', ArrowDown: 'd', KeyS: 'd', ArrowLeft: 'l'
 addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
   if (KEY[e.code]) { keys.add(KEY[e.code]); e.preventDefault(); }
+  else if (e.code === 'Space') { // 그 앞에서 스페이스바: 놀이를 시작하거나 그 일을 한다
+    e.preventDefault();
+    if (e.repeat) return;
+    if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur(); // 눌러 둔 단추가 같이 눌리지 않게
+    pressSpace();
+  }
   else if (e.code === 'KeyQ') turnView(-1);
   else if (e.code === 'KeyE') turnView(1);
   else if (ghost && e.code === 'KeyR') ghostTurn();
@@ -1013,17 +1236,23 @@ addEventListener('blur', () => keys.clear());
 function keyWalk(dt) {
   if (mode === 'tree') return false; // 트리를 꾸미는 동안은 트리 옆에 서 있는다
   if (pose) return false;           // 놀이 중에는 걷지 않는다
+  if (me.hop) return false;         // 사다리를 타는 중
   const f = (keys.has('u') ? 1 : 0) - (keys.has('d') ? 1 : 0) - joy.y, r = (keys.has('r') ? 1 : 0) - (keys.has('l') ? 1 : 0) + joy.x;
   const push = Math.min(1, Math.hypot(f, r)); // 조이스틱을 살짝 밀면 천천히 걷는다
   if (push < 0.15) return false;
+  if (me.rest) getUp();
   me.stop(); me.onArrive = null; pinT = Math.min(pinT, 0.2);
   // 화면 위쪽 = 카메라가 보는 쪽, 화면 오른쪽 = 그 오른쪽 (1인칭에서는 내가 보는 쪽)
   const ya = usingEye() ? fy : yaw;
   let dx = -Math.sin(ya) * f + Math.cos(ya) * r, dz = -Math.cos(ya) * f - Math.sin(ya) * r;
   const len = Math.hypot(dx, dz); dx /= len; dz /= len;
   me.turnTo(dx, dz);
+  { // 사다리 앞(위)에서 사다리 쪽으로 밀면 오르내린다
+    const [ci, cj] = cellOf(me.x, me.z), at = (c) => ci === c[0] && cj === c[1];
+    if ((at(LADDER.foot) && dx > 0.6) || (at(LADDER.top) && dx < -0.6)) { const c = at(LADDER.foot) ? LADDER.top : LADDER.foot; me.walk([centerOf(c[0], c[1])]); return false; }
+  }
   const step = SPEED * push * dt;
-  const nx = clamp(me.x + dx * step, X0 + BODY_R, X1 - BODY_R), nz = clamp(me.z + dz * step, Z0 + BODY_R, Z1 - BODY_R);
+  const nx = clamp(me.x + dx * step, X0 + BODY_R, GX1 - BODY_R), nz = clamp(me.z + dz * step, Z0 + BODY_R, GZ1 - BODY_R);
   const ox = me.x, oz = me.z;
   if (grid.fits(nx, nz, BODY_R)) me.place(nx, nz);
   else if (grid.fits(nx, me.z, BODY_R)) me.place(nx, me.z);
@@ -1083,7 +1312,7 @@ function placeBubbles() {
   for (const [who, b] of bubbles) {
     const a = who === 'me' ? me : others.get(who);
     if (!a || clock > b.until || (who === 'me' && usingEye())) { if (b.el.style.display !== 'none') b.el.style.display = 'none'; if (!a && who !== 'me') { b.el.remove(); bubbles.delete(who); } continue; }
-    bv.set(a.x, 1.72, a.z).project(cam());
+    bv.set(a.root.position.x, a.root.position.y + (a.rest ? 1.0 : 1.72), a.root.position.z).project(cam());
     if (bv.z > 1 || bv.z < -1) { b.el.style.display = 'none'; continue; } // 카메라 뒤
     b.el.style.display = '';
     b.el.style.transform = `translate(${(bv.x + 1) / 2 * window.innerWidth}px, ${(1 - bv.y) / 2 * window.innerHeight}px) translate(-50%, -100%)`;
@@ -1114,6 +1343,7 @@ $('zin').addEventListener('click', () => zoomBy(1.35));
 $('zout').addEventListener('click', () => zoomBy(1 / 1.35));
 
 const PANELS = { furn: 'furn', tree: 'treeP', paint: 'paint', look: 'look', duo: 'duoP', play: 'playP', chat: 'chatP', door: 'doorP', emo: 'emoP' };
+const cakeObj = new Map(); // 케이크 id → 모양 (cake.js 의 makeCakeView)
 function setMode(m) {
   if (mode === 'door') return; // 문 앞에서는 탭을 쓸 수 없다
   if (m === mode) m = null; // 같은 탭을 다시 누르면 닫는다
@@ -1131,7 +1361,7 @@ function setMode(m) {
   if (m === 'chat') { document.querySelector('#tabs button[data-m="chat"]').classList.remove('new'); const l = $('chatLog'); l.scrollTop = l.scrollHeight; }
   if (was === 'chat') $('chatIn').blur();
   if (was === 'look') store.set(LOOK_KEY, look);
-  paintPanels(); paintCarry();
+  paintPanels(); paintCarry(); paintLie(); paintAct();
   dirty = true;
   measure(false);
   applyPov();
@@ -1229,7 +1459,7 @@ function lowerQuality() {
 }
 
 /* ───────── 그리기 ───────── */
-let last = performance.now(), frames = 0, clock = 0;
+let last = performance.now(), frames = 0, clock = 0, actAt = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const raw = now - last; last = now;
@@ -1247,16 +1477,19 @@ function frame(now) {
   const moved = byKey ? (me.animate(dt, true), true) : me.step(dt);
   if (moved || me.blend > 0.01 || me.doing) dirty = true;
   for (const a of others.values()) if (a.step(dt) || a.blend > 0.01 || a.doing) dirty = true;
+  { const lv = me.root.position.y > LOFT.y * 0.5 ? 1 : 0; if (lv !== myLv) { myLv = lv; paintLevels(); } } // 사다리를 반쯤 올랐을 때 2층이 보인다
+  if (clock - actAt > 0.15) { actAt = clock; paintAct(); }
   // 내 자리를 친구에게 알린다 (1초에 열 번까지, 움직였을 때만)
   if (duo.mode === 'on' && clock - sentAt > 0.1 && (Math.abs(me.x - sentX) > 0.004 || Math.abs(me.z - sentZ) > 0.004)) {
     sentAt = clock; sentX = me.x; sentZ = me.z;
     duo.pos(r3(me.x), r3(me.z));
+    if (tellLie) { tellLie = false; if (me.rest) duo.fx({ k: 'lie', v: me.rest.id + ':' + me.rest.side }); }
   }
   updateView(dt);
   if (usingEye()) updateEye();
 
   if (pinT > 0) { pinT = Math.max(0, pinT - dt * (me.path.length ? 0.6 : 3)); pin.material.opacity = Math.min(1, pinT * 1.4) * 0.9; pin.scale.setScalar(1 + (1 - pinT) * 0.5); }
-  if (ghost) ghost.g.position.y = 0.1 + Math.sin(clock * 5) * 0.025; // 들고 있는 가구는 살짝 떠서 흔들린다
+  if (ghost) ghost.g.position.y = ghost.y + 0.1 + Math.sin(clock * 5) * 0.025; // 들고 있는 가구는 살짝 떠서 흔들린다
   for (let k = pops.length - 1; k >= 0; k--) {
     const p = pops[k]; p.t += dt * 5;
     const s = p.t >= 1 ? 1 : 1 + 0.35 * Math.sin(p.t * Math.PI) - (1 - p.t) * (1 - p.t);
@@ -1266,7 +1499,7 @@ function frame(now) {
   bulbs.tick(clock);
   if (room.tickDoors(dt, [me, ...others.values()])) dirty = true; // 방문: 누가 다가오면 열린다
   { const p = outside.tick(dt); if (p && outside.opening) pose = p; } // 문이 열려 걸어 들어가는 동안의 카메라 (다 들어간 뒤에는 건드리지 않는다)
-  for (const id of S.cakes.keys()) { const c = S.cakes.get(id); if (c.lit > 0 && itemObj.has(id)) flicker(itemObj.get(id), clock); }
+  for (const [id, v] of cakeObj) { const c = S.cakes.get(id); if (c && c.lit > 0) flicker(v, clock); }
   placeBubbles();
   play.tick(dt);
 
@@ -1285,6 +1518,8 @@ function frame(now) {
   if (!window.__bare) {
     if (!saved && !cur) STARTER.forEach(([k, i, j, r], n) => dispatch({ t: 'put', id: 'base' + n, k, i, j, r }, 'load'));
     if ((!saved && !cur) || (saved && saved.v === 1)) STARTER_EAST.forEach(([k, i, j, r], n) => dispatch({ t: 'put', id: 'east' + n, k, i, j, r }, 'load'));
+    // 마당과 2층의 기본 가구: 새 방, 그리고 마당·2층이 없던 때에 꾸민 방(up 표시가 없다)을 처음 열 때
+    if ((!saved && !cur) || (saved && !saved.up)) STARTER_UP.forEach(([k, i, j, r], n) => dispatch({ t: 'put', id: 'up' + n, k, i, j, r }, 'load'));
   }
 }
 addEventListener('resize', () => measure());
@@ -1320,20 +1555,22 @@ window.__duo = {
 };
 window.__play = Object.assign(play.test, {
   start: (id) => startPlay(id), // 가구 앞으로 걸어가서 연다
-  open(id) { const it = S.items.get(id); if (mode !== null) setMode(null); setMode('play'); return play.start(id, kindOf(it.k).play); }, // 걷지 않고 바로 연다
+  open(id) { const it = S.items.get(id), kind = kindOf(it.k).play; if (mode !== null) setMode(null); setMode('play'); const ok = play.start(kind === 'cake' ? cakeAtBench(S, id) : id, kind); if (!ok) setMode(null); return ok; }, // 걷지 않고 바로 연다
   close: () => setMode(null), peerFx: (m) => play.peerFx(m),
 });
 Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose }, id: { get: () => play.id }, spot: { get: () => play.spot } });
 window.__tree = {
-  NX, NZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
+  NX, NZ, GX, GZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, LOFT, LADDER, FRONT, toWorld, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
   ghostNew, ghostPick, ghostMoveTo, ghostTurn, ghostDone, ghostCancel, ghostRemove, surfaceR, serialize: () => serialize(S),
   setZoomMul(m) { setZoomMul(m); },
-  doAct, carried, putDown, cakeTap,
-  cakeAt(id) { const g = itemObj.get(id), cv = g && g.userData.cake, c = S.cakes.get(id), p = cv && cv.root.parent; return cv ? { by: (c && c.by) || null, on: (c && c.on) || null, where: p === g ? 'island' : p === me.root ? 'me' : p && p.userData.item ? 'item:' + p.userData.item : [...others].some(([, a]) => a.root === p) ? 'peer:' + [...others].find(([, a]) => a.root === p)[0] : '?', scale: cv.root.scale.x, deco: c && c.on && itemObj.get(c.on) && itemObj.get(c.on).userData.deco ? itemObj.get(c.on).userData.deco.visible : null } : null; },
+  doAct, carried, putDown, cakeTap, useItem, lieDown, getUp, climb, pressSpace, nearAction: () => { const a = nearAction(); return a ? a.label : null; },
+  get level() { return myLv; }, get loftOn() { return loftOn(); }, get lying() { return me.rest ? { id: me.rest.id, side: me.rest.side } : null; },
+  itemShown: (id) => { const g = itemObj.get(id); return !!g && g.visible; }, cakes: () => cakesList(S).map(([id, c]) => ({ id, ...c })), freeBench,
+  cakeAt(id) { const cv = cakeObj.get(id), c = S.cakes.get(id), g = itemObj.get(benchOf(id, c || newCake())), p = cv && cv.root.parent; return cv ? { by: (c && c.by) || null, on: (c && c.on) || null, left: c ? c.left : CAKE.slices, where: p === g ? 'island' : p === me.root ? 'me' : p && p.userData.item ? 'item:' + p.userData.item : [...others].some(([, a]) => a.root === p) ? 'peer:' + [...others].find(([, a]) => a.root === p)[0] : '?', scale: cv.root.scale.x, deco: c && c.on && itemObj.get(c.on) && itemObj.get(c.on).userData.deco ? itemObj.get(c.on).userData.deco.visible : null } : null; },
   openLook(on) { if ((mode === 'look') !== on) setMode('look'); },
   // 트리 겉면의 한 점(높이 y, 둘레 각 a)이 화면에서 어디인지
   treePoint(y, a) { const r = surfaceR(y) * 0.93; return screenOf(Math.sin(a) * r, Math.cos(a) * r, y); },
-  cakeTops: (id) => { const g = itemObj.get(id); return g && g.userData.cake ? g.userData.cake.tops.children.length : -1; },
+  cakeTops: (id) => { const v = cakeObj.get(id); return v ? v.tops.children.length : -1; },
   snapView() { view.snap = true; updateView(0); }, // 화면이 자리를 잡는 움직임을 바로 끝낸다 (검사에서 누를 자리를 구하기 전에)
   setPov, lookTo(dx, dz) { fy = Math.atan2(-dx, -dz); }, get pov() { return fp ? 'fp' : 'iso'; }, get eyeOn() { return usingEye(); }, get meShown() { return me.root.visible; },
   get look3() { return { fy, fpitch, x: eye.position.x, y: eye.position.y, z: eye.position.z }; },

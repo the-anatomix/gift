@@ -7,7 +7,7 @@
 //   { t: 'ornDel', id }            트리 장식 떼기
 //   { t: 'lights', set, blink }    전구 색 묶음과 깜빡임
 //   { t: 'wall', v } / { t: 'floor', v }
-// 케이크(케이크 작업대 가구 id 마다 하나):
+// 케이크: 작업대 가구 id 가 곧 그 작업대에 처음부터 있는 케이크의 id 다. 오븐에서 새로 구운 케이크는 따로 id 를 받고 home = 작업대.
 //   { t: 'cakeCream', id, v }        크림 색 (CREAMS 의 번호)
 //   { t: 'cakeTop', id, k, x, z }    장식 올리기 (케이크 가운데가 0, 0)
 //   { t: 'cakeClear', id }           장식 다 치우기
@@ -15,7 +15,10 @@
 //   { t: 'cakeBlow', id }            촛불 하나 불어서 끄기 (구경하는 사람도 할 수 있다)
 //   { t: 'cakeTake', id, by }        케이크를 든다 (by = 드는 사람. 한 사람이 하나만 든다)
 //   { t: 'cakeDrop', id, by, on }    내려놓는다 (on = 올려놓을 탁자 가구 id. 없으면 작업대로 돌아간다)
-import { NX, NZ } from './path.js';
+//   { t: 'cakeBake', id, home }      오븐에서 새 케이크를 구워 빈 작업대 home 에 올린다 (id = home 이면 다 먹은 처음 케이크를 다시 굽는다)
+//   { t: 'cakeEat', id }             한 조각 먹기 (다 먹으면 케이크가 없어진다)
+//   { t: 'cakeSet', id, c }          저장해 둔 케이크를 통째로 놓는다 (방을 다시 열 때만)
+import { GX, GZ } from './path.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, CREAMS, TOPPINGS, CAKE } from './catalog.js';
 
 const F = Object.fromEntries(FURNITURE.map((f) => [f.id, f]));
@@ -33,18 +36,63 @@ export function cellsOf(it) {
 }
 
 // 케이크 하나의 상태. cream = 크림 색 번호, tops = [[장식, x, z], …], lit = 불이 켜진 초의 개수,
-// by = 들고 있는 사람(없으면 null), on = 올려놓은 탁자(없으면 null = 작업대 위)
-export const newCake = () => ({ cream: 0, tops: [], lit: 0, by: null, on: null });
+// by = 들고 있는 사람(없으면 null), on = 올려놓은 탁자(없으면 null), by·on 둘 다 없으면 제 작업대 위에 있다.
+// home = 오븐에서 구운 케이크가 나온 작업대(처음 케이크는 null: id 가 곧 작업대), left = 남은 조각, gone = 다 먹은 처음 케이크(자리 표시만 남는다)
+// 아직 S.cakes 에 없는 작업대에는 손대지 않은 처음 케이크가 놓여 있는 것으로 본다. 작업대·탁자·사람마다 케이크는 하나까지.
+export const newCake = () => ({ cream: 0, tops: [], lit: 0, by: null, on: null, home: null, left: CAKE.slices, gone: false });
 const okPid = (v) => typeof v === 'string' && /^[a-z0-9]{1,8}$/.test(v);
 export const candles = (c) => c.tops.filter((t) => t[0] === 'candle').length;
-// 그 가구(케이크 작업대)의 케이크. 아직 손대지 않았으면 make 일 때 새로 만든다.
+export const benchOf = (id, c) => c.home || id;
+const isBench = (S, id) => { const it = S.items.get(id); return !!it && it.k === 'cake'; };
+const sits = (c) => !c.gone && !c.by && !c.on;
+// 먹은 쪽: 케이크를 위에서 볼 때 θ = atan2(x, z) 가 0 부터 (먹은 조각 수 × 한 조각 각도) 까지
+const eatenAt = (x, z, left) => (Math.atan2(x, z) + Math.PI * 2) % (Math.PI * 2) < (CAKE.slices - left) * Math.PI * 2 / CAKE.slices;
+const okTop = (k, x, z) => has(TOPPINGS, k) && okNum(x, -CAKE.r, CAKE.r) && okNum(z, -CAKE.r, CAKE.r) && Math.hypot(x, z) <= CAKE.r;
+// 그 케이크(처음 케이크면 작업대 id). 없거나 다 먹었으면 null. 처음 케이크를 아직 손대지 않았으면 make 일 때 새로 만든다.
 function cakeOf(S, id, make) {
-  const it = S.items.get(id);
-  if (!it || it.k !== 'cake') return null;
   let c = S.cakes.get(id);
-  if (!c && make) { c = newCake(); S.cakes.set(id, c); }
-  return c || null;
+  if (c) return c.gone ? null : c;
+  if (!make || !isBench(S, id)) return null;
+  c = newCake(); S.cakes.set(id, c);
+  return c;
 }
+// 다 먹었거나 갈 곳이 없어진 케이크를 없앤다. 처음 케이크는 자리 표시를 남겨서 작업대에 다시 생기지 않게 한다.
+function rmCake(S, id, c) { if (c.home) S.cakes.delete(id); else S.cakes.set(id, { ...newCake(), gone: true, left: 0 }); }
+// 작업대 b 가 있고, self 말고 다른 케이크가 그 위에 없는지
+function benchFree(S, b, self) {
+  if (!isBench(S, b)) return false;
+  if (!S.cakes.has(b)) return b === self; // 손대지 않은 처음 케이크가 놓여 있다
+  for (const [id, c] of S.cakes) if (id !== self && sits(c) && benchOf(id, c) === b) return false;
+  return true;
+}
+// 있는 케이크 모두 [id, 케이크] (손대지 않은 처음 케이크는 새 케이크 모양을 만들어 넣는다. 저장하지는 않는다)
+export function cakesList(S) {
+  const out = [];
+  for (const [id, c] of S.cakes) if (!c.gone) out.push([id, c]);
+  for (const it of S.items.values()) if (it.k === 'cake' && !S.cakes.has(it.id)) out.push([it.id, newCake()]);
+  return out;
+}
+// 작업대 위에 놓인 케이크의 id (없으면 null)
+export function cakeAtBench(S, b) {
+  if (!isBench(S, b)) return null;
+  if (!S.cakes.has(b)) return b;
+  for (const [id, c] of S.cakes) if (sits(c) && benchOf(id, c) === b) return id;
+  return null;
+}
+// 탁자 위에 놓인 케이크의 id (없으면 null)
+export function cakeOnTable(S, t) {
+  for (const [id, c] of S.cakes) if (!c.gone && !c.by && c.on === t) return id;
+  return null;
+}
+// 든 사람이 떠났거나 탁자가 없어졌을 때: 케이크를 작업대로 돌려보낸다. 작업대가 없거나 이미 다른 케이크가 있으면 케이크를 없앤다.
+export function sendHome(S, id) {
+  const c = S.cakes.get(id);
+  if (!c || c.gone || (!c.by && !c.on)) return false;
+  c.by = null; c.on = null;
+  if (!benchFree(S, benchOf(id, c), id)) rmCake(S, id, c);
+  return true;
+}
+const liveCount = (S) => { let n = 0; for (const c of S.cakes.values()) if (!c.gone) n++; return n; };
 
 export function makeState() {
   // at = 마지막으로 꾸민 때(ms, 한 번도 안 꾸몄으면 0).
@@ -60,13 +108,13 @@ export function canPlace(S, it, fixed, ignoreId = null, avoid = []) {
   if (!f || !isInt(it.i) || !isInt(it.j) || ![0, 1, 2, 3].includes(it.r)) return false;
   const mine = new Set();
   for (const [i, j] of cellsOf(it)) {
-    if (i < 0 || j < 0 || i >= NX || j >= NZ || fixed(i, j)) return false;
+    if (i < 0 || j < 0 || i >= GX || j >= GZ || fixed(i, j)) return false;
     if (f.solid && avoid.some(([a, b]) => a === i && b === j)) return false;
-    mine.add(j * NX + i);
+    mine.add(j * GX + i);
   }
   for (const o of S.items.values()) {
     if (o.id === ignoreId || F[o.k].solid !== f.solid) continue;
-    for (const [i, j] of cellsOf(o)) if (mine.has(j * NX + i)) return false;
+    for (const [i, j] of cellsOf(o)) if (mine.has(j * GX + i)) return false;
   }
   return true;
 }
@@ -76,7 +124,7 @@ export function apply(S, op, fixed) {
   if (!op || typeof op !== 'object') return false;
   switch (op.t) {
     case 'put': {
-      if (!okId(op.id) || S.items.has(op.id) || S.items.size >= MAX_ITEMS) return false;
+      if (!okId(op.id) || S.items.has(op.id) || S.cakes.has(op.id) || S.items.size >= MAX_ITEMS) return false;
       const it = { id: op.id, k: op.k, i: op.i, j: op.j, r: op.r };
       if (!canPlace(S, it, fixed)) return false;
       S.items.set(it.id, it);
@@ -90,10 +138,14 @@ export function apply(S, op, fixed) {
       S.items.set(it.id, it);
       return true;
     }
-    case 'del':
-      S.cakes.delete(op.id);
-      for (const c of S.cakes.values()) if (c.on === op.id) c.on = null; // 치운 탁자 위의 케이크는 작업대로 돌아간다
-      return S.items.delete(op.id);
+    case 'del': {
+      const it = S.items.get(op.id);
+      if (!it) return false;
+      S.items.delete(op.id);
+      if (it.k === 'cake') { S.cakes.delete(op.id); for (const [id, c] of [...S.cakes]) if (c.home === op.id) S.cakes.delete(id); } // 작업대와 거기서 나온 케이크들
+      for (const [id, c] of [...S.cakes]) if (c.on === op.id && !c.by) sendHome(S, id); // 치운 탁자 위의 케이크는 작업대로 돌아간다
+      return true;
+    }
     case 'orn': {
       if (!okId(op.id) || S.orns.has(op.id) || S.orns.size >= MAX_ORNS || !has(ORNAMENTS, op.k)) return false;
       if (!okNum(op.x, -1.4, 1.4) || !okNum(op.z, -1.4, 1.4) || !okNum(op.y, 0.3, 3)) return false;
@@ -114,9 +166,9 @@ export function apply(S, op, fixed) {
       return true;
     }
     case 'cakeTop': {
-      if (!has(TOPPINGS, op.k) || !okNum(op.x, -CAKE.r, CAKE.r) || !okNum(op.z, -CAKE.r, CAKE.r) || Math.hypot(op.x, op.z) > CAKE.r) return false;
+      if (!okTop(op.k, op.x, op.z)) return false;
       const c = cakeOf(S, op.id, true);
-      if (!c || c.tops.length >= CAKE.max) return false;
+      if (!c || c.tops.length >= CAKE.max || eatenAt(op.x, op.z, c.left)) return false;
       c.tops.push([op.k, op.x, op.z]);
       return true;
     }
@@ -143,10 +195,59 @@ export function apply(S, op, fixed) {
       if (op.on !== undefined && op.on !== null) {
         const t = S.items.get(op.on);
         if (!t || !F[t.k].holds) return false;
-        for (const x of S.cakes.values()) if (x.on === op.on) return false; // 탁자 하나에 케이크 하나
+        if (cakeOnTable(S, op.on)) return false; // 탁자 하나에 케이크 하나
         on = op.on;
-      }
+      } else if (!benchFree(S, benchOf(op.id, c), op.id)) return false; // 작업대가 없거나 다른 케이크가 올라가 있다
       c.by = null; c.on = on;
+      return true;
+    }
+    case 'cakeBake': {
+      if (!isBench(S, op.home) || cakeAtBench(S, op.home)) return false;
+      if (op.id === op.home) { // 다 먹은 처음 케이크를 다시 굽는다
+        const c = S.cakes.get(op.home);
+        if (!c || !c.gone) return false;
+        S.cakes.set(op.home, newCake());
+        return true;
+      }
+      if (!okId(op.id) || S.cakes.has(op.id) || S.items.has(op.id) || liveCount(S) >= CAKE.many) return false;
+      S.cakes.set(op.id, { ...newCake(), home: op.home });
+      return true;
+    }
+    case 'cakeEat': {
+      const c = cakeOf(S, op.id, true);
+      if (!c || c.lit || c.by || !(c.left > 0)) return false;
+      c.left--;
+      c.tops = c.tops.filter((t) => !eatenAt(t[1], t[2], c.left)); // 먹은 조각 위의 장식도 같이 먹었다
+      if (!c.left) rmCake(S, op.id, c);
+      return true;
+    }
+    case 'cakeSet': {
+      const id = op.id, k = op.c;
+      if (!okId(id) || !k || typeof k !== 'object' || Array.isArray(k)) return false;
+      const nul = (v) => v === null || v === undefined || v === '';
+      if (![undefined, null, false, true, 0, 1].includes(k.gone)) return false;
+      const home = nul(k.home) ? null : k.home, by = nul(k.by) ? null : k.by, on = nul(k.on) ? null : k.on, gone = k.gone === true || k.gone === 1;
+      if (home !== null ? !isBench(S, home) || S.items.has(id) : !isBench(S, id)) return false;
+      if (gone) { if (home !== null) return false; S.cakes.set(id, { ...newCake(), gone: true, left: 0 }); return true; }
+      const left = k.left === undefined ? CAKE.slices : k.left;
+      if (!isInt(left) || left < 1 || left > CAKE.slices) return false;
+      if (!isInt(k.cream) || k.cream < 0 || k.cream >= CREAMS.length) return false;
+      if (!Array.isArray(k.tops) || k.tops.length > CAKE.max) return false;
+      const tops = [];
+      for (const t of k.tops) {
+        if (!Array.isArray(t) || !okTop(t[0], t[1], t[2])) return false;
+        if (!eatenAt(t[1], t[2], left)) tops.push([t[0], t[1], t[2]]); // 먹은 쪽의 장식은 버린다
+      }
+      const c = { cream: k.cream, tops, lit: 0, by, on, home, left, gone: false };
+      const lt = k.lit === undefined ? 0 : k.lit;
+      if (!isInt(lt) || lt < 0 || lt > candles(c)) return false;
+      c.lit = lt;
+      if (by !== null && on !== null) return false;
+      if (by !== null) { if (!okPid(by)) return false; for (const [x, o] of S.cakes) if (x !== id && !o.gone && o.by === by) return false; }
+      if (on !== null) { const t = S.items.get(on); if (!t || !F[t.k].holds) return false; const o = cakeOnTable(S, on); if (o && o !== id) return false; }
+      if (by === null && on === null && !benchFree(S, benchOf(id, c), id)) return false;
+      if (home !== null && !S.cakes.has(id) && liveCount(S) >= CAKE.many) return false;
+      S.cakes.set(id, c);
       return true;
     }
     case 'wall': if (!has(WALLS, op.v)) return false; S.wall = op.v; return true;
@@ -161,8 +262,13 @@ export function serialize(S) {
     v: 2, at: S.at, sync: S.sync, // v 1 = 거실만 있던 때의 방, v 2 = 주방과 방이 붙은 집 (칸 번호는 같다)
     items: [...S.items.values()].map((o) => [o.id, o.k, o.i, o.j, o.r]),
     orns: [...S.orns.values()].map((o) => [o.id, o.k, o.x, o.y, o.z]),
-    // 들고 있거나 탁자에 올려놓았을 때만 뒤에 [든 사람, 탁자] 가 붙는다
-    cakes: [...S.cakes].map(([id, c]) => [id, c.cream, c.lit, c.tops.map((t) => [t[0], t[1], t[2]]), ...(c.by || c.on ? [c.by || '', c.on || ''] : [])]),
+    // [id, 크림, 켠 초, 장식] 뒤에, 들고 있거나 탁자에 올려놓았으면 [든 사람, 탁자] 가 붙는다.
+    // 오븐에서 구웠거나 먹기 시작했거나 다 먹은 케이크는 [든 사람, 탁자, 작업대, 남은 조각, 다 먹었으면 1] 까지 붙는다
+    cakes: [...S.cakes].map(([id, c]) => {
+      const row = [id, c.cream, c.lit, c.tops.map((t) => [t[0], t[1], t[2]])];
+      if (!c.home && !c.gone && c.left === CAKE.slices) return c.by || c.on ? [...row, c.by || '', c.on || ''] : row;
+      return [...row, c.by || '', c.on || '', c.home || '', c.left, c.gone ? 1 : 0];
+    }),
     lights: [S.lights.set, S.lights.blink], wall: S.wall, floor: S.floor,
   };
 }
@@ -194,13 +300,13 @@ export function ops(data) {
   const rows = (a) => (Array.isArray(a) ? a.filter(Array.isArray) : []);
   for (const [id, k, i, j, r] of rows(data.items)) out.push({ t: 'put', id, k, i, j, r });
   for (const [id, k, x, y, z] of rows(data.orns)) out.push({ t: 'orn', id, k, x, y, z });
-  for (const [id, cream, lit, tops, by, on] of rows(data.cakes)) {
-    out.push({ t: 'cakeCream', id, v: cream });
-    for (const [k, x, z] of rows(tops)) out.push({ t: 'cakeTop', id, k, x, z });
-    if (lit) out.push({ t: 'cakeLit', id, n: lit });
-    if (by) out.push({ t: 'cakeTake', id, by });
-    else if (on) out.push({ t: 'cakeTake', id, by: 'x' }, { t: 'cakeDrop', id, by: 'x', on }); // 탁자에 올려놓은 케이크
+  // 케이크는 한 줄에 cakeSet 하나. 작업대를 떠난 케이크(다 먹었거나, 들었거나, 탁자 위)를 먼저 놓아야 작업대 자리가 빈다
+  const away = [], home = [];
+  for (const [id, cream, lit, tops, by, on, bench, left, gone] of rows(data.cakes)) {
+    const c = { cream, lit, tops: rows(tops).map(([k, x, z]) => [k, x, z]), by: by || null, on: on || null, home: bench || null, left: left === undefined ? CAKE.slices : left, gone: !!gone };
+    (c.gone || c.by || c.on ? away : home).push({ t: 'cakeSet', id, c });
   }
+  out.push(...away, ...home);
   if (Array.isArray(data.lights)) out.push({ t: 'lights', set: data.lights[0], blink: data.lights[1] });
   out.push({ t: 'wall', v: data.wall }, { t: 'floor', v: data.floor });
   return out;

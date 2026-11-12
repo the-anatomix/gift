@@ -52,6 +52,9 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 #tools .btn[aria-pressed=true]{background:var(--choc);border-color:var(--choc);color:#FFF4E0}
 #stick{position:absolute;left:14px;bottom:130px;width:104px;height:104px;border-radius:50%;z-index:3;touch-action:none;
   background:rgba(255,252,245,.28);border:2px solid rgba(255,252,245,.6);display:flex;align-items:center;justify-content:center}
+#act{position:absolute;left:50%;bottom:130px;transform:translateX(-50%);z-index:3;max-width:calc(100vw - 150px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  padding:0 18px;border-radius:22px;font-size:14px;font-weight:800;box-shadow:0 4px 14px rgba(60,30,10,.28)}
+#act:active{transform:translateX(-50%) scale(.96)}
 #stick i{width:44px;height:44px;border-radius:50%;background:rgba(255,252,245,.92);box-shadow:0 2px 8px rgba(0,0,0,.3);pointer-events:none}
 /* 탭을 누르면 그 위에 열리는 판 */
 .sheet{background:rgba(255,252,245,.97);border:1.5px solid var(--line);border-radius:18px;padding:10px 12px;
@@ -143,6 +146,7 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 <div id="bubbles" aria-hidden="true"></div>
 <div id="party" aria-hidden="true"></div>
 <div id="stick" hidden aria-label="걷기 조이스틱"><i></i></div>
+<button type="button" class="btn main" id="act" hidden></button>
 <div id="bottom">
   <div id="tools">
     <button type="button" class="btn" id="zout" aria-label="작게 보기">－</button>
@@ -193,6 +197,9 @@ button{font:inherit;color:inherit;touch-action:manipulation}
   </div>
   <div id="carryP" class="sheet" hidden>
     <div class="row"><div class="hint">🎂 케이크를 들고 있어요<small>탁자나 케이크 작업대를 누르면 가서 내려놓아요.</small></div><button type="button" class="btn" id="carryBack">작업대에 두기</button></div>
+  </div>
+  <div id="lieP" class="sheet" hidden>
+    <div class="row"><div class="hint">🛏️ 침대에 누워 있어요<small>걸으면 일어나요.</small></div><button type="button" class="btn" id="lieUp">일어나기</button></div>
   </div>
   <div id="knock" class="sheet" hidden></div>
   <div id="doorP" class="sheet" hidden>

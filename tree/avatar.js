@@ -1,6 +1,7 @@
 // 치비 아바타. 머리가 큰 2.5등신 사람. 도형만으로 만든다(나중에 모델 파일로 바꿔 끼울 수 있다).
 // 고를 수 있는 것: 성별(여자·남자), 옷(평상복·산타·루돌프), 표정. 그리고 잠깐 하는 행동(손 흔들기, 춤 …).
 import { THREE, M, put, ball, cap, cyl } from './kit.js';
+import { toWorld, levelOf, centerOf, LADDER, LOFT, LOFT_DX, X0, CELL } from './path.js';
 
 export const GENDERS = [{ id: 'f', name: '여자' }, { id: 'm', name: '남자' }];
 export const OUTFITS = [{ id: 'basic', name: '평상복' }, { id: 'santa', name: '🎅 산타' }, { id: 'rudolph', name: '🦌 루돌프' }];
@@ -13,6 +14,7 @@ export const FACES = [
 export const ACTS = [
   { id: 'wave', name: '안녕', icon: '👋', sec: 2.4 }, { id: 'cheer', name: '만세', icon: '🙌', sec: 2.2 }, { id: 'clap', name: '박수', icon: '👏', sec: 2.4 },
   { id: 'jump', name: '폴짝', icon: '🐰', sec: 1.3 }, { id: 'dance', name: '춤', icon: '💃', sec: 4.6 }, { id: 'bow', name: '꾸벅', icon: '🙇', sec: 1.8 },
+  { id: 'eat', name: '냠냠', icon: '😋', sec: 2.0 },
 ];
 export const DEFAULT_LOOK = { gender: 'f', outfit: 'basic', face: 'smile' };
 // 저장된 값이나 상대가 보낸 값은 믿지 않고 아는 값만 받는다
@@ -40,6 +42,11 @@ const SIZE = 1.25;   // 방 크기에 맞춘 전체 배율
 const SPEED = 2.6;   // 걷는 빠르기 (1초에 가는 거리)
 export const BODY_R = 0.18;
 export const HEIGHT = 1.16 * SIZE; // 머리끝까지 높이 (모자·뿔 제외)
+// 사다리를 오르내리는 길 (세상 좌표). base = 사다리 밑, top = 2층 모서리. 걸리는 시간(초): 다가가기, 오르기, 올라서기
+const LAD = (() => {
+  const z = centerOf(LADDER.foot[0], LADDER.foot[1])[1], edge = X0 + LADDER.top[0] * CELL - LOFT_DX;
+  return { base: [edge - 0.42, 0, z], top: [edge - 0.1, LOFT.y, z], T: [0.3, 1.15, 0.3] };
+})();
 
 // 얼굴(눈, 눈썹, 입)을 머리에 붙인다. 표정마다 모양이 다르다. 돌려주는 값 = 깜빡일 수 있는(뜬) 눈들
 const HEAD_R = 0.27;
@@ -185,7 +192,7 @@ function build(L) {
 
 export function makeAvatar(look) {
   const root = new THREE.Group(); // 자리와 방향
-  let parts = null;
+  let parts = null, px = 0, pz = 0;
 
   // 누가 나인지 알아보게 발밑에 두는 고리
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.22, 0.29, 28), new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.55 }));
@@ -196,12 +203,24 @@ export function makeAvatar(look) {
     root, look: null, path: [], onArrive: null, moving: false, t: Math.random() * 6, blend: 0, face: 0,
     doing: null, blink: Math.random() * 4, // doing = 하고 있는 행동 { id, t, sec }
     hold: false, // 케이크를 들고 있는지 (두 팔을 앞으로 내민다)
+    hop: null,   // 사다리를 오르내리는 중 { pts: 세상 좌표 네 점, t, to: [x, z] }
+    rest: null,  // 누워 있는 자리 { pos: [x, y, z](발끝, 세상 좌표), ry, head: [x, y, z], id(침대), side }
+    get climbing() { return !!A.hop; },
     get acting() { return A.doing ? A.doing.id : null; },
     get parts() { return parts; },
     // 행동을 시작한다. 아는 행동이 아니면 false
     act(id) { const a = ACTS.find((x) => x.id === id); if (!a) return false; A.doing = { id, t: 0, sec: a.sec }; return true; },
-    get x() { return root.position.x; }, get z() { return root.position.z; },
-    place(x, z) { root.position.set(x, 0, z); },
+    // 자리 (x, z) 는 격자의 자리다. 화면에서는 toWorld 를 지나서 놓인다(2층이면 위로 올라간다)
+    get x() { return px; }, get z() { return pz; },
+    get level() { return levelOf(px); },
+    place(x, z) { px = x; pz = z; A.hop = null; A.sync(); },
+    sync() {
+      if (A.rest) { root.position.set(A.rest.pos[0], A.rest.pos[1], A.rest.pos[2]); return; }
+      const w = toWorld(px, pz); root.position.set(w[0], w[1], w[2]);
+    },
+    // 눕는다 / 일어난다
+    lie(rest) { A.path = []; A.onArrive = null; A.doing = null; A.rest = rest; A.sync(); root.rotation.y = A.face = rest.ry; A.animate(0, false); },
+    rise() { if (!A.rest) return false; A.rest = null; A.sync(); A.animate(0, false); return true; },
     mark(on) { ring.visible = on; },
     walk(points) { A.path = points ? points.slice() : []; },
     stop() { A.path = []; },
@@ -222,16 +241,37 @@ export function makeAvatar(look) {
     // dt 초만큼 진행. 움직였으면 true.
     step(dt) {
       let moved = false, left = SPEED * dt;
+      if (A.rest && A.path.length) A.rise(); // 걸으려면 먼저 일어난다
+      if (A.hop) { // 사다리를 타는 중: 밑(또는 위)까지 다가가고, 오르내리고, 올라선다
+        const h = A.hop, T = LAD.T;
+        h.t += dt;
+        const k = h.t < T[0] ? 0 : h.t < T[0] + T[1] ? 1 : 2, t0 = k === 0 ? 0 : k === 1 ? T[0] : T[0] + T[1];
+        const e = Math.min(1, (h.t - t0) / T[k]), a = h.pts[k], b = h.pts[k + 1];
+        root.position.set(a[0] + (b[0] - a[0]) * e, a[1] + (b[1] - a[1]) * e, a[2] + (b[2] - a[2]) * e);
+        if (k === 1) A.face = Math.PI / 2; else A.turnTo(b[0] - a[0], b[2] - a[2]); // 사다리에서는 사다리(동쪽)를 본다
+        h.on = k === 1;
+        if (h.t >= T[0] + T[1] + T[2]) { px = h.to[0]; pz = h.to[1]; A.hop = null; A.sync(); if (A.path.length && A.path[0][0] === h.to[0] && A.path[0][1] === h.to[1]) A.path.shift(); }
+        A.animate(dt, true);
+        if (!A.hop && !A.path.length && A.onArrive) { const f = A.onArrive; A.onArrive = null; f(); }
+        return true;
+      }
       while (A.path.length && left > 0) {
         const [tx, tz] = A.path[0];
-        const dx = tx - root.position.x, dz = tz - root.position.z, d = Math.hypot(dx, dz);
+        if (levelOf(tx) !== levelOf(px)) { // 다른 층으로 가는 점: 사다리를 탄다
+          const up = levelOf(tx) === 1, p = root.position;
+          A.hop = { t: 0, on: false, to: [tx, tz], pts: [[p.x, p.y, p.z], up ? LAD.base : LAD.top, up ? LAD.top : LAD.base, toWorld(tx, tz)] };
+          A.doing = null; moved = true;
+          break;
+        }
+        const dx = tx - px, dz = tz - pz, d = Math.hypot(dx, dz);
         if (d < 1e-4) { A.path.shift(); continue; }
         A.turnTo(dx, dz);
         const s = Math.min(d, left);
-        root.position.x += (dx / d) * s; root.position.z += (dz / d) * s;
+        px += (dx / d) * s; pz += (dz / d) * s;
         left -= s; moved = true;
         if (s >= d - 1e-6) A.path.shift();
       }
+      if (moved && !A.hop) A.sync();
       A.animate(dt, moved);
       if (moved && !A.path.length && A.onArrive) { const f = A.onArrive; A.onArrive = null; f(); } // 다 걸어갔을 때 할 일
       return moved;
@@ -263,23 +303,34 @@ export function makeAvatar(look) {
           spin = u * u * (3 - 2 * u) * Math.PI * 2; // 가운데쯤에서 한 바퀴 돈다
         }
         else if (act.id === 'bow') { const k = Math.min(1, Math.sin(Math.PI * t / act.sec) * 1.7); Q.bx = 0.42 * k; Q.hx = 0.2 * k; Q.az = [-0.12, 0.12]; Q.lx = [-0.42 * k, -0.42 * k]; }
+        else if (act.id === 'eat') { const c = Math.sin(t * 9); Q.ax[0] = -2.05 + 0.3 * Math.max(0, c); Q.az[0] = 0.5; Q.hx = 0.07 + 0.05 * c; Q.by = Math.abs(c) * 0.008; } // 한 손을 입으로 가져가 오물오물
         const mix = (a, b) => a + (b - a) * e;
         for (const k of ['lx', 'ax', 'az']) { P[k][0] = mix(P[k][0], Q[k][0]); P[k][1] = mix(P[k][1], Q[k][1]); }
         for (const k of ['by', 'bx', 'bz', 'hx', 'hz', 'as']) P[k] = mix(P[k], Q[k]);
       }
       if (A.hold) { P.ax = [-1.2, -1.2]; P.az = [0.16, -0.16]; P.as = 1.15; } // 무엇을 들고 있으면 두 팔은 그대로 앞으로
+      if (A.hop && A.hop.on) { // 사다리: 팔과 다리를 번갈아 올린다
+        const c = Math.sin(A.hop.t * 11);
+        P.ax = [-2.3 + 0.45 * c, -2.3 - 0.45 * c]; P.az = [-0.1, 0.1]; P.lx = [-0.55 * Math.max(0, c), -0.55 * Math.max(0, -c)]; P.by = 0; P.bx = 0.1; P.hx = -0.25; P.hz = 0; P.as = 1.1;
+      }
+      let lying = 0;
+      if (A.rest) { // 누웠다: 등을 대고 반듯이, 눈을 감는다
+        lying = -Math.PI / 2;
+        P.lx = [0, 0]; P.ax = [0, 0]; P.az = [-0.16, 0.16]; P.by = 0; P.bx = 0; P.bz = 0; P.hx = 0; P.hz = 0; P.as = 1; spin = 0;
+      }
       for (const k of [0, 1]) { legs[k].rotation.x = P.lx[k]; arms[k].rotation.x = P.ax[k]; arms[k].rotation.z = P.az[k]; arms[k].scale.y = P.as; }
       // 숙일 때는 엉덩이가 제자리에 있게 몸을 조금 뒤로 뺀다
-      body.position.set(0, P.by, -Math.sin(P.bx) * 0.27 * SIZE);
-      body.rotation.set(P.bx, spin, P.bz);
+      body.position.set(0, P.by + (lying ? Math.sin(A.t * 0.6) * 0.004 : 0), -Math.sin(P.bx) * 0.27 * SIZE);
+      body.rotation.set(P.bx + lying, spin, P.bz);
       head.rotation.set(P.hx, 0, P.hz);
       // 눈 깜빡임
       A.blink += dt; if (A.blink > 4.2) A.blink = Math.random() * 1.2;
-      for (const m of eyes) m.scale.y = m.userData.sy * (A.blink < 0.12 ? 0.15 : 1);
+      for (const m of eyes) m.scale.y = m.userData.sy * (A.blink < 0.12 || A.rest ? 0.15 : 1);
       // 가는 쪽으로 부드럽게 돌아선다
       let d = A.face - root.rotation.y;
       d = Math.atan2(Math.sin(d), Math.cos(d));
       root.rotation.y += d * Math.min(1, dt * 14);
+      if (A.rest) root.rotation.y = A.face = A.rest.ry;
     },
   };
   A.setLook(look);

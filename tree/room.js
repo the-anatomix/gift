@@ -1,12 +1,19 @@
 // 집: 넓은 거실(가운데 트리), 동쪽에 주방과 방 한 칸. 바닥, 바깥 벽 네 면, 방 사이 벽, 창과 문.
-// 방(침실)으로 들어가는 두 곳에는 미닫이문이 달려 있어서, 사람이 다가오면 열리고 지나가면 닫힌다.
+// 남쪽 벽의 현관문을 나서면 눈 쌓인 마당이고, 동쪽 방들 위에는 사다리로 올라가는 2층(복층)이 얹혀 있다.
+// 방(침실)으로 들어가는 두 곳에는 미닫이문이, 현관에는 여닫이문이 달려 있어서 사람이 다가오면 열리고 지나가면 닫힌다.
 // 바깥 벽은 카메라 쪽 두 면을 숨길 수 있게 따로 묶는다. 방 사이 벽은 내려다볼 때 낮게만 보이고, 1인칭에서는 천장까지 보인다.
 import { THREE, M, put, rbox, cyl, ball } from './kit.js';
-import { NX, NZ, CELL, X0, Z0, X1, Z1 } from './path.js';
+import { NX, NZ, CELL, X0, Z0, X1, Z1, GZ1, YARD, LOFT, LOFT_DX, LADDER, zoneOf, centerOf } from './path.js';
 import { WALLS, FLOORS } from './catalog.js';
 
 export const WALL_H = 2.7;
 export const LOW_H = 0.95; // 방 사이 벽이 내려다볼 때 보이는 높이
+export const HIGH_H = LOFT.y + 2.45; // 지붕 밑 높이 (거실은 여기까지 뚫려 있고, 2층은 이 아래에 있다)
+// 현관문: 남쪽 벽에서 뚫린 자리의 가운데 x 와 너비
+export const FRONT = { x: X0 + (YARD.door[0] + YARD.door[1] + 1) / 2 * CELL, w: (YARD.door[1] - YARD.door[0] + 1) * CELL };
+// 마당에 처음부터 서 있는 것들이 차지하는 칸: 나무 두 그루(2 × 2 칸), 가로등
+const YARD_TREES = [[26, 23], [1, 21]], YARD_LAMP = [7, 22];
+const yardSolid = (i, j) => YARD_TREES.some(([a, b]) => (i === a || i === a + 1) && (j === b || j === b + 1)) || (i === YARD_LAMP[0] && j === YARD_LAMP[1]);
 export const C = {
   slab: 0xB98F66, base: 0x8A5F3F, white: 0xFFF8EA,
   rug: 0xC8443A, rugIn: 0xF3E2C3, night: 0x27335E, moon: 0xFFF2C2,
@@ -27,6 +34,7 @@ export const PLAN = {
 const inAny = (v, list) => list.some(([a, b]) => v >= a && v <= b);
 // 바닥 칸 (i, j) 가 방 사이 벽인지
 export function wallCell(i, j) {
+  if (i >= NX || j >= NZ) return false; // 마당과 2층에는 방 사이 벽이 없다
   if (i === PLAN.wallI) return !inAny(j, PLAN.doorsI);
   if (j === PLAN.wallJ && i > PLAN.wallI) return !inAny(i, PLAN.doorsJ);
   return false;
@@ -80,7 +88,8 @@ function tileTexture(a, b, rx, rz) {
 
 // 바깥 벽 한 면. 아래 턱(항상 보임)과 위쪽(숨길 수 있음)으로 나눈다. 벽 안쪽 면이 방 안을 본다.
 // side: 'n'(z = Z0) 's'(z = Z1) 'w'(x = X0) 'e'(x = X1). at(v) = 벽을 따라 방 안 좌표 v 가 벽에서는 어디인지.
-function wall(scene, side, mats) {
+// gap = [v0, v1]: 문으로 뚫어 둘 범위(방 안 좌표). 그 위는 문 높이부터 벽이 이어진다.
+function wall(scene, side, mats, gap = null) {
   const T = 0.14, long = side === 'n' || side === 's';
   const L = (long ? X1 - X0 : Z1 - Z0) + T * 2, cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2;
   const g = new THREE.Group(), upper = new THREE.Group();
@@ -90,11 +99,19 @@ function wall(scene, side, mats) {
   if (side === 's') { g.position.set(cx, 0, Z1 + T / 2); g.rotation.y = Math.PI; at = (x) => cx - x; }
   if (side === 'w') { g.position.set(X0 - T / 2, 0, cz); g.rotation.y = Math.PI / 2; at = (z) => cz - z; }
   if (side === 'e') { g.position.set(X1 + T / 2, 0, cz); g.rotation.y = -Math.PI / 2; at = (z) => z - cz; }
-  put(rbox(L, 0.16, T, 0.03), C.base, 0, 0.08, 0, g);
-  put(rbox(L, WALL_H - 0.16, T, 0.04), mats.wall, 0, 0.16 + (WALL_H - 0.16) / 2, 0, upper);
-  put(new THREE.BoxGeometry(L - T * 2, 0.62, 0.03), mats.panel, 0, 0.16 + 0.31, T / 2, upper, false);
-  put(new THREE.BoxGeometry(L - T * 2, 0.05, 0.05), C.base, 0, 0.8, T / 2 + 0.01, upper, false);
-  return { g, upper, front: T / 2, at };
+  // 벽을 따라 a ~ b 를 채우는 토막들 (문 자리는 비운다)
+  const [ga, gb] = gap ? [at(gap[0]), at(gap[1])].sort((p, q) => p - q) : [0, 0];
+  const spans = (a, b) => (gap ? [[a, ga], [gb, b]] : [[a, b]]);
+  for (const [a, b] of spans(-L / 2, L / 2)) {
+    put(rbox(b - a, 0.16, T, 0.03), C.base, (a + b) / 2, 0.08, 0, g);
+    put(rbox(b - a, WALL_H - 0.16, T, 0.04), mats.wall, (a + b) / 2, 0.16 + (WALL_H - 0.16) / 2, 0, upper);
+  }
+  for (const [a, b] of spans(-L / 2 + T, L / 2 - T)) {
+    put(new THREE.BoxGeometry(b - a, 0.62, 0.03), mats.panel, (a + b) / 2, 0.16 + 0.31, T / 2, upper, false);
+    put(new THREE.BoxGeometry(b - a, 0.05, 0.05), C.base, (a + b) / 2, 0.8, T / 2 + 0.01, upper, false);
+  }
+  if (gap) put(new THREE.BoxGeometry(gb - ga, WALL_H - FRONT_H, T), mats.wall, (ga + gb) / 2, (WALL_H + FRONT_H) / 2, 0, upper, false);
+  return { g, upper, front: T / 2, at, T };
 }
 
 function windowOn(w, v) {
@@ -123,11 +140,21 @@ function wreathOn(w, v) {
   put(rbox(0.26, 0.12, 0.06, 0.03), C.pot, x, 1.42, z + 0.07, w.upper, false);
 }
 
-function doorOn(w, v) {
-  const x = w.at(v), z = w.front;
-  put(rbox(1.06, 2.02, 0.06, 0.03), C.frame, x, 1.17, z, w.upper);
-  put(rbox(0.9, 1.9, 0.06, 0.03), C.door, x, 1.13, z + 0.03, w.upper);
-  put(ball(0.05, 10, 8), C.knob, x + 0.32, 1.1, z + 0.09, w.upper, false);
+// 현관문: 벽에 뚫린 자리의 문틀과, 한쪽 모서리를 축으로 마당 쪽으로 열리는 문짝. 벽 윗부분과 같이 숨는다.
+const FRONT_H = 2.1;
+function frontDoor(w) {
+  const x = w.at(FRONT.x), half = FRONT.w / 2, T = w.T;
+  for (const s of [-1, 1]) put(new THREE.BoxGeometry(0.07, FRONT_H, T + 0.06), C.frame, x + s * (half - 0.035), FRONT_H / 2, 0, w.upper);
+  put(new THREE.BoxGeometry(FRONT.w, 0.08, T + 0.06), C.frame, x, FRONT_H + 0.04, 0, w.upper, false);
+  const hinge = new THREE.Group();
+  hinge.position.set(x - half + 0.07, 0, -T / 2 + 0.02);
+  w.upper.add(hinge);
+  const lw = FRONT.w - 0.14;
+  put(rbox(lw, FRONT_H - 0.04, 0.06, 0.02), 0xB5523F, lw / 2, FRONT_H / 2, 0, hinge);
+  for (const y of [0.55, 1.45]) for (const s of [-1, 1]) put(new THREE.BoxGeometry(lw - 0.24, 0.62, 0.012), 0xA3432F, lw / 2, y, s * 0.032, hinge, false); // 널판 무늬
+  for (const s of [-1, 1]) put(ball(0.045, 10, 8), C.knob, lw - 0.1, 1.02, s * 0.06, hinge, false);
+  const wr = put(new THREE.TorusGeometry(0.17, 0.06, 8, 16), M(C.pine, true), lw / 2, 1.6, -0.05, hinge, false); wr.scale.z = 0.6; // 바깥쪽의 리스
+  return { cx: FRONT.x, cz: Z1 + T / 2, open: 0, set(o) { hinge.rotation.y = o * 1.75; } };
 }
 
 function pictureOn(w, v) {
@@ -154,8 +181,11 @@ export const TREE = {
 export function treeBlocked(i, j) {
   return Math.hypot(X0 + (i + 0.5) * CELL, Z0 + (j + 0.5) * CELL) < TREE.reach;
 }
-// 처음부터 막혀 있는 칸: 트리 자리와 방 사이 벽
-export const fixedCell = (i, j) => treeBlocked(i, j) || wallCell(i, j);
+// 처음부터 막혀 있는 칸(걸어갈 수 없다): 아무것도 없는 곳, 트리 자리, 방 사이 벽, 마당의 나무와 가로등
+export const fixedCell = (i, j) => zoneOf(i, j) === null || treeBlocked(i, j) || wallCell(i, j) || yardSolid(i, j);
+// 가구를 놓을 수 없는 칸: 막힌 칸, 그리고 늘 비워 둬야 하는 칸(사다리 앞과 올라선 자리, 현관 문턱)
+export const noBuild = (i, j) => fixedCell(i, j) || j === YARD.wall
+  || (i === LADDER.foot[0] && j === LADDER.foot[1]) || (i === LADDER.top[0] && j === LADDER.top[1]);
 // 높이 y 에서 트리 겉면까지의 반지름 (층이 겹치는 곳은 바깥쪽 층)
 export function surfaceR(y) {
   let r = 0;
@@ -241,7 +271,85 @@ function slidingDoor(scene, tops, mats, along, a0, a1, fix) {
   for (const k of [-1, 0, 1]) eyeOnly(put(new THREE.BoxGeometry(0.025, DOOR_H - LOW_H - 0.3, 0.06), C.frame, k * (w - 0.24) / 3, (DOOR_H + LOW_H) / 2 + 0.01, 0, leaf, false));
   eyeOnly(put(new THREE.BoxGeometry(w - 0.24, 0.025, 0.06), C.frame, 0, (DOOR_H + LOW_H) / 2 + 0.01, 0, leaf, false));
   // cx, cz = 문 한가운데(방 안 좌표). open = 0(닫힘) ~ 1(다 열림)
-  return { leaf, len, cx: along === 'z' ? fix : mid, cz: along === 'z' ? mid : fix, open: 0 };
+  return { leaf, len, cx: along === 'z' ? fix : mid, cz: along === 'z' ? mid : fix, open: 0, set(o) { leaf.position.x = o * len; } };
+}
+
+// 마당: 눈 쌓인 땅, 현관에서 대문까지의 디딤돌, 울타리와 대문, 나무 두 그루, 가로등
+const SNOW = 0xF2F6FB;
+function pine(g, x, z, s) {
+  put(cyl(0.09 * s, 0.11 * s, 0.4 * s, 8), C.trunk, x, 0.2 * s, z, g);
+  put(new THREE.ConeGeometry(0.62 * s, 1.0 * s, 9), M(C.pine, true), x, 0.85 * s, z, g);
+  put(new THREE.ConeGeometry(0.46 * s, 0.85 * s, 9), M(C.pine2, true), x, 1.42 * s, z, g);
+  put(new THREE.ConeGeometry(0.25 * s, 0.3 * s, 9), SNOW, x, 1.8 * s, z, g, false);
+}
+function buildYard(scene) {
+  const g = new THREE.Group(); scene.add(g);
+  const xa = X0 - 0.3, xb = X1 + 0.3, za = Z1 + 0.14, zb = GZ1 + 0.3, W = xb - xa, cx = (xa + xb) / 2;
+  // 따뜻한 조명 아래에서도 눈이 하얗게 보이도록 푸른빛을 조금 스스로 낸다
+  const snow = new THREE.MeshLambertMaterial({ color: 0xE6EEFF, emissive: 0x1C2A44 });
+  put(new THREE.BoxGeometry(W, 0.2, zb - za), snow, cx, -0.1, (za + zb) / 2, g, false);
+  // 집 벽 밑에 쌓인 눈 (벽 줄은 걸어갈 수 없다). 현관 앞만 비어 있다
+  const zs = Z1 + 0.14 + 0.17;
+  for (const [a, b] of [[xa + 0.05, FRONT.x - FRONT.w / 2 - 0.08], [FRONT.x + FRONT.w / 2 + 0.08, xb - 0.05]]) put(rbox(b - a, 0.3, 0.36, 0.12), snow, (a + b) / 2, 0.06, zs, g);
+  put(new THREE.BoxGeometry(0.84, 0.03, 0.44), 0x9C4A3A, FRONT.x, 0.015, Z1 + 0.42, g, false); // 발판
+  for (let z = Z1 + 1.05, k = 0; z < GZ1 - 0.1; z += 0.72, k++) put(cyl(0.26, 0.28, 0.03, 12), 0xC9C2B8, FRONT.x + (k % 2 ? 0.07 : -0.07), 0.016, z, g, false); // 디딤돌
+  // 울타리: 서·동·남쪽. 남쪽은 현관 맞은편에 대문 자리를 비운다
+  const post = (x, z, h = 0.62) => put(new THREE.BoxGeometry(0.08, h, 0.08), C.white, x, h / 2, z, g, false);
+  const rail = (x0, z0, x1, z1) => { for (const y of [0.22, 0.48]) put(new THREE.BoxGeometry(Math.abs(x1 - x0) + 0.05, 0.05, Math.abs(z1 - z0) + 0.05), C.white, (x0 + x1) / 2, y, (z0 + z1) / 2, g, false); };
+  const fx0 = xa + 0.1, fx1 = xb - 0.1, fz0 = Z1 + 0.5, fz1 = zb - 0.1, gate = [FRONT.x - 0.65, FRONT.x + 0.65];
+  for (const x of [fx0, fx1]) { for (let z = fz0; z <= fz1 + 1e-3; z += 0.6) post(x, z); rail(x, fz0, x, fz1); }
+  for (let x = fx0 + 0.6; x < fx1 - 0.3; x += 0.6) if (x < gate[0] - 0.2 || x > gate[1] + 0.2) post(x, fz1);
+  rail(fx0, fz1, gate[0], fz1); rail(gate[1], fz1, fx1, fz1);
+  for (const x of gate) { post(x, fz1, 0.95); put(ball(0.09, 10, 8), SNOW, x, 0.98, fz1, g, false); } // 대문 기둥
+  for (const [i, j] of YARD_TREES) pine(g, X0 + (i + 1) * CELL, Z0 + (j + 1) * CELL, 1.25);
+  // 가로등
+  const [lx, lz] = centerOf(YARD_LAMP[0], YARD_LAMP[1]);
+  put(cyl(0.1, 0.13, 0.08, 10), 0x2B2420, lx, 0.04, lz, g);
+  put(cyl(0.025, 0.035, 1.7, 8), 0x2B2420, lx, 0.9, lz, g);
+  put(ball(0.13, 12, 10), new THREE.MeshBasicMaterial({ color: 0xFFE2A8 }), lx, 1.82, lz, g, false);
+  put(new THREE.ConeGeometry(0.17, 0.12, 10), 0x2B2420, lx, 1.98, lz, g, false);
+  return g;
+}
+
+// 2층(복층): 동쪽 방들 위에 얹힌 마루. 거실 쪽은 난간 너머로 뚫려 있고, 거실 벽에 기댄 사다리로 오르내린다.
+// 내려다볼 때 1층에 있으면 아래층을 가리지 않게 바닥이 비쳐 보이는 판으로만 남는다(setLoft).
+function buildLoft(scene, mats, wood) {
+  const xa = X0 + LOFT.i0 * CELL - LOFT_DX, xb = X1 + 0.14, za = Z0 - 0.14, zb = Z1 + 0.14, y = LOFT.y;
+  const cx = (xa + xb) / 2, cz = (za + zb) / 2, W = xb - xa, D = zb - za;
+  const solid = new THREE.Group(), rails = new THREE.Group(), high = new THREE.Group();
+  scene.add(solid, rails, high);
+  const slab = put(new THREE.BoxGeometry(W, 0.1, D), new THREE.MeshLambertMaterial({ map: wood }), cx, y - 0.05, cz, solid, false);
+  put(new THREE.BoxGeometry(0.08, 0.2, D), C.base, xa + 0.04, y - 0.1, cz, solid, false); // 거실 쪽 모서리 보
+  // 아래층에서 올려다보는 천장 (1인칭에서만 보인다)
+  const under = put(new THREE.PlaneGeometry(W - 0.2, D - 0.3), new THREE.MeshLambertMaterial({ color: 0xFFF6E6 }), cx + 0.08, y - 0.102, cz, high, false);
+  under.rotation.x = Math.PI / 2; under.receiveShadow = false;
+  // 1층에 있을 때 보이는 비치는 판
+  const ghost = put(new THREE.BoxGeometry(W, 0.02, D), new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.14, depthWrite: false }), cx, y - 0.01, cz, scene, false);
+  ghost.receiveShadow = false;
+  // 난간: 기둥과 가로대 두 줄. 거실 쪽(서쪽)은 사다리 자리만 비운다
+  const fence = (parent, x0, z0, x1, z1) => {
+    const len = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.round(len / 0.5));
+    for (let k = 0; k <= n; k++) put(new THREE.BoxGeometry(0.05, 0.84, 0.05), C.frame, x0 + (x1 - x0) * k / n, y + 0.42, z0 + (z1 - z0) * k / n, parent, false);
+    for (const h of [0.42, 0.84]) put(new THREE.BoxGeometry(Math.abs(x1 - x0) + 0.06, 0.05, Math.abs(z1 - z0) + 0.06), C.door, (x0 + x1) / 2, y + h, (z0 + z1) / 2, parent, false);
+  };
+  const lz0 = Z0 + LADDER.top[1] * CELL, lz1 = lz0 + CELL, rx = xa + 0.06;
+  fence(solid, rx, Z0, rx, lz0); fence(solid, rx, lz1, rx, Z1);
+  fence(rails, rx, Z0, X1, Z0); fence(rails, rx, Z1, X1, Z1); fence(rails, X1, Z0, X1, Z1); // 나머지 세 면은 내려다볼 때만 (1인칭에서는 벽이 있다)
+  // 사다리: 거실 바닥에서 2층 모서리까지, 손잡이는 조금 더 위로
+  const lad = new THREE.Group(), run = 0.34, lean = Math.atan(run / y), len = y / Math.cos(lean) + 0.55;
+  lad.position.set(xa - run, 0, (lz0 + lz1) / 2); lad.rotation.z = -lean;
+  scene.add(lad);
+  for (const s of [-1, 1]) put(new THREE.BoxGeometry(0.05, len, 0.05), C.frame, 0, len / 2, s * 0.2, lad);
+  for (let h = 0.3; h < len - 0.6; h += 0.3) put(cyl(0.018, 0.018, 0.4, 6), C.door, 0, h, 0, lad, false).rotation.x = Math.PI / 2;
+  // 1층 벽 위로 이어지는 바깥 벽 네 면 (1인칭에서만 보인다)
+  const hh = HIGH_H - WALL_H, T = 0.14, hy = (HIGH_H + WALL_H) / 2, hx = (X0 + X1) / 2, hz = (Z0 + Z1) / 2, HW = X1 - X0 + T * 2, HD = Z1 - Z0 + T * 2;
+  for (const s of [-1, 1]) {
+    put(new THREE.BoxGeometry(HW, hh, T), mats.wall, hx, hy, hz + s * (HD - T) / 2, high, false);
+    put(new THREE.BoxGeometry(T, hh, HD), mats.wall, hx + s * (HW - T) / 2, hy, hz, high, false);
+  }
+  put(new THREE.BoxGeometry(HW, 0.06, 0.03), C.base, hx, WALL_H + 0.03, Z0 + 0.016, high, false); // 1층과 2층 벽 사이 띠
+  solid.visible = false; rails.visible = false; high.visible = false;
+  return { solid, rails, high, ghost, slab, lad };
 }
 
 export function buildRoom(scene) {
@@ -264,11 +372,11 @@ export function buildRoom(scene) {
 
   // 벽 (벽지를 바꿀 수 있게 재질을 따로 둔다)
   const mats = { wall: new THREE.MeshLambertMaterial({ color: WALLS[0].wall }), panel: new THREE.MeshLambertMaterial({ color: WALLS[0].panel }) };
-  const walls = { n: wall(scene, 'n', mats), s: wall(scene, 's', mats), w: wall(scene, 'w', mats), e: wall(scene, 'e', mats) };
+  const walls = { n: wall(scene, 'n', mats), s: wall(scene, 's', mats, [FRONT.x - FRONT.w / 2, FRONT.x + FRONT.w / 2]), w: wall(scene, 'w', mats), e: wall(scene, 'e', mats) };
   // 거실
   windowOn(walls.n, -2.1); windowOn(walls.n, 0.3); wreathOn(walls.n, 2.6); pictureOn(walls.n, 4.6);
   windowOn(walls.w, -1.9); pictureOn(walls.w, 0.2); pictureOn(walls.w, 2.4);
-  doorOn(walls.s, -2.2); pictureOn(walls.s, 1.2); windowOn(walls.s, 3.8);
+  pictureOn(walls.s, 1.2); windowOn(walls.s, 3.8);
   // 주방과 방
   windowOn(walls.n, 8.6); windowOn(walls.e, -1.9);
   windowOn(walls.s, 8.6); pictureOn(walls.e, 3.0);
@@ -278,15 +386,23 @@ export function buildRoom(scene) {
   const doors = [
     slidingDoor(scene, inner, mats, 'z', Z0 + dj0 * CELL, Z0 + (dj1 + 1) * CELL, X0 + (PLAN.wallI + 0.5) * CELL),
     slidingDoor(scene, inner, mats, 'x', X0 + di0 * CELL, X0 + (di1 + 1) * CELL, Z0 + (PLAN.wallJ + 0.5) * CELL),
+    frontDoor(walls.s), // 현관문 (마당으로)
   ];
+  buildYard(scene);
+  const loft = buildLoft(scene, mats, floorTexture(FLOORS[0].tones, 2, 4));
 
   const tree = buildTree(scene);
   let floorId = FLOORS[0].id;
-  // 천장: 내려다볼 때는 없고, 1인칭으로 볼 때만 보인다
-  const ceil = put(new THREE.PlaneGeometry(W + 0.3, D + 0.3), new THREE.MeshLambertMaterial({ color: 0xFFF6E6 }), cx, WALL_H, cz, scene, false);
+  // 천장(지붕 밑): 내려다볼 때는 없고, 1인칭으로 볼 때만 보인다. 거실은 여기까지 뚫려 있다
+  const ceil = put(new THREE.PlaneGeometry(W + 0.3, D + 0.3), new THREE.MeshLambertMaterial({ color: 0xFFF6E6 }), cx, HIGH_H, cz, scene, false);
   ceil.rotation.x = Math.PI / 2; ceil.receiveShadow = false; ceil.visible = false;
   return {
-    ceil, walls, inner, tree: tree.g, cones: tree.cones, doors,
+    ceil, walls, inner, tree: tree.g, cones: tree.cones, doors, loft,
+    // 2층을 보이게 할지. on = 2층 마루와 난간이 보인다(내가 2층에 있거나 1인칭), eye = 1인칭(위쪽 벽과 천장이 보인다)
+    setLoft(on, eye) {
+      loft.solid.visible = on; loft.ghost.visible = !on;
+      loft.rails.visible = on && !eye; loft.high.visible = eye;
+    },
     // 문을 움직인다. people = 방에 있는 사람들({ x, z }). 가까이(NEAR 안에) 누가 있으면 열리고, 없으면 닫힌다. 움직였으면 true
     tickDoors(dt, people) {
       let moved = false;
@@ -295,7 +411,7 @@ export function buildRoom(scene) {
         if (d.open === want) continue;
         d.open += (want - d.open) * Math.min(1, dt * 10);
         if (Math.abs(want - d.open) < 0.004) d.open = want;
-        d.leaf.position.x = d.open * d.len;
+        d.set(d.open);
         moved = true;
       }
       return moved;

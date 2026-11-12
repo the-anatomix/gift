@@ -1,9 +1,9 @@
 // 방 안에서 노는 것들. 가구를 누르면 그 가구에 맞는 놀이가 열린다.
 //   다트판 → 1인칭 다트, TV → 1인칭으로 보기(내가 넣은 동영상), 벽난로 → 마시멜로 굽기, 오르골 → 캐럴,
-//   케이크 작업대 → 케이크 만들기(여럿이 같이, 다 만들면 촛불 불기)
+//   케이크 작업대 → 케이크 만들기(여럿이 같이, 다 만들면 촛불 불기, 한 조각씩 먹기), 오븐 → 새 케이크 굽기
 // app.js 가 넘겨주는 창구 K 로 카메라 자리(pose)와 아래 판을 다룬다.
 import { THREE, M, put, cyl } from './kit.js';
-import { DART, TV, SONGS, CREAMS, TOPPINGS, dartScore } from './catalog.js';
+import { DART, TV, SONGS, CREAMS, TOPPINGS, CAKE, dartScore } from './catalog.js';
 import { TV_MAT } from './furniture.js';
 
 const $ = (id) => document.getElementById(id);
@@ -245,6 +245,12 @@ export function makePlay(K) {
   /* ───────── 벽난로: 마시멜로 굽기 ───────── */
   const STOPS = [[0, 0xFFF8EA], [0.45, 0xF6E0B0], [0.66, 0xD9A257], [0.86, 0x8A5A2B], [1.05, 0x3B2619], [1.3, 0x15100C]];
   const ca = new THREE.Color(), cb = new THREE.Color();
+  // 구운 정도 h 에 맞는 색을 stops([[h, 색], …]) 사이에서 골라 col 에 넣는다
+  function grade(stops, h, col) {
+    let k = 0; while (k < stops.length - 2 && h > stops[k + 1][0]) k++;
+    const [h0, c0] = stops[k], [h1, c1] = stops[k + 1];
+    col.copy(ca.setHex(c0)).lerp(cb.setHex(c1), clamp((h - h0) / (h1 - h0), 0, 1));
+  }
   function toast2(h) { // 구운 정도 → [말, 점수]
     const pts = Math.round(clamp(100 - Math.abs(h - 0.66) * 260, 0, 100));
     const say = h < 0.3 ? '아직 하얘요' : h < 0.55 ? '살짝 덜 익었어요' : h <= 0.78 ? '노릇노릇 완벽해요!' : h <= 1.0 ? '조금 탔어요' : '새까맣게 탔어요';
@@ -263,16 +269,15 @@ export function makePlay(K) {
       fire.reset(c);
     },
     reset(c) { c.heat = 0; c.phase = 'idle'; c.t = 0; fire.color(c); fire.paint(c); },
-    color(c) {
-      const h = c.heat;
-      let k = 0; while (k < STOPS.length - 2 && h > STOPS[k + 1][0]) k++;
-      const [h0, c0] = STOPS[k], [h1, c1] = STOPS[k + 1];
-      c.mat.color.copy(ca.setHex(c0)).lerp(cb.setHex(c1), clamp((h - h0) / (h1 - h0), 0, 1));
-    },
+    color(c) { grade(STOPS, c.heat, c.mat.color); },
     paint(c) {
       if (c.phase === 'idle') panel('마시멜로 굽기', '불에 대고 있다가 노릇노릇해졌을 때 꺼내요. 색을 잘 보세요.', [{ label: '굽기 시작', main: true, id: 'playGo', fn: () => { c.phase = 'roast'; fire.paint(c); } }, quit]);
       else if (c.phase === 'roast') panel('굽는 중…', '너무 오래 두면 타요.', [{ label: '꺼내기', main: true, id: 'playGo', fn: () => fire.out(c) }]);
-      else panel(`${c.say} (${c.pts}점)`, '한 번 더 구워 볼까요?', [{ label: '다시 굽기', main: true, id: 'playGo', fn: () => fire.reset(c) }, quit]);
+      else {
+        panel(`${c.say} (${c.pts}점)`, '한 번 더 구워 볼까요?', [
+          { label: '😋 먹기', id: 'playEat', fn: () => { K.munch(c.pts >= 80 ? '달콤해요! 마시멜로를 먹었어요' : '마시멜로를 먹었어요'); fire.reset(c); } },
+          { label: '다시 굽기', main: true, id: 'playGo', fn: () => fire.reset(c) }, quit]);
+      }
     },
     out(c) {
       if (c.phase !== 'roast') return;
@@ -294,6 +299,60 @@ export function makePlay(K) {
     },
     tap() {},
     stop(c) { c.g.remove(c.m); c.mat.dispose(); },
+  };
+
+  /* ───────── 오븐: 새 케이크 굽기 ───────── */
+  // 빈 작업대가 있어야 구울 수 있다. 알맞게 구워 꺼내면 새 케이크가 그 작업대에 나온다.
+  const BATTER = [[0, 0xF6E7A8], [0.45, 0xF2D27A], [0.7, 0xD9A24E], [0.9, 0xA8692E], [1.15, 0x3B2619]];
+  const bake = {
+    start(c) {
+      if (!K.bakeTarget()) { K.toast('작업대가 비어 있어야 새 케이크를 구울 수 있어요'); return false; }
+      c.m = new THREE.Group(); // 오른쪽 화구 위의 둥근 케이크 틀
+      c.tin = new THREE.MeshLambertMaterial({ color: 0xA9B0B6, side: THREE.DoubleSide });
+      c.mat = new THREE.MeshLambertMaterial({ color: BATTER[0][1] });
+      put(new THREE.CylinderGeometry(0.135, 0.125, 0.075, 24, 1, true), c.tin, 0, 0.0375, 0, c.m, false);
+      put(cyl(0.125, 0.125, 0.008, 24), c.tin, 0, 0.004, 0, c.m, false);
+      c.batter = put(cyl(0.126, 0.126, 0.03, 24), c.mat, 0, 0, 0, c.m, false);
+      c.m.position.set(0.24, 0.885, 0);
+      c.g.add(c.m);
+      K.setPose({ pos: world(c.g, 0.1, 1.5, portrait() ? 1.7 : 1.4), at: world(c.g, 0.15, 0.9, 0), fov: portrait() ? 56 : 42, inside: true });
+      bake.reset(c);
+    },
+    reset(c) { c.heat = 0; c.phase = 'idle'; c.t = 0; c.batter.visible = true; bake.color(c); bake.paint(c); },
+    color(c) { // 색이 짙어지고 조금 부풀어 오른다
+      grade(BATTER, c.heat, c.mat.color);
+      const s = 1 + 0.9 * clamp(c.heat / 0.8, 0, 1);
+      c.batter.scale.y = s; c.batter.position.y = 0.008 + 0.015 * s;
+    },
+    paint(c) {
+      if (c.phase === 'idle') panel('케이크 굽기', '반죽을 틀에 붓고 오븐에 넣어요', [{ label: '굽기 시작', main: true, id: 'playGo', fn: () => { c.phase = 'bake'; bake.paint(c); } }, quit]);
+      else if (c.phase === 'bake') panel('굽는 중…', '노릇노릇해지면 꺼내요. 너무 오래 두면 타요.', [{ label: '꺼내기', main: true, id: 'playGo', fn: () => bake.out(c) }]);
+      else if (c.phase === 'burnt') panel('새까맣게 탔어요', '다시 구워 봐요', [{ label: '다시 굽기', main: true, id: 'playGo', fn: () => bake.reset(c) }, quit]);
+      else panel('새 케이크가 작업대에 나왔어요', '작업대에 가서 크림과 장식으로 꾸며 보세요.', [quit]);
+    },
+    burn(c) { c.phase = 'burnt'; K.toast('새까맣게 탔어요. 다시 구워 봐요'); bake.paint(c); },
+    out(c) {
+      if (c.phase !== 'bake') return;
+      if (c.heat < 0.5) { K.toast('아직 덜 익었어요. 조금 더 구워요'); return; } // 그대로 계속 굽는다
+      if (c.heat > 0.9) { bake.burn(c); return; }
+      if (!K.bake()) { K.toast('작업대가 비어 있지 않아요'); bake.reset(c); return; }
+      c.phase = 'done'; c.batter.visible = false; // 빵은 작업대로 옮겨 갔다
+      K.toast('케이크 빵이 잘 구워졌어요! 작업대에 올려 뒀어요 🎂');
+      bake.paint(c);
+    },
+    tick(c, dt) {
+      c.t += dt;
+      if (c.phase !== 'bake') return;
+      c.heat += dt * (0.16 + 0.04 * Math.sin(c.t * 2.7) + 0.025 * Math.sin(c.t * 6.3)); // 불 세기가 조금씩 달라진다
+      bake.color(c);
+      if (c.heat >= 1.15) bake.burn(c);
+    },
+    tap() {},
+    stop(c) {
+      c.g.remove(c.m);
+      c.m.traverse((m) => { if (m.geometry) m.geometry.dispose(); });
+      c.mat.dispose(); c.tin.dispose();
+    },
   };
 
   /* ───────── 오르골: 캐럴 ───────── */
@@ -358,17 +417,19 @@ export function makePlay(K) {
     paint(c) {
       const k = K.cake(c.id), n = k.tops.filter((t) => t[0] === 'candle').length, edit = K.canEdit();
       const carry = { label: '🎂 들고 가기', id: 'playCarry', fn: () => K.carry(c.id) };
+      const eat = { label: '🍰 한 조각 먹기', id: 'playEat', fn: () => K.eat(c.id) }; // 구경하는 사람도 먹을 수 있다
+      const rest = k.left < CAKE.slices ? `남은 조각 ${k.left}/${CAKE.slices} · ` : '';
       if (k.lit > 0) {
         panel(`촛불 ${k.lit}개가 켜져 있어요 🕯️`, '다 같이 후~ 불어서 꺼 보세요.', [{ label: '후~ 불기', main: true, id: 'playGo', fn: () => K.op({ t: 'cakeBlow', id: c.id }) }, ...(edit ? [carry] : []), quit]);
         return;
       }
-      if (!edit) { panel('케이크', '구경하는 중에는 꾸밀 수 없어요. 촛불이 켜지면 같이 불 수 있어요.', [quit]); return; }
-      panel('케이크 만들기', '크림을 고르고, 장식을 골라 케이크 위를 눌러 올려요. 옆에 온 친구도 같이 만들 수 있어요.', [
+      if (!edit) { panel('케이크', rest + '구경하는 중에는 꾸밀 수 없어요. 촛불이 켜지면 같이 불 수 있어요.', [eat, quit]); return; }
+      panel('케이크 만들기', rest + '크림을 고르고, 장식을 골라 케이크 위를 눌러 올려요. 옆에 온 친구도 같이 만들 수 있어요.', [
         ...CREAMS.map((x, i) => ({ label: x.name, chip: true, id: 'cream-' + x.id, on: k.cream === i, fn: () => K.op({ t: 'cakeCream', id: c.id, v: i }) })),
         ...TOPPINGS.map((x) => ({ label: x.icon + ' ' + x.name, chip: true, id: 'top-' + x.id, on: topping === x.id, fn: () => { topping = x.id; cake.paint(c); } })),
         ...(n ? [{ label: '🕯️ 촛불 켜기', main: true, id: 'playGo', fn: () => K.op({ t: 'cakeLit', id: c.id, n }) }] : []),
         ...(k.tops.length ? [{ label: '다 치우기', id: 'playClear', fn: () => K.op({ t: 'cakeClear', id: c.id }) }] : []),
-        carry, quit]);
+        eat, carry, quit]);
     },
     tick() {},
     tap(c, px, py) {
@@ -380,7 +441,7 @@ export function makePlay(K) {
     stop() {},
   };
 
-  const KINDS = { dart, tv, fire, music, cake };
+  const KINDS = { dart, tv, fire, music, cake, bake };
   // 화면을 처음 누를 때: 막혀 있던 동영상·소리를 다시 튼다 (브라우저는 누르기 전에는 소리를 못 내게 한다)
   addEventListener('pointerdown', () => {
     if (wantPlay) { wantPlay = false; if (video) tryPlay(); if (rv) rv.play().catch(() => {}); }
@@ -391,13 +452,15 @@ export function makePlay(K) {
   return {
     get on() { return !!cur; }, get id() { return cur ? cur.id : null; }, get kind() { return cur ? cur.kind : null; },
     get spot() { return cur ? cur.spot || cur.id : null; }, // 놀이가 벌어지는 가구 (탁자에 올려놓은 케이크면 그 탁자)
-    // 놀이를 연다. id = 가구, kind = 그 가구의 놀이
+    // 놀이를 연다. id = 가구, kind = 그 가구의 놀이 (케이크면 id = 케이크, 그 케이크가 놓인 가구에서 논다)
+    // 놀이가 열 수 없다고 하면(start 가 false) 열지 않고 false
     start(id, kind) {
       if (cur) this.stop();
-      const g = K.itemObj(id);
-      if (!g || !KINDS[kind]) return false;
+      if (!KINDS[kind]) return false;
+      const sp = kind === 'cake' ? K.cakeSpot(id) : null, g = kind === 'cake' ? sp && sp.g : K.itemObj(id);
+      if (!g) return false;
       cur = { id, kind, g };
-      KINDS[kind].start(cur);
+      if (KINDS[kind].start(cur) === false) { cur = null; return false; }
       return true;
     },
     stop() {
@@ -452,7 +515,7 @@ export function makePlay(K) {
       throwAt(x, y) { if (cur && cur.kind === 'dart') dart.shoot(cur, [x, y]); },
       boardPoint(x, y) { if (!cur || cur.kind !== 'dart') return null; const [wx, wy, wz] = world(cur.g, x, DART.y + y, DART.z); return { x: wx, y: wy, z: wz }; },
       dartScore, get aim() { return cur && cur.kind === 'dart' ? { want: [cur.ax, cur.ay], now: dart.at(cur) } : null; },
-      setHeat(h) { if (cur && cur.kind === 'fire') { cur.heat = h; fire.color(cur); } },
+      setHeat(h) { if (cur && (cur.kind === 'fire' || cur.kind === 'bake')) { cur.heat = h; KINDS[cur.kind].color(cur); } },
       setVideo, clearVideo, setSong, verdict: toast2,
       pixel(x, y) { const d = sc.getImageData(x, y, 1, 1).data; return [d[0], d[1], d[2]]; },
     },

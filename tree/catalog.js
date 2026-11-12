@@ -1,6 +1,6 @@
 // 고를 수 있는 것들의 목록. 화면과 상관없는 자료만 둔다.
 // 가구: w × d 는 차지하는 바닥 칸 수(돌리지 않았을 때). solid 가 false 면 밟고 지나갈 수 있다(러그).
-// play 가 있으면 눌러서 놀 수 있는 가구다(놀이는 play.js).
+// play 가 있으면 눌러서 놀 수 있는 가구다(놀이는 play.js). lie = 누울 수 있다(침대), snack = 간식을 꺼내 먹는다(냉장고).
 export const FURNITURE = [
   { id: 'sofa', name: '소파', icon: '🛋️', w: 4, d: 2, solid: true },
   { id: 'chair', name: '안락의자', icon: '🪑', w: 2, d: 2, solid: true },
@@ -19,10 +19,10 @@ export const FURNITURE = [
   // 주방
   { id: 'cake', name: '케이크 작업대', icon: '🎂', w: 3, d: 2, solid: true, play: 'cake' },
   { id: 'counter', name: '조리대', icon: '🔪', w: 2, d: 1, solid: true },
-  { id: 'stove', name: '오븐', icon: '🍳', w: 2, d: 1, solid: true },
-  { id: 'fridge', name: '냉장고', icon: '🧊', w: 2, d: 1, solid: true },
+  { id: 'stove', name: '오븐', icon: '🍳', w: 2, d: 1, solid: true, play: 'bake' }, // 새 케이크를 굽는다
+  { id: 'fridge', name: '냉장고', icon: '🧊', w: 2, d: 1, solid: true, snack: true },
   // 방
-  { id: 'bed', name: '침대', icon: '🛏️', w: 3, d: 4, solid: true },
+  { id: 'bed', name: '침대', icon: '🛏️', w: 3, d: 4, solid: true, lie: true },
   { id: 'closet', name: '옷장', icon: '🚪', w: 3, d: 1, solid: true },
   { id: 'stand', name: '협탁', icon: '🕯️', w: 1, d: 1, solid: true },
 ];
@@ -35,6 +35,12 @@ export const STARTER_EAST = [
   ['bed', 26, 12, 3], ['stand', 29, 11, 3], ['closet', 22, 17, 2],
 ];
 
+// 마당과 2층에 처음부터 놓여 있는 가구. 마당·2층이 없던 때에 꾸민 방을 열 때도 이것만 더해 준다(칸 번호는 path.js 의 YARD, LOFT).
+export const STARTER_UP = [
+  ['snowman', 14, 21, 0], ['giftR', 12, 20, 0], ['giftG', 13, 21, 0],          // 마당
+  ['rug', 35, 5, 0], ['chair', 35, 2, 0], ['lamp', 41, 0, 0], ['shelf', 37, 0, 0], // 2층
+];
+
 // 케이크: 크림 색, 올릴 수 있는 장식, 치수(케이크 작업대 기준). r = 윗면 반지름, y = 윗면 높이, max = 장식 개수
 export const CREAMS = [
   { id: 'white', name: '생크림', hex: 0xFFF8EA }, { id: 'pink', name: '딸기크림', hex: 0xF7B6C2 },
@@ -44,7 +50,7 @@ export const TOPPINGS = [
   { id: 'berry', name: '딸기', icon: '🍓' }, { id: 'cherry', name: '체리', icon: '🍒' }, { id: 'choco', name: '초콜릿', icon: '🍫' },
   { id: 'star', name: '별', icon: '⭐' }, { id: 'tree', name: '트리', icon: '🎄' }, { id: 'candle', name: '초', icon: '🕯️' },
 ];
-export const CAKE = { r: 0.3, y: 1.14, max: 40, base: 0.895, onTable: 0.9, inHand: 0.5 }; // base = 접시 바닥 높이, onTable·inHand = 탁자 위·손에 들었을 때의 크기
+export const CAKE = { r: 0.3, y: 1.14, max: 40, base: 0.895, onTable: 0.9, inHand: 0.5, slices: 8, many: 12 }; // slices = 한 판의 조각 수, many = 방에 있을 수 있는 케이크 수 // base = 접시 바닥 높이, onTable·inHand = 탁자 위·손에 들었을 때의 크기
 
 // 다트판: 가운데 높이 y, 판 겉면 z(가구 기준), R = 점수가 나는 바깥 끝, out = 숫자가 적힌 테까지의 반지름.
 // nums = 맨 위부터 시계 방향으로 칸의 숫자. 고리는 R 에 대한 비율: 한가운데 50점, 그 둘레 25점,
