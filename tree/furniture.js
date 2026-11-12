@@ -220,6 +220,25 @@ const B = {
     put(cyl(0.05, 0.07, 0.03, 10), DARK, 0, 0.475, 0, g); put(cyl(0.012, 0.012, 0.16, 6), 0xC9A24B, 0, 0.56, 0, g);
     put(cyl(0.07, 0.11, 0.14, 12), lit(0xFFE2A8), 0, 0.7, 0, g, false);
   },
+  guest(g) { // 1 × 1, 방명록: 비스듬한 받침대 위에 펼친 책과 펜 (앞쪽 +z 에서 읽는다)
+    put(cyl(0.15, 0.18, 0.04, 14), WOOD_D, 0, 0.02, 0, g);
+    put(cyl(0.035, 0.045, 0.78, 8), WOOD_D, 0, 0.43, -0.02, g);
+    const top = new THREE.Group(); // 앞으로 기울어진 책 받침
+    top.position.set(0, 0.84, 0); top.rotation.x = 0.42; g.add(top);
+    put(rbox(0.46, 0.04, 0.34, 0.015), WOOD, 0, 0, 0, top);
+    put(new THREE.BoxGeometry(0.46, 0.035, 0.025), WOOD_D, 0, 0.03, 0.17, top, false); // 책이 미끄러지지 않게 막는 턱
+    for (const s of [-1, 1]) { // 펼친 책: 표지와 가운데로 살짝 휘어 드는 종이
+      put(new THREE.BoxGeometry(0.2, 0.012, 0.27), RED, 0.1 * s, 0.026, 0, top, false);
+      const pg = put(new THREE.BoxGeometry(0.185, 0.014, 0.25), 0xFFF8EA, 0.095 * s, 0.038, 0, top, false);
+      pg.rotation.z = -0.07 * s;
+      for (let k = 0; k < 4; k++) put(new THREE.BoxGeometry(k === 3 ? 0.07 : 0.12, 0.002, 0.006), 0x9A8B7A, 0.1 * s - (k === 3 ? 0.025 : 0), 0.047, -0.08 + k * 0.045, top, false); // 적힌 글줄
+    }
+    put(new THREE.BoxGeometry(0.012, 0.02, 0.26), GOLD, 0, 0.04, 0, top, false); // 책등의 금박 끈
+    const pen = new THREE.Group(); // 펜: 오른쪽 종이 위에 비스듬히 놓였다. 촉이 앞(+z)
+    pen.position.set(0.12, 0.056, 0.01); pen.rotation.y = 0.45; top.add(pen);
+    put(cyl(0.008, 0.008, 0.17, 6), DARK, 0, 0, 0, pen, false).rotation.x = Math.PI / 2;
+    put(new THREE.ConeGeometry(0.008, 0.025, 6), GOLD, 0, 0, 0.097, pen, false).rotation.x = Math.PI / 2;
+  },
   rug(g) { // 3 × 2, 밟고 지나갈 수 있다
     put(rbox(1.45, 0.016, 0.95, 0.007), 0x4F6FB8, 0, 0.028, 0, g, false);
     put(new THREE.BoxGeometry(1.22, 0.018, 0.72), CREAM, 0, 0.029, 0, g, false);

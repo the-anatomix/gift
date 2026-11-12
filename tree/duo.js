@@ -9,6 +9,7 @@
 //   주인 → 손님  { t: 'state', state, you: { id, edit, slot }, peers }   정해진 방과 내 역할, 지금 있는 사람들 (다시 맞출 때도 이것)
 //   주인 → 손님  { t: 'join', id, look, pos, pj } { t: 'gone', id }     다른 사람이 들어오고 나감 (pj = 그 사람의 PeerJS 이름: 소리·영상을 직접 걸 때 쓴다)
 //   서로         { t: 'op', op }                                        방의 변화 하나. 구경하는 사람이 보낸 것은 주인이 받지 않는다
+//                                                                       (VIEW_OPS 는 받는다: 촛불 불기, 케이크 먹기, 방명록 남기기, 이 방 최고 기록)
 //   손님 → 주인  { t: 'sync' }                                          방이 달라진 것 같으니 통째로 다시 달라
 //   서로         { t: 'look', look } { t: 'pos', x, z } { t: 'fx', k, v } { t: 'say', text }   주인이 전해 줄 때는 누구 것인지 id 를 붙인다
 //   서로         { t: 'ping', h }                                       h = 방의 지문
@@ -16,6 +17,7 @@
 // 어느 쪽 방을 쓸지는 state.js 의 guestWins 가 정한다(처음 온 사람은 주인 방을 받고, 헤어져 혼자 꾸민 쪽이 있으면 그쪽).
 // 둘이 같은 순간에 같은 자리를 바꾸면 주인 쪽 결과로 맞춘다. 지문이 거듭 다르면 손님이 통째로 다시 받는다.
 import { openRoom } from './net.js';
+import { NOTE } from './catalog.js';
 
 const Q = new URLSearchParams(location.search);
 const NET = Q.get('net') === 'bc' ? 'bc' : 'peer';
@@ -31,6 +33,7 @@ const OPT = { cap: CAP };
 }
 export const DOOR = Q.get('door') !== '0'; // 초인종을 누르고 허락받아야 들어오는지 (검사용 ?door=0 은 바로 들어온다)
 export const ROOM_RE = /^[a-z0-9]{6,20}$/;
+const VIEW_OPS = new Set(['cakeBlow', 'cakeEat', 'note', 'best']); // 구경하는 사람도 할 수 있는 변화
 const rnd = (n) => { const a = new Uint8Array(n); crypto.getRandomValues(a); return Array.from(a, (x) => 'abcdefghijkmnpqrstuvwxyz23456789'[x % 32]).join(''); };
 
 export function makeDuo(K) {
@@ -199,8 +202,9 @@ export function makeDuo(K) {
     switch (m.t) {
       case 'op':
         if (!isObj(m.op)) return;
-        if ((!p.edit && m.op.t !== 'cakeBlow' && m.op.t !== 'cakeEat') || (m.op.by !== undefined && m.op.by !== pid) || !K.peerOp(m.op)) link.send(stateMsg(pid), pid); // by 가 붙은 변화(케이크 들기)는 자기 이름으로만 할 수 있다 // 구경하는 사람이 보냈거나(촛불 불기와 케이크 먹기는 된다) 내 방에 들어맞지 않는 변화: 주인 방으로 되돌린다
-        else relay({ t: 'op', op: m.op }, pid);
+        if (m.op.t === 'note' && performance.now() - (p.noted || -1e9) < NOTE.gap - 500) { link.send(stateMsg(pid), pid); return; } // 방명록은 한 사람이 NOTE.gap 에 한 번 (오는 길에 늦어지는 것을 조금 봐준다)
+        if ((!p.edit && !VIEW_OPS.has(m.op.t)) || (m.op.by !== undefined && m.op.by !== pid) || !K.peerOp(m.op)) link.send(stateMsg(pid), pid); // by 가 붙은 변화(케이크 들기)는 자기 이름으로만 할 수 있다 // 구경하는 사람이 보냈거나(촛불 불기와 케이크 먹기는 된다) 내 방에 들어맞지 않는 변화: 주인 방으로 되돌린다
+        else { if (m.op.t === 'note') p.noted = performance.now(); relay({ t: 'op', op: m.op }, pid); }
         break;
       case 'sync': link.send(stateMsg(pid), pid); break;
       case 'look': { const lk = K.peerLook(pid, m.look); if (lk) relay({ t: 'look', id: pid, look: lk }, pid); break; }
