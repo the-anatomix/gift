@@ -1,7 +1,7 @@
 // 치비 아바타. 머리가 큰 2.5등신 사람. 도형만으로 만든다(나중에 모델 파일로 바꿔 끼울 수 있다).
 // 고를 수 있는 것: 성별(여자·남자), 옷(평상복·산타·루돌프), 표정. 그리고 잠깐 하는 행동(손 흔들기, 춤 …).
 import { THREE, M, put, ball, cap, cyl } from './kit.js';
-import { toWorld, levelOf, centerOf, LADDER, LOFT, LOFT_DX, X0, CELL } from './path.js';
+import { toWorld, levelOf, LADDERS, FLOOR_H, X0, Z0, CELL } from './path.js';
 
 export const GENDERS = [{ id: 'f', name: '여자' }, { id: 'm', name: '남자' }];
 export const OUTFITS = [{ id: 'basic', name: '평상복' }, { id: 'santa', name: '🎅 산타' }, { id: 'rudolph', name: '🦌 루돌프' }];
@@ -43,10 +43,11 @@ const SPEED = 2.6;   // 걷는 빠르기 (1초에 가는 거리)
 export const BODY_R = 0.18;
 export const HEIGHT = 1.16 * SIZE; // 머리끝까지 높이 (모자·뿔 제외)
 // 사다리를 오르내리는 길 (세상 좌표). base = 사다리 밑, top = 2층 모서리. 걸리는 시간(초): 다가가기, 오르기, 올라서기
-const LAD = (() => {
-  const z = centerOf(LADDER.foot[0], LADDER.foot[1])[1], edge = X0 + LADDER.top[0] * CELL - LOFT_DX;
-  return { base: [edge - 0.42, 0, z], top: [edge - 0.1, LOFT.y, z], T: [0.3, 1.15, 0.3] };
-})();
+const LAD_T = [0.3, 1.15, 0.3];
+const LAD = LADDERS.map((L) => {
+  const z = Z0 + (L.foot[1] + 0.5) * CELL, edge = X0 + L.top[0] * CELL;
+  return { base: [edge - 0.42, L.lv * FLOOR_H, z], top: [edge - 0.1, (L.lv + 1) * FLOOR_H, z] };
+});
 
 // 얼굴(눈, 눈썹, 입)을 머리에 붙인다. 표정마다 모양이 다르다. 돌려주는 값 = 깜빡일 수 있는(뜬) 눈들
 const HEAD_R = 0.27;
@@ -243,7 +244,7 @@ export function makeAvatar(look) {
       let moved = false, left = SPEED * dt;
       if (A.rest && A.path.length) A.rise(); // 걸으려면 먼저 일어난다
       if (A.hop) { // 사다리를 타는 중: 밑(또는 위)까지 다가가고, 오르내리고, 올라선다
-        const h = A.hop, T = LAD.T;
+        const h = A.hop, T = LAD_T;
         h.t += dt;
         const k = h.t < T[0] ? 0 : h.t < T[0] + T[1] ? 1 : 2, t0 = k === 0 ? 0 : k === 1 ? T[0] : T[0] + T[1];
         const e = Math.min(1, (h.t - t0) / T[k]), a = h.pts[k], b = h.pts[k + 1];
@@ -257,9 +258,11 @@ export function makeAvatar(look) {
       }
       while (A.path.length && left > 0) {
         const [tx, tz] = A.path[0];
-        if (levelOf(tx) !== levelOf(px)) { // 다른 층으로 가는 점: 사다리를 탄다
-          const up = levelOf(tx) === 1, p = root.position;
-          A.hop = { t: 0, on: false, to: [tx, tz], pts: [[p.x, p.y, p.z], up ? LAD.base : LAD.top, up ? LAD.top : LAD.base, toWorld(tx, tz)] };
+        const la = levelOf(px), lb = levelOf(tx);
+        if (Math.abs(la - lb) > 1) { A.place(tx, tz); A.path.shift(); moved = true; continue; } // 두 층을 한 번에 건너뛸 수는 없다(늦게 온 소식): 바로 옮긴다
+        if (la !== lb) { // 다른 층으로 가는 점: 사다리를 탄다
+          const up = lb > la, p = root.position, l = LAD[Math.min(la, lb)];
+          A.hop = { t: 0, on: false, to: [tx, tz], pts: [[p.x, p.y, p.z], up ? l.base : l.top, up ? l.top : l.base, toWorld(tx, tz)] };
           A.doing = null; moved = true;
           break;
         }

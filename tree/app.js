@@ -3,8 +3,8 @@
 // 2단계: 가구 놓기·옮기기, 벽지·바닥, 트리 장식과 전구
 // 정적 파일만 쓴다.
 import { THREE } from './kit.js';
-import { Grid, NX, NZ, CELL, X0, Z0, X1, Z1, GX, GZ, GX1, GZ1, LOFT, LOFT_X, LOFT_DX, LADDER, cellOf, centerOf, levelOf, levelOfCell, zoneOf, toWorld } from './path.js';
-import { buildRoom, WALL_H, HIGH_H, TREE, FRONT, fixedCell, noBuild, surfaceR } from './room.js';
+import { Grid, NX, NZ, CELL, X0, Z0, X1, Z1, GX, GZ, GX1, GZ1, LEVELS, FLOOR_H, FLOOR_DX, LADDERS, cellOf, centerOf, levelOf, levelOfCell, zoneOf, toWorld } from './path.js';
+import { buildRoom, WALL_H, TREE, FRONT, fixedCell, noBuild, surfaceR } from './room.js';
 import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, FACES, ACTS, BODY_R, SPEED } from './avatar.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER, STARTER_EAST, STARTER_UP, CAKE } from './catalog.js';
 import { makeState, apply, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake, benchOf, cakesList, cakeAtBench, cakeOnTable, sendHome } from './state.js';
@@ -48,10 +48,10 @@ const sun = new THREE.DirectionalLight(0xFFDDB0, 1.9);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 // 해는 집과 마당의 한가운데를 비춘다. 그림자는 집과 마당 전체를 덮는다.
-const CX = (X0 + X1) / 2, CZ = (Z0 + GZ1) / 2, SH = Math.max(X1 - X0, GZ1 - Z0) / 2 + 1.5;
-sun.position.set(CX + 2.5, 9, CZ + 4.5); sun.target.position.set(CX, 0, CZ); scene.add(sun.target);
+const CX = (X0 + X1) / 2, CZ = (Z0 + GZ1) / 2, SH = Math.max(X1 - X0, GZ1 - Z0) / 2 + 3;
+sun.position.set(CX + 5, 18, CZ + 9); sun.target.position.set(CX, 0, CZ); scene.add(sun.target);
 sun.shadow.camera.left = -SH; sun.shadow.camera.right = SH; sun.shadow.camera.top = SH; sun.shadow.camera.bottom = -SH;
-sun.shadow.camera.near = 1; sun.shadow.camera.far = 34;
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 46; // 3층 꼭대기에서 마당 끝까지
 sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02; sun.shadow.radius = 5;
 scene.add(sun);
 const glow = new THREE.PointLight(0xFFC27A, 1.6, 6, 1.6); // 트리 둘레의 은은한 빛. 전구를 켜면 더 밝아진다
@@ -102,9 +102,9 @@ scene.add(me.root);
 
 const S = makeState();
 const itemsG = new THREE.Group(), ornG = new THREE.Group();
-scene.add(itemsG, ornG);
+scene.add(itemsG); room.g0.add(ornG); // 트리 장식과 전구는 1층의 것
 const itemObj = new Map(), ornObj = new Map();
-const bulbs = buildLights(scene);
+const bulbs = buildLights(room.g0);
 const pops = [];                 // 방금 단 장식이 톡 튀어나오는 몸짓
 const myTag = Math.random().toString(36).slice(2, 5).padEnd(3, '0');
 let seq = 0;
@@ -251,8 +251,10 @@ function measure(snap = true) {
   aimCamera(yawOf(yawK)); // 집이 정사각형이 아니라서 보는 방향마다 차지하는 범위가 다르다
   camera.matrixWorld.extractBasis(vR, vU, vF);
   let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
-  // 집(2층에 선 사람 머리까지)과 마당이 차지하는 범위
-  for (const [za, zb, top] of [[Z0 - 0.3, Z1 + 0.3, Math.max(WALL_H, TREE.top, LOFT.y + 1.1) + 0.15], [Z1, GZ1 + 0.45, 1.6]]) for (const x of [X0 - 0.45, X1 + 0.45]) for (const z of [za, zb]) for (const y of [-0.25, top]) {
+  // 내가 있는 층이 차지하는 범위: 집 한 층, 1층이면 마당까지
+  const y0 = myLv * FLOOR_H, boxes = [[Z0 - 0.3, Z1 + 0.3, Math.max(WALL_H, myLv ? 0 : TREE.top) + 0.15]];
+  if (!myLv) boxes.push([Z1, GZ1 + 0.45, 1.6]);
+  for (const [za, zb, top] of boxes) for (const x of [X0 - 0.45, X1 + 0.45]) for (const z of [za, zb]) for (const y of [y0 - 0.25, y0 + top]) {
     vP.set(x, y, z).sub(camera.position);
     const u = vP.dot(vR), v = vP.dot(vU);
     u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v);
@@ -321,14 +323,15 @@ function updateView(dt) {
 function showWalls() {
   dirty = true;
   paintLevels();
-  room.ceil.visible = usingEye();
   for (const m of room.inner) m.visible = usingEye(); // 방 사이 벽의 윗부분
-  if (usingEye()) { for (const k in room.walls) room.walls[k].upper.visible = true; return; } // 1인칭에서는 네 면과 천장이 다 보인다
-  const dx = Math.sin(yaw), dz = Math.cos(yaw);
-  room.walls.w.upper.visible = dx > 0.02;
-  room.walls.e.upper.visible = dx < -0.02;
-  room.walls.n.upper.visible = dz > 0.02;
-  room.walls.s.upper.visible = dz < -0.02;
+  const dx = Math.sin(yaw), dz = Math.cos(yaw), e = usingEye(); // 1인칭에서는 네 면과 천장이 다 보인다
+  for (const f of room.floors) {
+    f.ceil.visible = e;
+    f.walls.w.upper.visible = e || dx > 0.02;
+    f.walls.e.upper.visible = e || dx < -0.02;
+    f.walls.n.upper.visible = e || dz > 0.02;
+    f.walls.s.upper.visible = e || dz < -0.02;
+  }
   dirty = true;
 }
 
@@ -390,15 +393,16 @@ function setPov(on) {
 }
 function lookAtTree() { fy = Math.atan2(me.x, me.z); fpitch = 0.06; }
 
-/* ───────── 층: 1층·마당과 2층 ───────── */
-// 2층이 보이는지: 내가 2층에 있거나 1인칭일 때. 1층에서 내려다볼 때는 아래층을 가리지 않게 2층 마루와 가구를 숨긴다
-// (비쳐 보이는 판만 남고, 2층에 있는 사람은 보인다).
+/* ───────── 층: 1층(과 마당), 2층, 3층 ───────── */
+// 내가 있는 층만 보인다: 그 층의 바닥과 벽, 그 층에 놓인 가구, 그 층에 있는 사람. myLv = 내가 있는 층(0 = 1층)
 let myLv = 0;
-const loftOn = () => usingEye() || myLv === 1;
+const floorOf = (a) => clamp(Math.round(a.root.position.y / FLOOR_H), 0, LEVELS - 1); // 사다리를 반쯤 오르면 위층으로 친다
 function paintLevels() {
-  const on = loftOn();
-  room.setLoft(on, usingEye());
-  for (const [id, g] of itemObj) { const it = S.items.get(id); g.visible = on || !it || !levelOfCell(it.i); }
+  room.showFloor(myLv);
+  for (const [id, g] of itemObj) { const it = S.items.get(id); g.visible = !it || levelOfCell(it.i) === myLv; }
+  if (ghost) ghost.g.visible = true;
+  for (const a of others.values()) a.root.visible = floorOf(a) === myLv;
+  glow.visible = myLv === 0;
   dirty = true;
 }
 
@@ -416,22 +420,23 @@ function goTo(x, z) {
 }
 
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3();
-const loftPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -LOFT.y);
+const upPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 function aimRay(px, py) {
   ndc.set((px / window.innerWidth) * 2 - 1, -(py / window.innerHeight) * 2 + 1);
   ray.setFromCamera(ndc, cam());
 }
-// 화면의 한 점이 가리키는 바닥 자리(격자의 자리). inside = true 면 집 안이나 마당, 2층일 때만.
-// 2층 마루가 보이고 위에서 내려다보는 선이면 2층 마루부터 본다.
+// 화면의 한 점이 가리키는 바닥 자리(격자의 자리): 내가 있는 층의 바닥에서 잰다. inside = true 면 집 안(1층이면 마당까지)일 때만.
 function floorAt(px, py, inside = true) {
   aimRay(px, py);
-  if (loftOn() && ray.ray.origin.y > LOFT.y && ray.ray.intersectPlane(loftPlane, hit)) {
-    const x = hit.x + LOFT_DX;
-    if (x >= LOFT_X && x <= GX1 && hit.z >= Z0 && hit.z <= Z1) return { x, z: hit.z };
+  if (myLv) { // 위층
+    upPlane.constant = -myLv * FLOOR_H;
+    if (!ray.ray.intersectPlane(upPlane, hit)) return null;
+    if (inside && (hit.x < X0 || hit.x > X1 || hit.z < Z0 || hit.z > Z1)) return null;
+    return { x: clamp(hit.x, X0, X1 - 1e-3) + myLv * FLOOR_DX, z: hit.z };
   }
   if (!ray.ray.intersectPlane(ground, hit)) return null;
   if (inside && (hit.x < X0 || hit.x > X1 || hit.z < Z0 || hit.z > GZ1)) return null;
-  return { x: Math.min(hit.x, X1 - 1e-3), z: hit.z }; // 집 동쪽 밖은 격자에서 2층 자리라서 넘어가지 않게 한다
+  return { x: Math.min(hit.x, X1 - 1e-3), z: hit.z }; // 집 동쪽 밖은 격자에서 위층 자리라서 넘어가지 않게 한다
 }
 // 격자의 자리 (x, z), 바닥에서 높이 y 인 점이 화면의 어디인지
 function screenOf(x, z, y = 0) {
@@ -941,7 +946,7 @@ const play = makePlay({
   setPose(p) {
     if (p && p.inside) { // 놀이 가구가 있는 곳(집 안·마당·2층) 안으로
       const it = S.items.get(play.spot), zone = it ? zoneOf(it.i, it.j) : 'house';
-      p.pos[0] = clamp(p.pos[0], (zone === 'loft' ? LOFT_X - LOFT_DX : X0) + 0.25, X1 - 0.25);
+      p.pos[0] = clamp(p.pos[0], X0 + 0.25, X1 - 0.25);
       p.pos[2] = zone === 'yard' ? clamp(p.pos[2], Z1 + 0.4, GZ1 - 0.1) : clamp(p.pos[2], Z0 + 0.25, Z1 - 0.25);
     }
     pose = p; applyPov(); dirty = true;
@@ -957,7 +962,7 @@ function approach(id, then) {
   g.updateMatrixWorld();
   // 여럿이 같은 가구 앞에 모일 때 겹치지 않게 사람마다 조금씩 옆으로 선다
   const p = g.localToWorld(new THREE.Vector3(0.45 - 0.5 * ((mySlot + 1) >> 1) * (mySlot % 2 ? 1 : -1), 0, kindOf(it.k).d * CELL / 2 + 0.5));
-  const x = p.x + (levelOfCell(it.i) ? LOFT_DX : 0); // 2층 가구는 격자에서 옆으로 밀려 있다
+  const x = p.x + levelOfCell(it.i) * FLOOR_DX; // 위층 가구는 격자에서 옆으로 밀려 있다
   if (Math.hypot(x - me.x, p.z - me.z) < 0.4 || !goTo(x, p.z)) then(); else me.onArrive = then;
 }
 // id = 누른 가구. cakeId 가 있으면 그 가구(탁자) 위에 놓인 케이크로 논다
@@ -1108,8 +1113,15 @@ function snack(id) {
   approach(id, () => { if (mode === null && doAct('eat')) toast(SNACKS[Math.floor(Math.random() * SNACKS.length)]); });
   return true;
 }
-// 가구를 눌렀을 때(또는 그 앞에서 스페이스바): 케이크 내려놓기·먹기, 놀이, 눕기, 간식
-const useItem = (id) => cakeTap(id) || startPlay(id) || lieDown(id) || snack(id);
+// 옷장: 앞으로 가서 옷을 갈아입는다 (캐릭터 고르기 판이 열린다)
+function dress(id) {
+  const it = S.items.get(id);
+  if (!it || !kindOf(it.k).dress) return false;
+  approach(id, () => { if (mode === null) setMode('look'); });
+  return true;
+}
+// 가구를 눌렀을 때(또는 그 앞에서 스페이스바): 케이크 내려놓기·먹기, 놀이, 눕기, 간식, 옷 갈아입기
+const useItem = (id) => cakeTap(id) || startPlay(id) || lieDown(id) || snack(id) || dress(id);
 // 그 가구로 지금 할 수 있는 일의 이름 (없으면 null)
 function actionOf(it) {
   const f = kindOf(it.k), mine = carried();
@@ -1120,11 +1132,12 @@ function actionOf(it) {
   if (f.play) return PLAY_LABEL[f.play] || null;
   if (f.lie) return '🛏️ 눕기';
   if (f.snack) return '🍪 간식 꺼내 먹기';
+  if (f.dress) return '👕 옷 갈아입기';
   return null;
 }
-// 사다리를 타고 lv 층(1 = 2층)으로 간다
-function climb(lv) {
-  const c = lv ? LADDER.top : LADDER.foot;
+// 사다리 L 을 타고 올라가거나(up) 내려간다
+function climb(L, up) {
+  const c = up ? L.b : L.a;
   return goTo(...centerOf(c[0], c[1]));
 }
 // 지금 서 있는 자리에서 할 수 있는 일 { label, run }. 누워 있으면 일어나기, 사다리 옆이면 오르내리기, 아니면 가장 가까운(바라보는) 가구
@@ -1132,8 +1145,10 @@ function nearAction() {
   if (mode !== null || ghost || me.hop) return null;
   if (me.rest) return { label: '🛏️ 일어나기', run: getUp };
   const [ci, cj] = cellOf(me.x, me.z), by = (c) => Math.abs(ci - c[0]) <= 1 && Math.abs(cj - c[1]) <= 1;
-  if (by(LADDER.foot)) return { label: '🪜 2층으로 올라가기', run: () => climb(1) };
-  if (by(LADDER.top)) return { label: '🪜 1층으로 내려가기', run: () => climb(0) };
+  for (const L of LADDERS) {
+    if (by(L.a)) return { label: `🪜 ${L.lv + 2}층으로 올라가기`, run: () => climb(L, true) };
+    if (by(L.b)) return { label: `🪜 ${L.lv + 1}층으로 내려가기`, run: () => climb(L, false) };
+  }
   let best = null, bestS = Infinity;
   const fx = Math.sin(me.face), fz = Math.cos(me.face);
   for (const it of S.items.values()) {
@@ -1249,7 +1264,7 @@ function keyWalk(dt) {
   me.turnTo(dx, dz);
   { // 사다리 앞(위)에서 사다리 쪽으로 밀면 오르내린다
     const [ci, cj] = cellOf(me.x, me.z), at = (c) => ci === c[0] && cj === c[1];
-    if ((at(LADDER.foot) && dx > 0.6) || (at(LADDER.top) && dx < -0.6)) { const c = at(LADDER.foot) ? LADDER.top : LADDER.foot; me.walk([centerOf(c[0], c[1])]); return false; }
+    for (const L of LADDERS) if ((at(L.a) && dx > 0.6) || (at(L.b) && dx < -0.6)) { const c = at(L.a) ? L.b : L.a; me.walk([centerOf(c[0], c[1])]); return false; }
   }
   const step = SPEED * push * dt;
   const nx = clamp(me.x + dx * step, X0 + BODY_R, GX1 - BODY_R), nz = clamp(me.z + dz * step, Z0 + BODY_R, GZ1 - BODY_R);
@@ -1311,7 +1326,7 @@ const bv = new THREE.Vector3();
 function placeBubbles() {
   for (const [who, b] of bubbles) {
     const a = who === 'me' ? me : others.get(who);
-    if (!a || clock > b.until || (who === 'me' && usingEye())) { if (b.el.style.display !== 'none') b.el.style.display = 'none'; if (!a && who !== 'me') { b.el.remove(); bubbles.delete(who); } continue; }
+    if (!a || clock > b.until || (who === 'me' && usingEye()) || (who !== 'me' && !a.root.visible)) { if (b.el.style.display !== 'none') b.el.style.display = 'none'; if (!a && who !== 'me') { b.el.remove(); bubbles.delete(who); } continue; }
     bv.set(a.root.position.x, a.root.position.y + (a.rest ? 1.0 : 1.72), a.root.position.z).project(cam());
     if (bv.z > 1 || bv.z < -1) { b.el.style.display = 'none'; continue; } // 카메라 뒤
     b.el.style.display = '';
@@ -1477,7 +1492,8 @@ function frame(now) {
   const moved = byKey ? (me.animate(dt, true), true) : me.step(dt);
   if (moved || me.blend > 0.01 || me.doing) dirty = true;
   for (const a of others.values()) if (a.step(dt) || a.blend > 0.01 || a.doing) dirty = true;
-  { const lv = me.root.position.y > LOFT.y * 0.5 ? 1 : 0; if (lv !== myLv) { myLv = lv; paintLevels(); } } // 사다리를 반쯤 올랐을 때 2층이 보인다
+  { const lv = floorOf(me); if (lv !== myLv) { myLv = lv; if (ghost) ghostCancel(); measure(false); paintLevels(); } } // 사다리를 반쯤 올랐을 때 위층으로 바뀐다
+  for (const a of others.values()) { const v = floorOf(a) === myLv; if (a.root.visible !== v) { a.root.visible = v; dirty = true; } } // 같은 층에 있는 사람만 보인다
   if (clock - actAt > 0.15) { actAt = clock; paintAct(); }
   // 내 자리를 친구에게 알린다 (1초에 열 번까지, 움직였을 때만)
   if (duo.mode === 'on' && clock - sentAt > 0.1 && (Math.abs(me.x - sentX) > 0.004 || Math.abs(me.z - sentZ) > 0.004)) {
@@ -1560,11 +1576,11 @@ window.__play = Object.assign(play.test, {
 });
 Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose }, id: { get: () => play.id }, spot: { get: () => play.spot } });
 window.__tree = {
-  NX, NZ, GX, GZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, LOFT, LADDER, FRONT, toWorld, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
+  NX, NZ, GX, GZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, LEVELS, FLOOR_H, FLOOR_DX, LADDERS, FRONT, toWorld, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
   ghostNew, ghostPick, ghostMoveTo, ghostTurn, ghostDone, ghostCancel, ghostRemove, surfaceR, serialize: () => serialize(S),
   setZoomMul(m) { setZoomMul(m); },
   doAct, carried, putDown, cakeTap, useItem, lieDown, getUp, climb, pressSpace, nearAction: () => { const a = nearAction(); return a ? a.label : null; },
-  get level() { return myLv; }, get loftOn() { return loftOn(); }, get lying() { return me.rest ? { id: me.rest.id, side: me.rest.side } : null; },
+  get level() { return myLv; }, get lying() { return me.rest ? { id: me.rest.id, side: me.rest.side } : null; },
   itemShown: (id) => { const g = itemObj.get(id); return !!g && g.visible; }, cakes: () => cakesList(S).map(([id, c]) => ({ id, ...c })), freeBench,
   cakeAt(id) { const cv = cakeObj.get(id), c = S.cakes.get(id), g = itemObj.get(benchOf(id, c || newCake())), p = cv && cv.root.parent; return cv ? { by: (c && c.by) || null, on: (c && c.on) || null, left: c ? c.left : CAKE.slices, where: p === g ? 'island' : p === me.root ? 'me' : p && p.userData.item ? 'item:' + p.userData.item : [...others].some(([, a]) => a.root === p) ? 'peer:' + [...others].find(([, a]) => a.root === p)[0] : '?', scale: cv.root.scale.x, deco: c && c.on && itemObj.get(c.on) && itemObj.get(c.on).userData.deco ? itemObj.get(c.on).userData.deco.visible : null } : null; },
   openLook(on) { if ((mode === 'look') !== on) setMode('look'); },

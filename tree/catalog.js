@@ -1,6 +1,6 @@
 // 고를 수 있는 것들의 목록. 화면과 상관없는 자료만 둔다.
 // 가구: w × d 는 차지하는 바닥 칸 수(돌리지 않았을 때). solid 가 false 면 밟고 지나갈 수 있다(러그).
-// play 가 있으면 눌러서 놀 수 있는 가구다(놀이는 play.js). lie = 누울 수 있다(침대), snack = 간식을 꺼내 먹는다(냉장고).
+// play 가 있으면 눌러서 놀 수 있는 가구다(놀이는 play.js). lie = 누울 수 있다(침대), snack = 간식을 꺼내 먹는다(냉장고), dress = 옷을 갈아입는다(옷장).
 export const FURNITURE = [
   { id: 'sofa', name: '소파', icon: '🛋️', w: 4, d: 2, solid: true },
   { id: 'chair', name: '안락의자', icon: '🪑', w: 2, d: 2, solid: true },
@@ -23,7 +23,7 @@ export const FURNITURE = [
   { id: 'fridge', name: '냉장고', icon: '🧊', w: 2, d: 1, solid: true, snack: true },
   // 방
   { id: 'bed', name: '침대', icon: '🛏️', w: 3, d: 4, solid: true, lie: true },
-  { id: 'closet', name: '옷장', icon: '🚪', w: 3, d: 1, solid: true },
+  { id: 'closet', name: '옷장', icon: '🚪', w: 3, d: 1, solid: true, dress: true }, // 열면 옷을 갈아입는다
   { id: 'stand', name: '협탁', icon: '🕯️', w: 1, d: 1, solid: true },
 ];
 
@@ -35,10 +35,12 @@ export const STARTER_EAST = [
   ['bed', 26, 12, 3], ['stand', 29, 11, 3], ['closet', 22, 17, 2],
 ];
 
-// 마당과 2층에 처음부터 놓여 있는 가구. 마당·2층이 없던 때에 꾸민 방을 열 때도 이것만 더해 준다(칸 번호는 path.js 의 YARD, LOFT).
+// 마당과 위층에 처음부터 놓여 있는 가구. 마당·위층이 없던 때에 꾸민 방을 열 때도 이것만 더해 준다.
+// 칸 번호: 마당은 j 19~26, 2층은 i 에 32 를, 3층은 64 를 더한 칸(path.js 의 YARD, FLOOR_DI).
 export const STARTER_UP = [
-  ['snowman', 14, 21, 0], ['giftR', 12, 20, 0], ['giftG', 13, 21, 0],          // 마당
-  ['rug', 35, 5, 0], ['chair', 35, 2, 0], ['lamp', 41, 0, 0], ['shelf', 37, 0, 0], // 2층
+  ['snowman', 14, 21, 0], ['giftR', 12, 20, 0], ['giftG', 13, 21, 0],                                   // 마당
+  ['rug', 32 + 8, 7, 0], ['sofa', 32 + 8, 4, 0], ['table', 32 + 8, 10, 0], ['shelf', 32 + 3, 0, 0], ['lamp', 32 + 13, 4, 0], // 2층: 쉬는 방
+  ['bed', 64 + 3, 1, 0], ['stand', 64 + 6, 1, 0], ['rug', 64 + 9, 8, 0], ['chair', 64 + 13, 8, 3], ['plant', 64 + 0, 17, 0], // 3층: 다락방
 ];
 
 // 케이크: 크림 색, 올릴 수 있는 장식, 치수(케이크 작업대 기준). r = 윗면 반지름, y = 윗면 높이, max = 장식 개수
