@@ -271,9 +271,9 @@ export function makeFoodPlay(K) {
   function land(h, a) {
     const first = h.shown === h.f.n;
     h.pend = null; h.shown = h.left; h.set(h.shown);
-    const m = mouthOf(a, new THREE.Vector3()), fx = h.f.fx;
+    const m = mouthOf(a, new THREE.Vector3()), fx = a.root.visible ? h.f.fx : null; // 다른 층에 있거나 숨은 사람의 부스러기는 보이지 않는다
     if (typeof fx === 'number') for (let k = 0; k < (h.f.sip ? 3 : 7); k++) spark(m.x + rnd(0.08), m.y + rnd(0.04), m.z + rnd(0.08), fx, rnd(0.5), h.f.sip ? 0 : 0.5 + Math.random() * 0.5, rnd(0.5), 0.7 + Math.random() * 0.3, 3.2);
-    if (h.kind === 'pizza' && h.shown > 0) for (let k = 0; k < 5; k++) spark(m.x, m.y - k * 0.03, m.z, 0xFBE08A, 0, -0.05, 0, 0.5 + k * 0.05, 0.4); // 늘어나는 치즈
+    if (h.kind === 'pizza' && h.shown > 0 && fx) for (let k = 0; k < 5; k++) spark(m.x, m.y - k * 0.03, m.z, 0xFBE08A, 0, -0.05, 0, 0.5 + k * 0.05, 0.4); // 늘어나는 치즈
     if (h.kind === 'milk') stache(a);
     say(h, a, first && h.f.first ? h.f.first : h.f.say);
     if (h.shown === 0) {
