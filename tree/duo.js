@@ -18,6 +18,7 @@
 // 둘이 같은 순간에 같은 자리를 바꾸면 주인 쪽 결과로 맞춘다. 지문이 거듭 다르면 손님이 통째로 다시 받는다.
 import { openRoom } from './net.js';
 import { NOTE } from './catalog.js';
+import { GIFT } from './catalog.js';
 
 const Q = new URLSearchParams(location.search);
 const NET = Q.get('net') === 'bc' ? 'bc' : 'peer';
@@ -35,6 +36,7 @@ export const DOOR = Q.get('door') !== '0'; // 초인종을 누르고 허락받�
 export const ROOM_RE = /^[a-z0-9]{6,20}$/;
 const VIEW_OPS = new Set(['cakeBlow', 'cakeEat', 'note', 'best']); // 구경하는 사람도 할 수 있는 변화
 VIEW_OPS.add('star'); // 꼭대기 별 달기도 구경하는 사람이 할 수 있다 (coop.js)
+VIEW_OPS.add('gift'); VIEW_OPS.add('giftOpen'); // 트리 밑 선물 두기·열기 (gift.js)
 const rnd = (n) => { const a = new Uint8Array(n); crypto.getRandomValues(a); return Array.from(a, (x) => 'abcdefghijkmnpqrstuvwxyz23456789'[x % 32]).join(''); };
 
 export function makeDuo(K) {
@@ -204,6 +206,7 @@ export function makeDuo(K) {
       case 'op':
         if (!isObj(m.op)) return;
         if (m.op.t === 'note' && performance.now() - (p.noted || -1e9) < NOTE.gap - 500) { link.send(stateMsg(pid), pid); return; } // 방명록은 한 사람이 NOTE.gap 에 한 번 (오는 길에 늦어지는 것을 조금 봐준다)
+        if (m.op.t === 'gift') { if (performance.now() - (p.gifted || -1e9) < GIFT.gap - 500) { link.send(stateMsg(pid), pid); return; } p.gifted = performance.now(); } // 선물도 한 사람이 GIFT.gap 에 한 번
         if ((!p.edit && !VIEW_OPS.has(m.op.t)) || (m.op.by !== undefined && m.op.by !== pid) || !K.peerOp(m.op)) link.send(stateMsg(pid), pid); // by 가 붙은 변화(케이크 들기)는 자기 이름으로만 할 수 있다 // 구경하는 사람이 보냈거나(촛불 불기와 케이크 먹기는 된다) 내 방에 들어맞지 않는 변화: 주인 방으로 되돌린다
         else { if (m.op.t === 'note') p.noted = performance.now(); relay({ t: 'op', op: m.op }, pid); }
         break;

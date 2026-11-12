@@ -429,7 +429,7 @@ export function makeCoop(K) {
       const a = K.others().get(pid);
       if (a && Math.hypot(a.x - me.x, a.z - me.z) <= STAR.reach && !rides.some((r) => r.h === a)) return { label: '⭐ 올라가서 별 달기', run: () => climb(pid) };
     }
-    if (!K.others().size) return { label: '⭐ 별 달기', run: () => K.toast('손이 닿지 않아요. 친구가 받쳐 주면 달 수 있어요') };
+    if (!K.others().size) return { weak: true, label: '⭐ 별 달기', run: () => K.toast('손이 닿지 않아요. 친구가 받쳐 주면 달 수 있어요') };
     return { label: '🙌 받쳐 주기', run: startProp };
   }
 
