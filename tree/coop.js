@@ -575,6 +575,7 @@ export function makeCoop(K) {
     waits: () => [...waits].map(([id, w]) => [id, w.item]), helps: () => [...helps],
     get carrying() { return carries.length; }, get sparks() { return sparks.length; }, get waitShown() { return !bar.hidden; },
     near: () => { const a = near(); return a ? a.label : null; },
+    nearAct: () => near(), // 트리 앞 단추를 선물에 내준 때(혼자)에도 검사가 안내를 눌러 볼 수 있게
     startProp, stopProp, climb, heavyPick, help, endJob,
     // 그 사람의 팔 자세 (받치기·들기 검사용)
     arms: (id) => { const a = id === 'me' ? K.me : who(id); return a && a.parts ? a.parts.arms.map((x) => [x.rotation.x, x.rotation.z]) : null; },

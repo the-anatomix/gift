@@ -74,8 +74,8 @@ const act = (p) => until(async () => (await p.isVisible('#act')) && (await p.tex
     A = await open(ctx, `${BASE}?net=bc&door=0&ns=ca`);
     await T(A, () => window.__tree.dispatch({ t: 'put', id: 'sf', k: 'sofa', i: 10, j: 13, r: 0 }));
     await stand(A, 1.6, 0.4); await sleep(300);
-    check('혼자 트리 옆에 서면 "⭐ 별 달기" 단추가 뜸', ((await act(A)) || '').includes('⭐ 별 달기'), await A.textContent('#act'));
-    await A.tap('#act'); await sleep(150);
+    check('혼자 트리 옆에 서면 단추는 "🎁 트리 밑 선물"이 먼저이고, 별 달기는 약한 안내로만 남음', ((await act(A)) || '').includes('🎁') && (await T(A, () => { const n = window.__coop.nearAct(); return n && n.weak && n.label; })) === '⭐ 별 달기', await A.textContent('#act'));
+    await T(A, () => window.__coop.nearAct().run()); await sleep(150);
     check('혼자서는 눌러도 "손이 닿지 않아요. 친구가 받쳐 주면 달 수 있어요" 알림만 (별은 안 달림)', (await A.textContent('#toast')).includes('손이 닿지 않아요. 친구가 받쳐 주면 달 수 있어요') && (await C_(A)).star === null && !(await C_(A)).propping);
     const actBox = await boxOf(A, '#act');
     check('단추는 44px 이상, 화면 안', actBox && actBox.h >= 44 && (await audit(A)).length === 0, { actBox, bad: await audit(A) });
