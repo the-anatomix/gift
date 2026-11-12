@@ -130,6 +130,27 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 #fallback a{min-height:48px;padding:0 22px;display:inline-flex;align-items:center;border-radius:14px;
   background:#FFFCF5;color:var(--choc);font-weight:800;font-size:15px;text-decoration:none}
 #fallback .btn{min-height:48px;padding:0 18px;font-size:14px;color:var(--ink)}
+/* 점등식·단체 사진: 크게 뜨는 숫자, 찰칵 번쩍임, 사진 미리보기 */
+#count{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);z-index:7;pointer-events:none;white-space:nowrap;
+  font-weight:900;color:#FFF4E0;text-shadow:0 4px 18px rgba(0,0,0,.55),0 0 2px rgba(0,0,0,.4);font-size:120px;line-height:1}
+#count:empty{display:none}
+#count.small{font-size:96px;top:30%}
+#count.word{font-size:64px;color:#FFE9A8;text-shadow:0 0 18px rgba(255,200,90,.9),0 4px 18px rgba(0,0,0,.5)}
+#count.on{animation:pop .9s ease-out}
+@keyframes pop{0%{transform:translate(-50%,-50%) scale(1.6);opacity:0}25%{transform:translate(-50%,-50%) scale(1);opacity:1}100%{transform:translate(-50%,-50%) scale(.92);opacity:.92}}
+#party i.snow{animation-name:snowfall;animation-timing-function:linear}
+@keyframes snowfall{0%{transform:translate(0,0) rotate(0)}50%{transform:translate(18px,55vh) rotate(160deg)}100%{transform:translate(-10px,112vh) rotate(320deg)}}
+#flash{position:absolute;inset:0;z-index:8;background:#fff;opacity:0;pointer-events:none}
+#flash.on{animation:flash .55s ease-out}
+@keyframes flash{0%{opacity:.95}100%{opacity:0}}
+#photoP{position:absolute;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;
+  padding:calc(12px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom));background:rgba(20,14,28,.62)}
+#photoP .sheet{width:100%;max-width:440px;max-height:100%;align-items:center}
+#photoImg{display:block;max-width:100%;max-height:calc(100vh - 160px);max-height:calc(100dvh - 160px);object-fit:contain;
+  border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.28);transform:rotate(-1.2deg)}
+#photoP .row{width:100%}
+#photoP .row .btn{flex:1}
+@media (max-width:420px){#tools{gap:4px}}
 </style>
 </head>
 <body>
@@ -145,6 +166,18 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="bubbles" aria-hidden="true"></div>
 <div id="party" aria-hidden="true"></div>
+<div id="count" role="status" aria-live="assertive"></div>
+<div id="flash" aria-hidden="true"></div>
+<div id="photoP" hidden role="dialog" aria-label="단체 사진">
+  <div class="sheet">
+    <img id="photoImg" alt="찍은 단체 사진">
+    <div class="row">
+      <button type="button" class="btn main" id="photoSave">저장</button>
+      <button type="button" class="btn" id="photoShare" hidden>공유</button>
+      <button type="button" class="btn" id="photoClose">닫기</button>
+    </div>
+  </div>
+</div>
 <div id="stick" hidden aria-label="걷기 조이스틱"><i></i></div>
 <button type="button" class="btn main" id="act" hidden></button>
 <div id="bottom">
@@ -152,6 +185,7 @@ button{font:inherit;color:inherit;touch-action:manipulation}
     <button type="button" class="btn" id="zout" aria-label="작게 보기">－</button>
     <button type="button" class="btn" id="zin" aria-label="크게 보기">＋</button>
     <button type="button" class="btn" id="mic" aria-label="마이크 켜기" aria-pressed="false" hidden>🎤</button>
+    <button type="button" class="btn" id="snap" aria-label="단체 사진 찍기">📷</button>
     <button type="button" class="btn" id="emo" aria-label="표정과 행동" aria-pressed="false">👋</button>
     <button type="button" class="btn" id="pov" aria-label="1인칭으로 보기" aria-pressed="false">👁</button>
     <button type="button" class="btn" id="turn" aria-label="방을 돌려 보기">↻</button>
@@ -178,6 +212,7 @@ button{font:inherit;color:inherit;touch-action:manipulation}
     </div>
     <div class="row"><span class="lab">전구</span><div class="wrap" id="lightList" role="group" aria-label="전구 색"></div></div>
     <div class="row"><span class="lab">깜빡임</span><div class="row" id="blinkList" style="flex:1" role="group" aria-label="깜빡임"></div></div>
+    <div class="row"><button type="button" class="btn main" id="lightShow" style="flex:1">🎄 점등식</button></div>
   </div>
   <div id="paint" class="sheet" hidden>
     <div class="row"><span class="lab">벽지</span><div class="row" id="wallList" role="group" aria-label="벽지"></div></div>

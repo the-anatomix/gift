@@ -494,6 +494,8 @@ export function makePlay(K) {
     unshare() { sharing = false; },
     // 방 상태가 바뀌었을 때(누가 케이크를 꾸몄을 때) 판을 다시 그린다
     refresh(id) { if (cur && cur.id === id && KINDS[cur.kind].paint) KINDS[cur.kind].paint(cur); },
+    // 캐럴을 튼다 (점등식처럼 모두가 각자 트는 것이라 친구에게 알리지 않는다)
+    song(id) { setSong(id, false); },
     // 친구가 한 것
     peerFx(m) {
       if (!m || typeof m.k !== 'string') return;
