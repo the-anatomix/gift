@@ -191,8 +191,9 @@ const cakeLeft = (p) => T(p, () => window.__tree.cakes().map((c) => c.left).join
     await until(async () => (await T(A, () => window.__duo.count)) === 3 && (await T(C, () => window.__duo.others)).length === 2 && (await T(B, () => window.__duo.others)).length === 2, 20000);
     check('친구들도 방장의 트리 밑 선물을 받음', (await gifts(B)).length === 2 && (await gifts(C)).length === 2 && (await T(C, () => window.__gift.boxes)).length === 2);
     await T(C, () => window.__tree.me.place(1.25, 1.25));
-    check('구경하는 사람도 트리 앞에서 선물 판을 열 수 있음', await until(() => T(C, () => window.__tree.nearAction() === '🎁 트리 밑 선물'), 3000));
-    await C.tap('#act');
+    // 방에 다른 사람이 있으면 트리 앞 단추는 별 달기 협동이 먼저라서, 선물 판은 도구 단추 🎁 로 연다
+    check('구경하는 사람도 트리 앞에서 선물 판을 열 수 있음 (도구 단추 🎁)', await until(() => C.isVisible('#giftBtn'), 3000));
+    await C.tap('#giftBtn');
     await until(async () => (await T(C, () => window.__gift.view)) === 'list');
     check('구경하는 사람에게는 치우기 단추가 없음', (await T(C, () => window.__gift.rows)).every((r) => !r.btns.includes('치우기')));
     bad = await audit(C);
