@@ -25,6 +25,8 @@ export const FURNITURE = [
   { id: 'bed', name: '침대', icon: '🛏️', w: 3, d: 4, solid: true, lie: true },
   { id: 'closet', name: '옷장', icon: '🚪', w: 3, d: 1, solid: true },
   { id: 'stand', name: '협탁', icon: '🕯️', w: 1, d: 1, solid: true },
+  // 현관
+  { id: 'guest', name: '방명록', icon: '📖', w: 1, d: 1, solid: true, play: 'guest' }, // 놀러 온 사람이 한마디 남긴다 (book.js)
 ];
 
 // 새로 시작하는 방에 처음부터 놓여 있는 가구 [종류, i, j, 돌린 횟수]. 놀 수 있는 가구들이고, 다른 가구처럼 옮기거나 치울 수 있다.
@@ -39,6 +41,7 @@ export const STARTER_EAST = [
 export const STARTER_UP = [
   ['snowman', 14, 21, 0], ['giftR', 12, 20, 0], ['giftG', 13, 21, 0],          // 마당
   ['rug', 35, 5, 0], ['chair', 35, 2, 0], ['lamp', 41, 0, 0], ['shelf', 37, 0, 0], // 2층
+  ['guest', 6, 16, 2],                                                             // 현관 안쪽 옆의 방명록 (북쪽을 본다)
 ];
 
 // 케이크: 크림 색, 올릴 수 있는 장식, 치수(케이크 작업대 기준). r = 윗면 반지름, y = 윗면 높이, max = 장식 개수
@@ -126,3 +129,7 @@ export const FLOORS = [
 
 export const MAX_ITEMS = 100;  // 가구는 이만큼까지
 export const MAX_ORNS = 150;   // 트리 장식은 이만큼까지
+// 방명록: 글은 이만큼까지(넘치면 가장 오래된 것부터 빠진다), 이름·글의 글자 수, 한 사람이 다시 남기기까지 기다리는 시간
+export const NOTE = { max: 60, name: 10, text: 80, gap: 5000 };
+// 이 방 최고 기록을 남기는 놀이와 그 점수의 끝 (다트 = 화살 3개의 합, 마시멜로 = 구운 점수)
+export const BEST = { dart: { name: '다트', top: 180 }, fire: { name: '마시멜로 굽기', top: 100 } };

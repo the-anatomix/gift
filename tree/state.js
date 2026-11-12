@@ -18,8 +18,12 @@
 //   { t: 'cakeBake', id, home }      오븐에서 새 케이크를 구워 빈 작업대 home 에 올린다 (id = home 이면 다 먹은 처음 케이크를 다시 굽는다)
 //   { t: 'cakeEat', id }             한 조각 먹기 (다 먹으면 케이크가 없어진다)
 //   { t: 'cakeSet', id, c }          저장해 둔 케이크를 통째로 놓는다 (방을 다시 열 때만)
+// 방명록과 이 방 최고 기록 (구경하는 사람도 남길 수 있다. 지우기는 꾸밀 수 있는 사람만)
+//   { t: 'note', id, name, text, at }  한마디 남기기 (at = 남긴 때 ms). NOTE.max 개가 넘치면 가장 오래된 것부터 빠진다
+//   { t: 'noteDel', id }               방명록 글 지우기
+//   { t: 'best', k, v, name }          이 방 최고 기록 (k = 'dart' | 'fire'). 지금 기록보다 높을 때만 받는다
 import { GX, GZ } from './path.js';
-import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, CREAMS, TOPPINGS, CAKE } from './catalog.js';
+import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, CREAMS, TOPPINGS, CAKE, NOTE, BEST } from './catalog.js';
 
 const F = Object.fromEntries(FURNITURE.map((f) => [f.id, f]));
 const has = (list, id) => typeof id === 'string' && list.some((x) => x.id === id);
@@ -94,10 +98,22 @@ export function sendHome(S, id) {
 }
 const liveCount = (S) => { let n = 0; for (const c of S.cakes.values()) if (!c.gone) n++; return n; };
 
+// 방명록의 이름과 글: 글자 수(이모지도 한 글자) 안이고, 제어 문자·글 방향을 바꾸는 문자가 없고, 앞뒤 빈칸 없이 무언가 적혀 있어야 한다
+const BAD_CH = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/;
+export const okWords = (v, max) => typeof v === 'string' && v.length <= max * 2 && [...v].length >= 1 && [...v].length <= max && !BAD_CH.test(v) && v.trim() === v;
+// 화면에서 받은 글을 방명록에 맞게 다듬는다 (줄바꿈·제어 문자는 빈칸, 겹친 빈칸은 하나, 글자 수만큼 자른다)
+export function cleanWords(v, max) {
+  if (typeof v !== 'string') return '';
+  return [...v.replace(new RegExp(BAD_CH.source, 'g'), ' ').replace(/\s+/g, ' ').trim()].slice(0, max).join('').trim();
+}
+// 방명록 글을 최근 것부터 (같은 때면 id 순)
+export const notesList = (S) => [...S.notes.values()].sort((a, b) => b.at - a.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
 export function makeState() {
   // at = 마지막으로 꾸민 때(ms, 한 번도 안 꾸몄으면 0).
   // sync = 친구의 방과 똑같다고 마지막으로 확인했을 때의 at (한 번도 맞춘 적 없으면 0). at > sync 면 헤어진 뒤 혼자 꾸민 것이다.
-  return { items: new Map(), orns: new Map(), cakes: new Map(), lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id, at: 0, sync: 0 };
+  // notes = 방명록 (id → { id, name, text, at }), best = 이 방 최고 기록 (놀이 → { v, name })
+  return { items: new Map(), orns: new Map(), cakes: new Map(), notes: new Map(), best: {}, lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id, at: 0, sync: 0 };
 }
 
 // 그 자리에 놓을 수 있는지. fixed(i, j) = 트리처럼 처음부터 막힌 칸. ignoreId = 옮기는 중인 자기 자신.
@@ -250,6 +266,21 @@ export function apply(S, op, fixed) {
       S.cakes.set(id, c);
       return true;
     }
+    case 'note': {
+      if (!okId(op.id) || S.notes.has(op.id) || !okWords(op.name, NOTE.name) || !okWords(op.text, NOTE.text) || !isInt(op.at) || op.at <= 0 || op.at > 1e13) return false;
+      S.notes.set(op.id, { id: op.id, name: op.name, text: op.text, at: op.at });
+      while (S.notes.size > NOTE.max) S.notes.delete(notesList(S).pop().id); // 가장 오래된 것부터 빠진다
+      return true;
+    }
+    case 'noteDel': return S.notes.delete(op.id);
+    case 'best': {
+      const b = BEST[op.k];
+      if (!Object.hasOwn(BEST, op.k) || !isInt(op.v) || op.v < 1 || op.v > b.top || !okWords(op.name, NOTE.name)) return false;
+      const now = S.best[op.k];
+      if (now && op.v <= now.v) return false; // 지금 기록보다 높아야 한다
+      S.best[op.k] = { v: op.v, name: op.name };
+      return true;
+    }
     case 'wall': if (!has(WALLS, op.v)) return false; S.wall = op.v; return true;
     case 'floor': if (!has(FLOORS, op.v)) return false; S.floor = op.v; return true;
     default: return false;
@@ -270,6 +301,8 @@ export function serialize(S) {
       return [...row, c.by || '', c.on || '', c.home || '', c.left, c.gone ? 1 : 0];
     }),
     lights: [S.lights.set, S.lights.blink], wall: S.wall, floor: S.floor,
+    notes: [...S.notes.values()].map((o) => [o.id, o.name, o.text, o.at]), // 방명록 [id, 이름, 글, 남긴 때]
+    best: Object.fromEntries(Object.entries(S.best).map(([k, b]) => [k, [b.v, b.name]])), // 이 방 최고 기록 { 놀이: [점수, 이름] }
   };
 }
 // 저장된 방이나 친구가 보낸 방의 때 표시. 모양이 이상하거나 터무니없는 값이면 0(꾸민 적 없음)으로 본다.
@@ -309,5 +342,7 @@ export function ops(data) {
   out.push(...away, ...home);
   if (Array.isArray(data.lights)) out.push({ t: 'lights', set: data.lights[0], blink: data.lights[1] });
   out.push({ t: 'wall', v: data.wall }, { t: 'floor', v: data.floor });
+  for (const [id, name, text, at] of rows(data.notes)) out.push({ t: 'note', id, name, text, at }); // 방명록이 없던 때의 방은 빈 방명록
+  if (data.best && typeof data.best === 'object' && !Array.isArray(data.best)) for (const k of Object.keys(BEST)) if (Array.isArray(data.best[k])) out.push({ t: 'best', k, v: data.best[k][0], name: data.best[k][1] });
   return out;
 }

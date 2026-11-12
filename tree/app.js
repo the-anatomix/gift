@@ -7,13 +7,14 @@ import { Grid, NX, NZ, CELL, X0, Z0, X1, Z1, GX, GZ, GX1, GZ1, LOFT, LOFT_X, LOF
 import { buildRoom, WALL_H, HIGH_H, TREE, FRONT, fixedCell, noBuild, surfaceR } from './room.js';
 import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, FACES, ACTS, BODY_R, SPEED } from './avatar.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER, STARTER_EAST, STARTER_UP, CAKE } from './catalog.js';
-import { makeState, apply, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake, benchOf, cakesList, cakeAtBench, cakeOnTable, sendHome } from './state.js';
+import { makeState, apply, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake, benchOf, cakesList, cakeAtBench, cakeOnTable, sendHome, notesList } from './state.js';
 import { buildItem } from './furniture.js';
 import { buildOrnament, buildLights } from './decor.js';
 import { makeDuo, ROOM_RE, CAP, ECAP, DOOR } from './duo.js';
 import { buildOutside } from './door.js';
 import { makeMedia } from './media.js';
 import { makePlay } from './play.js';
+import { makeBook } from './book.js';
 import { makeCakeView, dressCake, flicker, pickTop, disposeCakeView } from './cake.js';
 
 const $ = (id) => document.getElementById(id);
@@ -143,7 +144,7 @@ function dropObj(map, id, parent, own) {
 // 방의 모든 변화는 여기를 지난다. from = 'me'(내가 함) | 'peer'(친구가 함) | 'load'(저장된 방을 여는 중)
 function dispatch(op, from = 'me') {
   if (op && op.t === 'cakeSet' && from !== 'load') return false; // 저장된 방을 풀 때만 쓰는 변화
-  if (from === 'me' && !canEdit && !(op && (op.t === 'cakeBlow' || op.t === 'cakeEat'))) { toast('구경하는 중에는 꾸밀 수 없어요'); return false; } // 촛불 불기와 케이크 먹기는 구경하는 사람도 된다
+  if (from === 'me' && !canEdit && !(op && (op.t === 'cakeBlow' || op.t === 'cakeEat' || op.t === 'note' || op.t === 'best'))) { toast('구경하는 중에는 꾸밀 수 없어요'); return false; } // 촛불 불기, 케이크 먹기, 방명록 남기기, 이 방 최고 기록은 구경하는 사람도 된다
   const wasLit = op && typeof op.t === 'string' && op.t.startsWith('cake') && S.cakes.get(op.id) ? S.cakes.get(op.id).lit : 0;
   // 내가 들고 있는 가구를 친구가 옮기거나 치웠으면 손에서 내려놓는다
   const taken = from === 'peer' && ghost && ghost.id && op && ghost.id === op.id && (op.t === 'del' || op.t === 'move');
@@ -180,6 +181,7 @@ function dispatch(op, from = 'me') {
   if (op.t === 'move' || op.t === 'del') restCheck(op.id); // 누워 있던 침대가 옮겨지거나 치워졌으면 일어난다
   dirty = true;
   if (from === 'load') return true;
+  if (op.t === 'note' || op.t === 'noteDel' || op.t === 'best') book.onOp(op, from); // 방명록과 이 방 최고 기록
   if (mode === 'play' && play.id === op.id && (op.t === 'del' || op.t === 'move')) setMode(null); // 놀던 가구를 친구가 옮기거나 치움
   // 꾸미던 케이크를 누가 들고 갔거나, 케이크가 놓인 탁자를 옮기거나 치움
   if (mode === 'play' && play.kind === 'cake' && (((op.t === 'cakeTake' || op.t === 'cakeDrop' || eaten) && play.id === op.id) || ((op.t === 'del' || op.t === 'move') && play.spot === op.id))) setMode(null);
@@ -581,7 +583,7 @@ function roomHash() {
   const d = serialize(S), byId = (a, b) => (a[0] < b[0] ? -1 : 1);
   // 케이크 장식은 올린 순서가 사람마다 다를 수 있어 자리 순으로 맞춰서 견준다
   const cakes = d.cakes.map((r) => [r[0], r[1], r[2], r[3].map((t) => t.join(',')).sort(), r[4] || '', r[5] || '', ...r.slice(6)]).sort(byId);
-  const txt = JSON.stringify([d.items.sort(byId), d.orns.sort(byId), d.lights, d.wall, d.floor, cakes]);
+  const txt = JSON.stringify([d.items.sort(byId), d.orns.sort(byId), d.lights, d.wall, d.floor, cakes, d.notes.sort(byId), Object.keys(d.best).sort().map((k) => [k, ...d.best[k]])]);
   let h = 5381;
   for (let k = 0; k < txt.length; k++) h = ((h << 5) + h + txt.charCodeAt(k)) | 0;
   return (h >>> 0).toString(36) + '.' + d.items.length + '.' + d.orns.length;
@@ -949,6 +951,12 @@ const play = makePlay({
   fx: (m) => duo.fx(m),
   resized: () => { if (mode === 'play') measure(false); },
   close: () => setMode(null),
+  bestLine: (k) => book.bestLine(k), record: (k, v) => book.record(k, v), // 이 방 최고 기록 (book.js)
+});
+// 방명록과 이 방 최고 기록 (방명록 가구는 play 의 놀이 하나로 더해진다)
+const book = makeBook({
+  key, store, toast: (m) => toast(m), op: (o) => dispatch(o), canEdit: () => canEdit, newId,
+  defName: () => nameOf(duo.me), notes: () => notesList(S), best: () => S.best, play, close: () => setMode(null),
 });
 // 놀 수 있는 가구를 누르면: 그 앞으로 걸어가서 놀이를 연다
 // 가구 앞으로 걸어가서 then 을 한다 (이미 앞에 있거나 갈 수 없으면 바로)
@@ -1099,7 +1107,7 @@ function restCheck(id) {
 $('lieUp').addEventListener('click', getUp);
 
 /* ───────── 그 앞에서 스페이스바: 가까이 있는 것으로 할 수 있는 일 ───────── */
-const PLAY_LABEL = { dart: '🎯 다트 하기', tv: '📺 TV 보기', fire: '🔥 마시멜로 굽기', music: '🎶 오르골 틀기', bake: '🍳 케이크 굽기' };
+const PLAY_LABEL = { dart: '🎯 다트 하기', tv: '📺 TV 보기', fire: '🔥 마시멜로 굽기', music: '🎶 오르골 틀기', bake: '🍳 케이크 굽기', guest: '📖 방명록 쓰기' };
 // 냉장고: 간식을 꺼내 먹는다
 const SNACKS = ['🍪 쿠키를 꺼내 먹었어요', '🥛 우유를 한 잔 마셨어요', '🍊 귤을 까먹었어요', '🍫 초콜릿을 꺼내 먹었어요'];
 function snack(id) {
