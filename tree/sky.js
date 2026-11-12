@@ -146,26 +146,71 @@ function paneMaterial(u) {
       }`,
   });
 }
-// 1인칭의 하늘 돔: 지평선 아래는 먼 눈밭, 위는 그라데이션과 별·달·해
+// 1인칭의 하늘 돔: 지평선은 밝고 위로 갈수록 짙은 하늘, 노을 띠, 해와 흘러가는 구름, 크기·밝기가 다른 별과 별똥별, 무늬와 달무리가 있는 달, 먼 눈 언덕과 마을 불빛
 function domeMaterial(u) {
   return new THREE.ShaderMaterial({
     uniforms: u, side: THREE.BackSide, depthWrite: false, fog: false,
     vertexShader: 'varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
     fragmentShader: `
-      uniform vec3 uTop, uHor, uGround; uniform float uStars, uMoon, uSun, uTime;
+      uniform vec3 uTop, uHor, uGround, uCloudC; uniform float uStars, uMoon, uSun, uTime, uDusk, uNight, uCover;
+      uniform vec4 uFw[4]; uniform vec3 uFwC[4];
       varying vec3 vDir;
       ${HASH}
+      float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+        return mix(mix(hash(i), hash(i + vec2(1., 0.)), f.x), mix(hash(i + vec2(0., 1.)), hash(i + vec2(1., 1.)), f.x), f.y); }
+      float fbm(vec2 p){ float a = .5, s = 0.; for (int i = 0; i < 4; i++) { s += a * vn(p); p = p * 2.03 + vec2(17., 9.); a *= .5; } return s; }
+      // 칸마다 별 하나: 밝을수록 크고, 저마다 다른 빠르기로 깜빡인다
+      float star(vec2 g, float thr, float sz){ vec2 id = floor(g); float h = hash(id); if (h < thr) return 0.;
+        float b = (h - thr) / (1. - thr), k = length(fract(g) - .5 - (vec2(hash(id + 3.), hash(id + 7.)) - .5) * .6);
+        return smoothstep(sz * (.45 + .75 * b), 0., k) * (.3 + .7 * b) * (.62 + .38 * sin(uTime * (.8 + 3. * hash(id + 11.)) + h * 50.)); }
       void main(){
-        vec3 d = normalize(vDir);
-        vec3 c = mix(uHor, uTop, smoothstep(0., .55, d.y));
-        if (uStars > 0. && d.y > .04) { vec2 g = vec2(atan(d.z, d.x) * 48., asin(d.y) * 48.); vec2 id = floor(g); float h = hash(id);
-          if (h > .93) { float k = length(fract(g) - .5 - (vec2(hash(id + 3.), hash(id + 7.)) - .5) * .5);
-            c += vec3(1.) * uStars * smoothstep(.1, 0., k) * (.55 + .45 * sin(uTime * 1.7 + h * 50.)) * smoothstep(.04, .2, d.y); } }
-        vec3 md = normalize(vec3(.35, .6, .72)); float m = dot(d, md);
-        if (uMoon > 0.) { c = mix(c, vec3(1., .96, .8), uMoon * smoothstep(.9988, .9992, m)); c += vec3(.4, .38, .3) * uMoon * pow(max(m, 0.), 90.) * .5; }
-        vec3 sd = normalize(vec3(-.2, .42, .88)); float s = dot(d, sd);
-        if (uSun > 0.) { c = mix(c, vec3(1., .98, .9), uSun * smoothstep(.9985, .999, s)); c += vec3(1., .85, .6) * uSun * pow(max(s, 0.), 40.) * .35; }
-        c = mix(c, uGround, smoothstep(.0, -.03, d.y));
+        vec3 d = normalize(vDir); float y = d.y, az = atan(d.z, d.x);
+        vec3 sd = normalize(vec3(-.2, .42, .88)), md = normalize(vec3(.35, .6, .72));
+        vec3 c = mix(uHor, uTop, pow(smoothstep(0., .8, y), .6));
+        // 노을: 지평선의 주황 띠(해 쪽이 더 짙다)와 그 위의 분홍
+        float toSun = .5 + .5 * dot(normalize(d.xz + 1e-5), normalize(sd.xz));
+        c += vec3(1., .42, .16) * uDusk * exp(-max(y, 0.) * 7.) * (.25 + .75 * toSun * toSun) * .5;
+        c += vec3(.85, .3, .45) * uDusk * exp(-abs(y - .2) * 8.) * .16;
+        vec2 g = d.xz / (1. + max(y, 0.)); // 하늘을 고르게 펴는 자리
+        if (uStars > 0. && y > .02) {
+          float lo = smoothstep(.02, .2, y);
+          float s1 = star(g * 70., .88, .11), s2 = star(g * 30. + 5., .9, .1) * 1.9, s3 = star(g * 12. + 9., .93, .055) * 3.2; // 잔별, 보통 별, 몇 개뿐인 큰 별
+          vec3 tint = mix(vec3(.78, .86, 1.), vec3(1., .88, .72), hash(floor(g * 30. + 5.)));
+          c += (vec3(.9, .94, 1.) * s1 + tint * s2 + vec3(1., .97, .9) * s3) * uStars * lo;
+          c += vec3(.42, .48, .78) * uStars * lo * .1 * fbm(g * 7.) * smoothstep(.5, 0., abs(dot(d, normalize(vec3(.62, .3, -.72))))); // 은하수
+          // 별똥별: 11초에 한 번, 1초 동안
+          float n = floor(uTime / 11.), ph = fract(uTime / 11.) * 11.;
+          if (ph < 1.) { vec2 a0 = vec2(hash(vec2(n, 1.)) - .5, hash(vec2(n, 2.)) - .5) * .9, dir = normalize(vec2(hash(vec2(n, 3.)) - .5, -.35 - hash(vec2(n, 4.)) * .3));
+            vec2 q = g - (a0 + dir * ph * .28); float al = dot(q, -dir), pe = length(q + dir * al);
+            c += vec3(1., .97, .9) * uStars * lo * smoothstep(.004, 0., pe) * smoothstep(.16, 0., al) * step(0., al) * sin(ph * 3.1416); }
+        }
+        // 달: 얼룩무늬, 가장자리는 조금 어둡게, 둘레에 달무리
+        float m = dot(d, md);
+        if (uMoon > 0. && m > 0.) { vec3 mx = normalize(cross(md, vec3(0., 1., 0.))), my = cross(mx, md); vec2 q = vec2(dot(d, mx), dot(d, my)) / .058; float r = length(q);
+          float disc = smoothstep(1., .93, r);
+          float tex = .86 + .16 * fbm(q * 2.6 + 3.) - .2 * smoothstep(.42, .16, length(q - vec2(-.3, .28))) - .15 * smoothstep(.3, .1, length(q - vec2(.36, -.22))) - .12 * smoothstep(.2, .06, length(q - vec2(.12, .52))) - .1 * smoothstep(.16, .05, length(q - vec2(-.45, -.35)));
+          float o = max(r - 1., 0.);
+          c += vec3(.5, .58, .85) * uMoon * (exp(-o * 1.6) * .3 + exp(-o * .32) * .09 + smoothstep(.5, 0., abs(o - 3.2)) * .035) * (1. - disc);
+          c = mix(c, vec3(1., .96, .84) * tex * mix(1., .78, r * r), uMoon * disc); }
+        // 해: 눈부신 원과 넓게 번지는 빛
+        float sn = dot(d, sd);
+        if (uSun > 0. && sn > 0.) { c += vec3(1., .86, .6) * uSun * (pow(sn, 320.) * .9 + pow(sn, 24.) * .32 + pow(sn, 4.) * .1); c = mix(c, vec3(1., .99, .93), uSun * smoothstep(.9988, .9994, sn)); }
+        // 구름: 머리 위 평평한 층이 천천히 흘러간다. 해 쪽 가장자리는 밝게
+        if (y > .015) { vec2 cp = d.xz / (y + .16) * .95 + vec2(uTime * .011, uTime * .004); float n = fbm(cp), cov = smoothstep(uCover, uCover + .2, n);
+          float lit = smoothstep(uCover + .32, uCover, n) * .5 + .5;
+          vec3 cc = uCloudC * mix(.72, 1.06, lit) + vec3(1., .5, .25) * uDusk * .3 * toSun + vec3(1., .9, .7) * uSun * pow(max(sn, 0.), 10.) * .3;
+          c = mix(c, cc, cov * .9 * smoothstep(.015, .2, y)); }
+        // 불꽃이 터질 때 하늘이 그 색으로 살짝 밝아진다
+        for (int i = 0; i < 4; i++) { float a = uFw[i].z; if (a > 0. && a < 1.) c += uFwC[i] * pow(1. - a, 3.) * .05 * smoothstep(-.1, .5, y); }
+        // 먼 눈 언덕 두 겹과 마을 불빛
+        float h1 = .05 + .022 * sin(az * 3. + 1.) + .013 * sin(az * 7. + .5) + .006 * sin(az * 17.);
+        float h2 = .018 + .013 * sin(az * 5. + 2.) + .007 * sin(az * 11. + 1.);
+        c = mix(c, mix(uGround, uHor, .55), smoothstep(h1 + .004, h1 - .004, y));
+        c = mix(c, mix(uGround, uHor, .15), smoothstep(h2 + .003, h2 - .003, y));
+        if (uNight > 0. && y < h1 && y > -.01) { float cell = az * 46.; float id = floor(cell), hh = hash(vec2(id, 3.));
+          if (hh > .62) { vec2 q = vec2((fract(cell) - .5) / 46. - (hash(vec2(id, 9.)) - .5) * .012, y - h2 * (.25 + .6 * hash(vec2(id, 5.))));
+            c += vec3(1., .74, .36) * uNight * (smoothstep(.0045, 0., length(q)) + smoothstep(.02, 0., length(q)) * .18) * (.75 + .25 * sin(uTime * 1.3 + hh * 40.)); } }
+        c = mix(c, uGround, smoothstep(.0, -.02, y));
         gl_FragColor = vec4(c, 1.);
         ${COLOR_OUT}
       }`,
@@ -200,18 +245,19 @@ function fireMaterial(u) {
       attribute vec3 aVel, aColor; attribute vec4 aInfo; attribute float aSize; uniform float uTime, uPx, uPersp; varying vec3 vC; varying float vA;
       ${POINT_SIZE}
       void main(){
-        float t = uTime - aInfo.x, a = 0.; vec3 p = position;
+        float t = uTime - aInfo.x, a = 0., hot = 0.; vec3 p = position;
         if (t >= 0. && t <= aInfo.y) {
-          float k = aInfo.z;
+          float k = aInfo.z, q = t / aInfo.y;
           p += k > 0. ? aVel * (1. - exp(-k * t)) / k : aVel * t;
           p.y -= .5 * aInfo.w * t * t;
-          a = pow(1. - t / aInfo.y, 1.3);
-          if (k > 0. && t > aInfo.y * .55) a *= .6 + .4 * sin(t * 38. + aVel.x * 13.);
+          a = pow(1. - q, 1.3);
+          if (k > 0. && q > .5) a *= .5 + .5 * sin(t * 40. + aVel.x * 13. + aVel.z * 7.); // 잔불이 깜빡이며 사라진다
+          hot = k > 0. ? 1. - smoothstep(0., .16, q) : 0.; // 터지는 순간은 하얗게 달아오른다
         }
-        vC = aColor; vA = a;
+        vC = mix(aColor, vec3(1.), hot * .8); vA = a;
         vec4 mv = modelViewMatrix * vec4(p, 1.);
         gl_Position = projectionMatrix * mv;
-        gl_PointSize = a > 0. ? max(1.5, ps(aSize, mv)) : 0.;
+        gl_PointSize = a > 0. ? clamp(uPersp > .5 ? aSize * uPx / -mv.z : aSize * uPx, 1.5, 200.) : 0.;
       }`,
     fragmentShader: `
       varying vec3 vC; varying float vA;
@@ -229,6 +275,7 @@ export function makeSky(K) {
   const U = {
     uTop: { value: new THREE.Color() }, uHor: { value: new THREE.Color() }, uGround: { value: new THREE.Color() },
     uStars: { value: 0 }, uMoon: { value: 0 }, uSun: { value: 0 }, uSnow: { value: 0 }, uTime: { value: 0 },
+    uDusk: { value: 0 }, uNight: { value: 0 }, uCover: { value: 0.56 }, uCloudC: { value: new THREE.Color(0xFFFFFF) },
     uFw: { value: [0, 1, 2, 3].map(() => new THREE.Vector4()) }, uFwC: { value: [0, 1, 2, 3].map(() => new THREE.Color()) },
   };
   const pane = paneMaterial(U);
@@ -315,7 +362,7 @@ export function makeSky(K) {
     g.fillStyle = gr; g.fillRect(0, 0, 128, 256);
     if (stars > 0.02) {
       let s = 11; const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
-      for (let k = 0; k < 70; k++) { const x = r() * 128, y = r() * 170; g.fillStyle = `rgba(255,250,235,${(0.35 + r() * 0.6) * stars})`; g.fillRect(x, y, 1, 0.6); }
+      for (let k = 0; k < 90; k++) { const x = r() * 128, y = r() * 170, b = r(), w = b > 0.9 ? 1.5 : 1; g.fillStyle = `rgba(${b > 0.5 ? '255,244,225' : '220,232,255'},${(0.3 + b * 0.65) * stars})`; g.fillRect(x, y, w, w * 0.6); }
     }
     bgTex.needsUpdate = true;
   }
@@ -338,7 +385,7 @@ export function makeSky(K) {
   })();
 
   /* ───────── 불꽃 ───────── */
-  const PER = 45, SLOTS = 8, TN = 420, TBASE = PER * SLOTS, FN = TBASE + TN; // 뒤의 TN 개는 글자 불꽃
+  const PER = 130, SLOTS = 8, TRAIL = 7, STARS = 60, TN = 420, TBASE = PER * SLOTS, FN = TBASE + TN; // 뒤의 TN 개는 글자 불꽃
   const FU = { uTime: U.uTime, uPx: { value: 100 }, uPersp: { value: 0 } };
   const fg = new THREE.BufferGeometry();
   const fPos = new Float32Array(FN * 3), fVel = new Float32Array(FN * 3), fCol = new Float32Array(FN * 3), fInfo = new Float32Array(FN * 4).fill(-99), fSize = new Float32Array(FN);
@@ -348,7 +395,7 @@ export function makeSky(K) {
   scene.add(fire);
   let slot = 0;
   const flashes = []; // 방을 물들이는 빛 { t, c } 과 창 그림의 불꽃
-  const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
+  const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0), tmpC = new THREE.Color();
 
   // 불꽃 하나: 로켓이 올라가 터진다. 자리는 지금 쓰는 카메라에 맞춘다
   function burst(big = false) {
@@ -368,25 +415,37 @@ export function makeSky(K) {
       R = (cam.top - cam.bottom) / cam.zoom * rnd(0.17, 0.24);
     }
     if (big) R *= 1.3;
-    const col = FIRE[Math.floor(Math.random() * FIRE.length)], col2 = Math.random() < 0.35 ? FIRE[Math.floor(Math.random() * FIRE.length)] : col;
-    const ring = Math.random() < 0.3, rise = 0.6, base = slot * PER;
+    const pick = () => FIRE[Math.floor(Math.random() * FIRE.length)];
+    const rr = Math.random(), kind = rr < 0.3 ? 'mum' : rr < 0.46 ? 'willow' : rr < 0.6 ? 'ring' : rr < 0.74 ? 'heart' : rr < 0.86 ? 'star' : 'double';
+    const col = kind === 'willow' ? FIRE[Math.random() < 0.6 ? 1 : 7] : pick(), col2 = kind === 'willow' ? FIRE[1] : Math.random() < 0.6 ? pick() : col, col3 = Math.random() < 0.3 ? FIRE[6] : col;
+    const rise = 0.7, base = slot * PER;
     slot = (slot + 1) % SLOTS;
-    // 터지는 방향: 고리 모양이면 카메라를 마주보는 면 위에서
+    // 모양 불꽃이 놓이는 면: 1인칭은 똑바로 세워서 나를 보게, 내려다볼 때는 화면과 나란히
     cam.updateMatrixWorld(); cam.matrixWorld.extractBasis(vB, vC, vA);
-    for (let k = 0; k < PER; k++) {
-      const n = base + k, cc = k === 0 ? FIRE[6] : k % 2 ? col : col2;
-      if (k === 0) { // 로켓
-        fPos.set([c.x, c.y - R * 1.8, c.z], n * 3); fVel.set([0, R * 1.8 / rise, 0], n * 3);
-        fInfo.set([t, rise, 0, 0], n * 4); fSize[n] = R * 0.05;
+    if (cam.isPerspectiveCamera) { vA.copy(c).sub(cam.position); vA.y = 0; if (vA.lengthSq() < 1e-6) vA.set(0, 0, 1); vB.crossVectors(vA.normalize(), UP).normalize(); vC.copy(UP); }
+    const put = (n, x, y, z, vx, vy, vz, at, life, drag, grav, size, cc) => { fPos.set([x, y, z], n * 3); fVel.set([vx, vy, vz], n * 3); fInfo.set([at, life, drag, grav], n * 4); fSize[n] = size; fCol.set([cc.r, cc.g, cc.b], n * 3); };
+    // 번쩍임
+    put(base, c.x, c.y, c.z, 0, 0, 0, t + rise, 0.32, 0, 0, R * (cam.isPerspectiveCamera ? 2.4 : 1.5), tmpC.copy(col).lerp(FIRE[6], 0.6));
+    // 쏘아 올리는 불씨와 꼬리 (같은 길을 조금씩 늦게 따라가는 점들)
+    const sway = rnd(-0.25, 0.25) * R, up = R * 2.4;
+    for (let j = 0; j <= TRAIL; j++) { const dl = j * 0.045; put(base + 1 + j, c.x - sway, c.y - up, c.z, sway / rise, up / rise, 0, t + dl, rise - dl, 0, 0, R * (j ? 0.05 * (1 - j / (TRAIL + 2)) : 0.075), j ? FIRE[7] : FIRE[6]); }
+    // 터지는 별: 머리와 그 뒤를 따르는 꼬리 하나씩
+    const drag = kind === 'willow' ? 1.5 : 2.2, grav = R * (kind === 'willow' ? 0.8 : kind === 'mum' || kind === 'double' ? 0.34 : 0.12), lag = kind === 'willow' ? 0.13 : 0.07;
+    for (let i = 0; i < STARS; i++) {
+      let dx, dy, dz, sp = 1, cc = i % 3 === 0 ? col2 : i % 7 === 0 ? col3 : col;
+      if (kind === 'mum' || kind === 'willow' || kind === 'double') {
+        const z = rnd(-1, 1), a = rnd(0, Math.PI * 2), q = Math.sqrt(1 - z * z); dx = q * Math.cos(a); dy = z; dz = q * Math.sin(a);
+        sp = kind === 'willow' ? rnd(0.55, 0.9) : rnd(0.78, 1);
+        if (kind === 'double' && i < 22) { sp *= 0.48; cc = col2; } else if (kind === 'double') cc = col;
       } else {
-        let d;
-        if (ring) { const a = (k / (PER - 1)) * Math.PI * 2; d = vA.copy(vB).multiplyScalar(Math.cos(a)).addScaledVector(vC, Math.sin(a)); }
-        else { const z = rnd(-1, 1), a = rnd(0, Math.PI * 2), s = Math.sqrt(1 - z * z); d = vA.set(s * Math.cos(a), z, s * Math.sin(a)); }
-        const sp = R * 2.2 * (ring ? 1 : rnd(0.75, 1));
-        fPos.set([c.x, c.y, c.z], n * 3); fVel.set([d.x * sp, d.y * sp, d.z * sp], n * 3);
-        fInfo.set([t + rise, rnd(1.5, 2.1), 2.2, R * 0.35], n * 4); fSize[n] = R * rnd(0.065, 0.09);
+        let x, y;
+        if (kind === 'ring') { const a = (i / STARS) * Math.PI * 2; x = Math.cos(a); y = Math.sin(a); }
+        else if (kind === 'heart') { const a = (i / STARS) * Math.PI * 2, q = Math.sin(a); x = 16 * q * q * q / 17; y = (13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a)) / 17 + 0.12; }
+        else { const u = (i / STARS) * 10, v = Math.floor(u), f = u - v, P = (n) => { const a = Math.PI / 2 + n * Math.PI / 5, r = n % 2 ? 0.42 : 1; return [Math.cos(a) * r, Math.sin(a) * r]; }, A = P(v), B = P(v + 1); x = A[0] + (B[0] - A[0]) * f; y = A[1] + (B[1] - A[1]) * f; }
+        dx = vB.x * x + vC.x * y; dy = vB.y * x + vC.y * y; dz = vB.z * x + vC.z * y;
       }
-      fCol.set([cc.r, cc.g, cc.b], n * 3);
+      const v = R * drag * sp, life = kind === 'willow' ? rnd(2.6, 3.2) : rnd(1.7, 2.3), size = R * rnd(0.07, 0.095);
+      for (let e = 0; e < 2; e++) put(base + 2 + TRAIL + i * 2 + e, c.x, c.y, c.z, dx * v, dy * v, dz * v, t + rise + e * lag, life - e * lag * 1.5, drag, grav, size * (e ? 0.62 : 1), cc);
     }
     for (const k in attr) attr[k].needsUpdate = true;
     fire.visible = true;
@@ -641,6 +700,9 @@ export function makeSky(K) {
       U.uStars.value = (1 - day) * (1 - dusk * 0.7) * clamp(clear, 0, 1);
       U.uMoon.value = smooth((0.5 - day) * 2) * clamp(1 - gray, 0.3, 1);
       U.uSun.value = day * (1 - dusk) * clamp(1 - gray * 2, 0, 1);
+      U.uDusk.value = dusk; U.uNight.value = smooth((0.6 - day) * 2.5);
+      U.uCover.value = weather === 2 ? 0.3 : weather === 1 ? 0.42 : 0.5; // 구름이 덮는 정도
+      U.uCloudC.value.set(0x2B3252).lerp(tmp.set(0xFFFFFF), day).lerp(tmp.set(0xE9A27C), dusk * 0.45).lerp(tmp.set(0xAEB6C2).multiplyScalar(mix(0.3, 1, day)), gray);
       paintBg(top, hor, U.uStars.value);
       // 마당: 밤에는 어둡게, 창 빛·가로등은 밝게
       const yk = mix(mix(0.42, 1, day), 0.78, dusk * (1 - day) * 0.6);
@@ -718,7 +780,7 @@ export function makeSky(K) {
     if (show) {
       if (t >= show.until) { show = null; }
       else if (c >= show.next) {
-        const fin = show.mid && show.until - t < 6000; // 마지막 6초는 한꺼번에
+        const fin = show.until - t < (show.mid ? 6000 : 3500); // 마지막은 연달아 (자정은 6초, 그 밖에는 3.5초)
         burst(fin || Math.random() < 0.15);
         if (fin || Math.random() < 0.3) burst(false);
         show.next = c + (fin ? rnd(0.25, 0.45) : show.words ? rnd(0.9, 1.5) : rnd(0.55, 1.1)); // 글자가 있으면 글자가 보이게 조금 드물게
