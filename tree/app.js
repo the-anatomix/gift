@@ -1492,7 +1492,7 @@ function frame(now) {
   const moved = byKey ? (me.animate(dt, true), true) : me.step(dt);
   if (moved || me.blend > 0.01 || me.doing) dirty = true;
   for (const a of others.values()) if (a.step(dt) || a.blend > 0.01 || a.doing) dirty = true;
-  { const lv = floorOf(me); if (lv !== myLv) { myLv = lv; if (ghost) ghostCancel(); measure(false); paintLevels(); } } // 사다리를 반쯤 올랐을 때 위층으로 바뀐다
+  { const lv = floorOf(me); if (lv !== myLv) { myLv = lv; if (ghost) ghostCancel(); measure(false); paintLevels(); toast(`${lv + 1}층이에요`); } } // 사다리를 반쯤 올랐을 때 위층으로 바뀐다
   for (const a of others.values()) { const v = floorOf(a) === myLv; if (a.root.visible !== v) { a.root.visible = v; dirty = true; } } // 같은 층에 있는 사람만 보인다
   if (clock - actAt > 0.15) { actAt = clock; paintAct(); }
   // 내 자리를 친구에게 알린다 (1초에 열 번까지, 움직였을 때만)
@@ -1561,7 +1561,7 @@ window.__duo = {
   get knocks() { return duo.knocks; }, get people() { return duo.people; }, get why() { return duo.why; }, get rang() { return duo.rang; },
   admit: (id) => duo.admit(id), deny: (id) => duo.deny(id), kick: (id) => duo.kick(id),
   get canEdit() { return canEdit; }, get count() { return duo.count; }, get me() { return duo.me; }, get editors() { return duo.editors; }, get slot() { return mySlot; },
-  get others() { return [...others].map(([id, a]) => ({ id, x: a.x, z: a.z, look: a.look, moving: a.moving, acting: a.acting, hold: a.hold })); },
+  get others() { return [...others].map(([id, a]) => ({ id, x: a.x, z: a.z, look: a.look, moving: a.moving, acting: a.acting, hold: a.hold, lying: a.rest ? { id: a.rest.id, side: a.rest.side } : null, level: floorOf(a), shown: a.root.visible, climbing: a.climbing })); },
   say, cleanSay, get bubbles() { return [...bubbles].filter(([, b]) => b.el.style.display !== 'none').map(([who, b]) => { const r = b.el.getBoundingClientRect(); return { who, text: b.el.textContent, x: r.left + r.width / 2, y: r.bottom }; }); },
   get chatLog() { return [...document.querySelectorAll('#chatLog .ln')].map((l) => l.textContent); },
   get other() { const a = others.values().next().value; return a ? { x: a.x, z: a.z, look: a.look, moving: a.moving } : null; },

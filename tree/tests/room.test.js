@@ -176,7 +176,11 @@ async function walkAndTrace(p, act) {
     const B = await open(ctx2, BASE);
     await sleep(300);
     await B.click('#lookDone'); await sleep(600);
-    check('PC 에서는 처음부터 방 전체가 화면 안', (await B.evaluate(() => window.__tree.view.whole)) && await B.evaluate(() => { const T = window.__tree, H = T.HALF; for (const x of [T.box.x0, T.box.x1]) for (const z of [T.box.z0, T.box.z1]) for (const y of [0, 2.7]) { const s = T.screenOf(x, z, y); if (s.x < 0 || s.x > innerWidth || s.y < 0 || s.y > innerHeight) return false; } return true; }));
+    // 마당이 생겨 세상이 넓어져서, PC 에서도 처음에는 아바타를 따라가며 보여 준다
+    const pcMe = await B.evaluate(() => { const T = window.__tree, a = T.screenOf(T.me.x, T.me.z, 0); return { whole: T.view.whole, x: a.x, y: a.y, pxu: T.view.pxu }; });
+    check('PC 처음 배율: 아바타를 따라가며 화면 가운데쯤에 크게 보임', !pcMe.whole && pcMe.x > 200 && pcMe.x < 1080 && pcMe.y > 150 && pcMe.y < 700, pcMe);
+    await B.evaluate(() => { window.__tree.setZoomMul(0.01); window.__tree.snapView(); }); await sleep(300);
+    check('PC 에서 끝까지 작게 보면 집(1층) 전체가 화면 안', (await B.evaluate(() => window.__tree.view.whole)) && await B.evaluate(() => { const T = window.__tree, H = T.HALF; for (const x of [T.box.x0, T.box.x1]) for (const z of [T.box.z0, T.box.z1]) for (const y of [0, 2.7]) { const s = T.screenOf(x, z, y); if (s.x < 0 || s.x > innerWidth || s.y < 0 || s.y > innerHeight) return false; } return true; }));
     const b0 = await pos(B);
     const sy0 = (await B.evaluate(() => window.__tree.screenOf(window.__tree.me.x, window.__tree.me.z))).y;
     await B.keyboard.down('ArrowUp'); await sleep(500); await B.keyboard.up('ArrowUp'); await sleep(200);
@@ -207,7 +211,7 @@ async function walkAndTrace(p, act) {
     const doors = () => D.evaluate(() => window.__tree.room.doors.map((d) => d.open));
     const still = () => until(() => D.evaluate(() => !window.__tree.me.moving && !window.__tree.me.path.length), 15000);
     await D.evaluate(() => { window.__tree.me.stop(); window.__tree.me.place(0, 3); }); await sleep(500);
-    check('방으로 들어가는 문이 두 개(거실 쪽, 주방 쪽) 있고, 멀리 있을 때는 닫혀 있음', JSON.stringify(await doors()) === '[0,0]', await doors());
+    check('문이 세 개(방의 거실 쪽·주방 쪽, 현관) 있고, 멀리 있을 때는 닫혀 있음', JSON.stringify(await doors()) === '[0,0,0]', await doors());
     let seen = 0;
     await D.evaluate(() => window.__tree.goTo(8, 3));
     for (let k = 0; k < 120 && (await D.evaluate(() => window.__tree.me.x)) < 7.9; k++) { seen = Math.max(seen, (await doors())[0]); await sleep(50); }
@@ -216,7 +220,7 @@ async function walkAndTrace(p, act) {
     check('거실에서 방으로 걸어가면 문이 열려서 지나갈 수 있음', seen > 0.9 && Math.hypot(inBed[0] - 8, inBed[1] - 3) < 0.3, { seen, inBed });
     check('방 안으로 들어가 문에서 멀어지면 다시 닫힘', await until(async () => (await doors())[0] === 0, 4000), await doors());
     await D.evaluate(() => { window.__tree.me.stop(); window.__tree.me.place(8.75, 0.2); });
-    check('주방 쪽 문도 다가가면 열림 (거실 쪽 문은 그대로 닫혀 있음)', await until(async () => (await doors())[1] === 1, 4000) && (await doors())[0] === 0, await doors());
+    check('주방 쪽 문도 다가가면 열림 (거실 쪽 문과 현관문은 그대로 닫혀 있음)', await until(async () => (await doors())[1] === 1, 4000) && (await doors())[0] === 0 && (await doors())[2] === 0, await doors());
     await D.evaluate(() => { window.__tree.me.stop(); window.__tree.me.place(8.75, -2.5); });
     check('멀어지면 닫힘', await until(async () => (await doors())[1] === 0, 4000));
     check('내려다볼 때는 문짝 윗부분이 숨고(낮은 벽처럼), 1인칭에서는 다 보임', await D.evaluate(() => { const W = window.__tree, up = () => W.room.doors[0].leaf.children.filter((m) => m.visible).length; const a = up(); W.setPov(true); const b = up(); W.setPov(false); return a < b && up() === a; }));
