@@ -19,6 +19,7 @@ import { makeParty } from './party.js';
 import { makeSnow } from './snow.js';
 import { makeCoop } from './coop.js';
 import { makeGames } from './games.js';
+import { makeSky } from './sky.js';
 import { makeCakeView, dressCake, flicker, pickTop, disposeCakeView } from './cake.js';
 
 const $ = (id) => document.getElementById(id);
@@ -699,6 +700,7 @@ const duo = makeDuo({
       a.lie(r); dirty = true;
       return true;
     }
+    if (m.k === 'show' && m.v === 'fire') return sky.peerFx(m, id); // 크리스마스 불꽃놀이 (sky.js)
     if (m.k === 'show') return party.peerFx(m, id); // 점등식·단체 사진
     if (m.k === 'snow' || m.k === 'hit') return snow.peerFx(m, id); // 마당 눈싸움
     if (m.k === 'prop' || m.k === 'climb' || m.k === 'heavy' || m.k === 'help') return coop.peerFx(m, id); // 협동 놀이
@@ -1011,6 +1013,14 @@ const games = makeGames({
   items: () => S.items, orns: () => S.orns, orn: (id) => ornObj.get(id), screenOf, eye: () => usingEye(),
   caster(px, py) { aimRay(px, py); return ray; },
   fx: (m) => duo.fx(m), toast: (m) => toast(m), dirty: () => { dirty = true; },
+});
+// 창밖 낮과 밤, 눈 날씨, 크리스마스 자정 카운트다운과 불꽃놀이 (sky.js). 조명 바탕값 BRIGHT 를 하늘이 정하고, 점등식은 그 위에 곱한다
+const sky = makeSky({
+  scene, hemi, sun, glow, room, bright: BRIGHT, front: FRONT,
+  cam: () => cam(), eye: () => usingEye(), level: () => myLv, height: () => canvas.height,
+  busy: () => party.on === 'light', canEdit: () => canEdit, isHost: () => duo.role === 'host' || (!duo.role && (!cur || cur.mine)), fx: (m) => duo.fx(m), toast: (m) => toast(m),
+  mayLead: (id) => duo.role !== 'host' || duo.people.some((p) => p.id === id && p.edit), // isHost: 방장(혼자 노는 내 방 포함)은 아무 날에나 불꽃놀이
+  resized: () => { if (mode === 'tree') measure(false); },
 });
 // 놀 수 있는 가구를 누르면: 그 앞으로 걸어가서 놀이를 연다
 // 가구 앞으로 걸어가서 then 을 한다 (이미 앞에 있거나 갈 수 없으면 바로)
@@ -1586,6 +1596,7 @@ function frame(now) {
   snow.tick(dt);
   coop.tick(dt);
   games.tick();
+  sky.tick(dt);
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
   renderer.render(scene, cam());
@@ -1644,6 +1655,7 @@ window.__play = Object.assign(play.test, {
   close: () => setMode(null), peerFx: (m) => play.peerFx(m),
 });
 Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose }, id: { get: () => play.id }, spot: { get: () => play.spot } });
+window.__sky = sky.test;
 window.__party = Object.assign(party.test, { bright: () => ({ hemi: hemi.intensity, sun: sun.intensity, glow: glow.intensity }) });
 window.__tree = {
   NX, NZ, GX, GZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, LEVELS, FLOOR_H, FLOOR_DX, LADDERS, FRONT, toWorld, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
