@@ -141,7 +141,7 @@ const act = (p) => until(async () => (await p.isVisible('#act')) && (await p.tex
     await A.screenshot({ path: path.join(__dirname, 'out', 'coop-tree-panel.png') });
     await A.tap('#starOff');
     check('별 떼기: 모두의 트리에서 별이 떨어지고 별 자리만 남음', await until(async () => (await C_(A)).star === null && (await C_(B)).star === null && (await C_(C)).star === null && (await C_(C)).slotShown, 3000));
-    check('뗀 뒤에는 "별 떼기" 단추가 숨고 다시 달 수 있다는 안내', !(await A.isVisible('#starOff')) && (await A.textContent('#starInfo')).includes('둘이 달아요'));
+    check('뗀 뒤에는 별 줄과 "별 떼기" 단추가 숨음 (트리 판이 예전 높이)', !(await A.isVisible('#starOff')) && !(await A.isVisible('#starRow')));
     await T(A, () => window.__tree.setMode(null)); await sleep(300);
 
     /* 구경하는 사람도 단다: B 가 받치고 C 가 올라감 */

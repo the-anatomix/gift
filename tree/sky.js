@@ -415,9 +415,10 @@ export function makeSky(K) {
 
   // 트리 판의 "🎆 불꽃놀이" (크리스마스 하루는 꾸밀 수 있는 사람, 방장은 아무 날에나)
   const fireBtn = document.createElement('button');
-  fireBtn.type = 'button'; fireBtn.id = 'fireShow'; fireBtn.className = 'btn main'; fireBtn.style.flex = '1'; fireBtn.textContent = '🎆 불꽃놀이';
-  const fireRow = document.createElement('div'); fireRow.className = 'row'; fireRow.id = 'fireRow'; fireRow.hidden = true; fireRow.append(fireBtn);
-  const treeP = $('treeP'); if (treeP) treeP.append(fireRow);
+  fireBtn.type = 'button'; fireBtn.id = 'fireShow'; fireBtn.className = 'btn main'; fireBtn.style.padding = '0 10px'; fireBtn.textContent = '🎆 불꽃놀이';
+  // 판이 길어지면 트리가 작아지므로 새 줄을 만들지 않고, 전구 줄(두 줄로 접히는 자리)의 빈자리에 붙인다
+  const fireRow = fireBtn; fireBtn.hidden = true;
+  queueMicrotask(() => { const box = $('lightList'); if (box) box.append(fireBtn); }); // 전구 색 단추들이 다 놓인 뒤 맨 끝에
 
   /* ───────── 불꽃놀이 장면 ───────── */
   // show = { until(실제 시각 ms), next(다음 불꽃, 초), mid(자정 장면인지) }

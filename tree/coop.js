@@ -153,7 +153,8 @@ export function makeCoop(K) {
   if ($('treeP')) $('treeP').appendChild(row);
   function paintRow() {
     const s = K.S.star;
-    const text = s ? `⭐ ${s.help}님이 받치고 ${s.name}님이 달았어요` : '⭐ 꼭대기 별은 둘이 달아요. 트리 옆에서 한 명이 받쳐 줘요';
+    row.hidden = !s; // 별이 없으면 줄을 숨겨 트리 판이 높아지지 않게 한다 (트리가 크게 보이게)
+    const text = s ? `⭐ ${s.help}님이 받치고 ${s.name}님이 달았어요` : '';
     if (info.textContent !== text) info.textContent = text;
     off.hidden = !s || !K.canEdit();
   }
