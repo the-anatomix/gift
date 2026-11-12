@@ -158,7 +158,7 @@ const peerLv = (p) => T(p, () => window.__duo.others.map((o) => o.level));
     await A.reload(); await ready(A);
     const rel = await T(A, () => { const W = window.__tree, it = (id) => W.S.items.get(id); return { ld: it('ld'), lt: it('lt'), ok: it('ok'), foot: W.grid.free(19, 8), door: W.grid.free(3, 18) && W.grid.free(4, 18) }; });
     check('사다리 앞 칸에 놓여 있던 가구는 방을 열 때 1층의 가까운 빈자리로 옮겨짐', rel.ld && !(rel.ld.i === 19 && rel.ld.j === 8) && rel.ld.i < 30 && Math.hypot(rel.ld.i - 19, rel.ld.j - 8) <= 3 && rel.foot, rel);
-    check('현관 문턱(남쪽 벽 줄)에 걸쳐 있던 탁자도 옮겨져서 현관을 지나다닐 수 있음', rel.lt && rel.lt.j + 2 <= 18 && rel.lt.i < 30 && rel.door, rel);
+    check('남쪽 벽 줄에 걸친 탁자(예전 집에서는 있을 수 없던 자리)는 버려지고 현관은 비어 있음', !rel.lt && rel.door, rel);
     check('다른 가구는 그대로', rel.ok && rel.ok.i === 1 && rel.ok.j === 6);
 
     // 마당·위층이 없던 때에 꾸민 방 (up 표시가 없다): 마당·위층 기본 가구가 한 번만 더해진다
