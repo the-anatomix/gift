@@ -681,6 +681,7 @@ const duo = makeDuo({
   },
   peerFx(m, id) {
     if (m && m.k === 'bell') { if (duo.role !== 'host') ding(false); return false; } // 초인종 소식은 방장만 전한다
+    if (m && m.k === 'show' && typeof m.v === 'string' && m.v.startsWith('fire:') && m.v.length <= 64) return sky.peerFx(m, id); // 글자·길이·예약이 붙은 불꽃놀이 (값이 길어서 아래의 20자 검사보다 먼저)
     if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false;
     if (m.k === 'act') { const a = others.get(id); return !!(a && a.act(m.v)); } // 그 사람이 한 행동
     if (m.k === 'lie') { // 그 사람이 침대에 누웠거나('침대:자리') 일어났다('')

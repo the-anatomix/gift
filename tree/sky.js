@@ -50,6 +50,27 @@ export function weatherAt(ts) {
   return 0;
 }
 // 크리스마스 자정: 그해 12월 25일 0시(현지)
+// 불꽃놀이를 누르는 사람이 정하는 것: 길이(초), 하늘에 쓸 글자(글자 수), 예약(몇 초 뒤까지)
+export const FIREWORK = { secs: [15, 30, 60], text: 10, word: 5, ahead: 24 * 3600 };
+export const cleanFireText = (s) => [...String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()].slice(0, FIREWORK.text).join('').trim();
+// 놀이 소식의 값: 'fire'(바로, 15초, 글자 없음) 또는 'fire:길이:시각(ms, 0 이면 바로):글자'. 길이 0 은 예약 취소
+export const fireMsg = (sec, at, text) => (sec === 15 && !at && !text ? 'fire' : `fire:${sec}:${at || 0}:${text || ''}`);
+export function parseFire(v, t) {
+  if (v === 'fire') return { sec: 15, at: 0, text: '' };
+  const m = /^fire:(\d{1,2}):(\d{1,14}):([\s\S]{0,40})$/.exec(typeof v === 'string' ? v : '');
+  if (!m) return null;
+  const sec = +m[1], at = +m[2];
+  if (sec === 0) return { sec: 0, at: 0, text: '' };
+  if (!FIREWORK.secs.includes(sec)) return null;
+  if (at && (at < t - 5000 || at > t + FIREWORK.ahead * 1000)) return null;
+  return { sec, at: at > t + 1500 ? at : 0, text: cleanFireText(m[3]) };
+}
+// 글자를 한 번에 터뜨릴 덩어리로: 띄어쓰기에서 나누고, 긴 낱말은 다섯 자씩
+export function fireWords(text) {
+  const out = [];
+  for (const w of cleanFireText(text).split(' ')) { const c = [...w]; for (let k = 0; k < c.length; k += FIREWORK.word) out.push(c.slice(k, k + FIREWORK.word).join('')); }
+  return out.filter(Boolean);
+}
 export const XMAS = { band: 600, count: 10, show: 40, gap: 30, again: 15 }; // 띠(초 전부터), 큰 숫자(초), 자정 불꽃(초), 다시 터뜨리기 간격·길이(초)
 export const xmasAt = (ts) => new Date(new Date(ts).getFullYear(), 11, 25).getTime();
 export const isXmas = (ts) => { const d = new Date(ts); return d.getMonth() === 11 && d.getDate() === 25; };
@@ -317,7 +338,7 @@ export function makeSky(K) {
   })();
 
   /* ───────── 불꽃 ───────── */
-  const PER = 45, SLOTS = 8, FN = PER * SLOTS;
+  const PER = 45, SLOTS = 8, TN = 420, TBASE = PER * SLOTS, FN = TBASE + TN; // 뒤의 TN 개는 글자 불꽃
   const FU = { uTime: U.uTime, uPx: { value: 100 }, uPersp: { value: 0 } };
   const fg = new THREE.BufferGeometry();
   const fPos = new Float32Array(FN * 3), fVel = new Float32Array(FN * 3), fCol = new Float32Array(FN * 3), fInfo = new Float32Array(FN * 4).fill(-99), fSize = new Float32Array(FN);
@@ -374,6 +395,63 @@ export function makeSky(K) {
     boom(rise, big);
   }
 
+  // 글자 불꽃: 글자를 작은 그림에 써서 점으로 옮기고, 가운데에서 그 자리로 퍼지게 한다
+  const tc = document.createElement('canvas'); tc.width = 400; tc.height = 104;
+  function wordBurst(word) {
+    const g = tc.getContext('2d', { willReadFrequently: true });
+    g.clearRect(0, 0, tc.width, tc.height);
+    g.font = '500 72px system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
+    const sc = Math.min(1, (tc.width - 16) / Math.max(1, g.measureText(word).width));
+    g.save(); g.translate(tc.width / 2, tc.height / 2 + 3); g.scale(sc, sc); g.fillText(word, 0, 0); g.restore();
+    const d = g.getImageData(0, 0, tc.width, tc.height).data;
+    // 전광판처럼 고른 간격으로 점을 찍는다. 입자 수 안에 들어오는 가장 촘촘한 간격을 고른다
+    let pts = [];
+    for (const st of [2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7, 8]) {
+      pts = [];
+      for (let y = 1; y < tc.height; y += st) for (let x = 1; x < tc.width; x += st) if (d[(Math.floor(y) * tc.width + Math.floor(x)) * 4 + 3] > 120) pts.push(x, y);
+      if (pts.length / 2 <= TN) break;
+    }
+    const all = Math.min(TN, pts.length / 2);
+    if (!all) return false;
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (let i = 0; i < all; i++) { x0 = Math.min(x0, pts[i * 2]); x1 = Math.max(x1, pts[i * 2]); y0 = Math.min(y0, pts[i * 2 + 1]); y1 = Math.max(y1, pts[i * 2 + 1]); }
+    const cam = K.cam(), t = clock(), c = new THREE.Vector3();
+    let W, H;
+    cam.updateMatrixWorld(); cam.matrixWorld.extractBasis(vB, vC, vA); // 오른쪽, 위, 뒤
+    if (cam.isPerspectiveCamera) {
+      const dist = 18, vh = 2 * dist * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2);
+      W = vh * cam.aspect * 0.74; H = vh * 0.2;
+      const f = new THREE.Vector3(); cam.getWorldDirection(f); f.y = 0; if (f.lengthSq() < 1e-6) f.set(0, 0, 1); f.normalize();
+      c.copy(cam.position).addScaledVector(f, Math.cos(0.24) * dist); c.y += Math.sin(0.24) * dist;
+      vB.crossVectors(f, UP).normalize(); vC.copy(UP); // 글자는 똑바로 세운다
+    } else {
+      const vw = (cam.right - cam.left) / cam.zoom, vh = (cam.top - cam.bottom) / cam.zoom;
+      W = vw * 0.84; H = vh * 0.16;
+      c.set(0, 0.5, 0).unproject(cam);
+      const f = new THREE.Vector3(); cam.getWorldDirection(f);
+      const q = new THREE.Vector3().copy(c).sub(cam.position); c.addScaledVector(f, 14 - q.dot(f));
+    }
+    const bw = Math.max(8, x1 - x0), bh = Math.max(8, y1 - y0), s = Math.min(W / bw, H / bh), size = bh * s;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, col = FIRE[Math.floor(Math.random() * (FIRE.length - 1))], kd = 3.2;
+    for (let k = 0; k < TN; k++) {
+      const n = TBASE + k;
+      if (k >= all) { fInfo.set([-99, 0, 0, 0], n * 4); continue; } // 남는 입자는 쉰다
+      const ox = (pts[k * 2] - cx + rnd(-0.4, 0.4)) * s, oy = -(pts[k * 2 + 1] - cy + rnd(-0.4, 0.4)) * s;
+      const cc = k % 5 === 0 ? FIRE[6] : col;
+      fPos.set([c.x, c.y, c.z], n * 3);
+      fVel.set([(vB.x * ox + vC.x * oy) * kd, (vB.y * ox + vC.y * oy) * kd, (vB.z * ox + vC.z * oy) * kd], n * 3);
+      fInfo.set([t + rnd(0, 0.1), rnd(4, 4.4), kd, size * 0.008], n * 4); fSize[n] = Math.min(size * 0.085, (x1 - x0) * s / 30) * rnd(0.85, 1.1);
+      fCol.set([cc.r, cc.g, cc.b], n * 3);
+    }
+    for (const k in attr) attr[k].needsUpdate = true;
+    fire.visible = true;
+    flashes.push({ t, c: col, x: 0, y: 0.2, w: Math.random() * 6 });
+    if (flashes.length > 6) flashes.shift();
+    boom(0, true);
+    return true;
+  }
+
   /* ───────── 소리 (이미 소리가 켜져 있을 때만. 누른 사람은 그 김에 켠다) ───────── */
   let ac = null;
   function audio(wake) {
@@ -399,9 +477,9 @@ export function makeSky(K) {
 
   /* ───────── 화면의 글: 위의 띠, 큰 숫자, 인사 ───────── */
   const style = document.createElement('style');
-  style.textContent = '#xmasBand{position:absolute;left:50%;top:calc(58px + env(safe-area-inset-top));transform:translateX(-50%);z-index:5;pointer-events:none;white-space:nowrap;'
+  style.textContent = '#xmasBand,#fireBand{position:absolute;left:50%;top:calc(58px + env(safe-area-inset-top));transform:translateX(-50%);z-index:5;pointer-events:none;white-space:nowrap;'
     + 'padding:5px 13px;border-radius:999px;background:rgba(122,26,34,.9);color:#FFF4E0;font-size:13px;font-weight:800;box-shadow:0 3px 10px rgba(0,0,0,.3);font-variant-numeric:tabular-nums}'
-    + 'body.xmas-band #toast{top:calc(96px + env(safe-area-inset-top))}'
+    + 'body.xmas-band #toast,body.fire-band #toast{top:calc(96px + env(safe-area-inset-top))}'
     + '#xmasBig{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);z-index:7;pointer-events:none;white-space:nowrap;font-weight:900;color:#FFF4E0;line-height:1.1;text-align:center;'
     + 'text-shadow:0 4px 18px rgba(0,0,0,.55),0 0 2px rgba(0,0,0,.4);font-size:120px}#xmasBig:empty{display:none}'
     + '#xmasBig.word{font-size:min(10vw,60px);color:#FFE9A8;text-shadow:0 0 18px rgba(255,200,90,.9),0 4px 18px rgba(0,0,0,.5)}'
@@ -409,7 +487,8 @@ export function makeSky(K) {
   document.head.appendChild(style);
   const band = document.createElement('div'); band.id = 'xmasBand'; band.hidden = true; band.setAttribute('role', 'timer');
   const bigEl = document.createElement('div'); bigEl.id = 'xmasBig'; bigEl.setAttribute('role', 'status'); bigEl.setAttribute('aria-live', 'assertive');
-  document.body.append(band, bigEl);
+  const fband = document.createElement('div'); fband.id = 'fireBand'; fband.hidden = true; fband.setAttribute('role', 'timer'); // 예약한 불꽃놀이까지
+  document.body.append(band, fband, bigEl);
   function big(text, cls = '') { if (bigEl.textContent === text) return; bigEl.textContent = text; bigEl.className = cls; void bigEl.offsetWidth; bigEl.classList.add('on'); }
   function tick(f) { const a = audio(false); if (!a) return; try { const o = a.createOscillator(), g = a.createGain(), t0 = a.currentTime; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.1, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.15); o.connect(g); g.connect(a.destination); o.start(t0); o.stop(t0 + 0.2); } catch (_) { /* 무시 */ } }
 
@@ -421,31 +500,120 @@ export function makeSky(K) {
   queueMicrotask(() => { const box = $('lightList'); if (box) box.append(fireBtn); }); // 전구 색 단추들이 다 놓인 뒤 맨 끝에
 
   /* ───────── 불꽃놀이 장면 ───────── */
-  // show = { until(실제 시각 ms), next(다음 불꽃, 초), mid(자정 장면인지) }
-  let show = null, lastFire = -1e15, ceilOff = false;
-  function startShow(sec, mid) {
-    const t = now();
+  // show = { until(실제 시각 ms), next(다음 불꽃, 초), mid(자정 장면인지), words(하늘에 쓸 글자 덩어리), wi, wordAt }
+  // plan = { at(실제 시각 ms), sec, text, mine(내가 예약했는지) }
+  let show = null, plan = null, lastFire = -1e15, ceilOff = false;
+  const hhmm = (ts) => { const d = new Date(ts); return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  function startShow(sec, mid, text) {
+    const t = now(), words = fireWords(text);
     if (show && !mid) show.until = Math.max(show.until, t + sec * 1000);
     else show = { until: t + sec * 1000, next: clock() + 0.2, mid };
+    if (words.length) { show.words = words; show.wi = 0; show.wordAt = clock() + 0.9; }
   }
-  function pressFire(mine) {
-    const t = now();
+  // o = { sec, at, text }. at 이 앞날이면 예약만 해 둔다. due: 예약해 둔 것이 때가 되어 터짐(30초 간격을 따지지 않는다)
+  function pressFire(mine, o = {}, due = false) {
+    const t = now(), sec = FIREWORK.secs.includes(o.sec) ? o.sec : XMAS.again, text = cleanFireText(o.text);
+    const at = o.at > t + 1500 && o.at <= t + FIREWORK.ahead * 1000 ? Math.floor(o.at) : 0;
     if (mine) {
       if (!K.isHost()) {
         if (!isXmas(t)) { K.toast('불꽃놀이는 크리스마스에만 할 수 있어요 (방장은 언제나)'); return false; }
         if (!K.canEdit()) { K.toast('불꽃놀이는 꾸미는 사람만 터뜨릴 수 있어요'); return false; }
       }
       const wait = Math.ceil(XMAS.gap - (t - lastFire) / 1000);
-      if (wait > 0) { K.toast(`불꽃놀이는 30초에 한 번이에요 (${wait}초 뒤)`); return false; }
+      if (!at && !due && wait > 0) { K.toast(`불꽃놀이는 30초에 한 번이에요 (${wait}초 뒤)`); return false; }
       audio(true);
-      K.fx({ k: 'show', v: 'fire' });
+      K.fx({ k: 'show', v: fireMsg(sec, at, text) });
     }
+    if (at) { // 예약: 그때까지 위에 띠로 알린다
+      plan = { at, sec, text, mine };
+      K.toast(`${hhmm(at)}에 불꽃놀이를 터뜨려요 🎆`);
+      paintPlan();
+      return true;
+    }
+    if (plan && plan.at - t < 30000) { plan = null; paintPlan(); } // 예약해 둔 그 불꽃놀이
     lastFire = t;
-    startShow(XMAS.again, false);
+    startShow(sec, false, text);
     K.toast(mine ? '불꽃놀이! 🎆' : '불꽃놀이가 시작돼요! 🎆');
     return true;
   }
-  fireBtn.addEventListener('click', () => pressFire(true));
+  function cancelPlan(mine) {
+    if (!plan) return false;
+    if (mine) {
+      if (!K.isHost() && !(isXmas(now()) && K.canEdit())) return false;
+      K.fx({ k: 'show', v: 'fire:0:0:' });
+    }
+    plan = null; paintPlan();
+    K.toast('불꽃놀이 예약을 취소했어요');
+    return true;
+  }
+  // 예약한 때가 되면: 예약한 사람이 소식을 보내고, 3초가 지나도 소식이 없으면(예약한 사람이 나갔으면) 저마다 터뜨린다
+  function duePlan() {
+    if (!plan) return;
+    const t = now(), p = plan;
+    if (t >= p.at && p.mine) { plan = null; paintPlan(); pressFire(true, { sec: p.sec, text: p.text }, true); }
+    else if (t >= p.at + 3000) { plan = null; paintPlan(); if ((t - lastFire) / 1000 >= XMAS.gap - 5) pressFire(false, { sec: p.sec, text: p.text }); }
+    else paintPlan();
+  }
+  function paintPlan() {
+    const on = !!plan && band.hidden;
+    if (fband.hidden === on) { fband.hidden = !on; document.body.classList.toggle('fire-band', on); }
+    if (plan) {
+      const s = Math.max(0, Math.ceil((plan.at - now()) / 1000));
+      const text = s >= 3600 ? `🎆 ${hhmm(plan.at)} 불꽃놀이` : `🎆 불꽃놀이까지 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+      if (fband.textContent !== text) fband.textContent = text;
+    }
+    if (!pop.hidden) paintPop();
+  }
+
+  /* ───────── 불꽃놀이 판: 글자, 길이, 언제 ───────── */
+  const pop = document.createElement('div'); pop.id = 'firePop'; pop.hidden = true;
+  pop.innerHTML = '<div class="sheet" role="dialog" aria-label="불꽃놀이">'
+    + '<h2>🎆 불꽃놀이 <small>30초에 한 번</small></h2>'
+    + '<input id="fireText" type="text" autocomplete="off" enterkeyhint="done" placeholder="하늘에 쓸 글자 (안 써도 돼요)" aria-label="하늘에 쓸 글자">'
+    + '<div class="frow"><span class="lab">길이</span><div class="wrap" id="fireSecs"></div></div>'
+    + '<div class="frow"><span class="lab">언제</span><div class="wrap"><button type="button" class="chip" id="fireNow" aria-pressed="true">지금</button>'
+    + '<label class="chip" id="fireAtL">시각 <input id="fireAt" type="time" aria-label="터뜨릴 시각"></label></div></div>'
+    + '<div class="frow" id="firePlan" hidden><span id="firePlanT"></span><button type="button" class="btn" id="fireCancel">예약 취소</button></div>'
+    + '<div class="frow"><button type="button" class="btn" id="fireClose">닫기</button><button type="button" class="btn main" id="fireGo">터뜨리기</button></div></div>';
+  style.textContent += '#firePop{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(40,20,10,.35)}'
+    + '#firePop .sheet{width:100%;max-width:340px;gap:10px}#firePop .frow{display:flex;gap:6px;align-items:center}'
+    + '#fireText{min-height:46px;padding:0 12px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font:inherit;font-size:16px;font-weight:700;color:inherit;min-width:0}'
+    + '#fireAtL{display:flex;align-items:center;justify-content:center;gap:6px;flex:2 0 auto}#fireAtL.on{background:var(--choc);border-color:var(--choc);color:#FFF4E0}'
+    + '#fireAt{min-height:34px;border:0;background:transparent;font:inherit;font-size:16px;font-weight:700;color:inherit;min-width:0}'
+    + '#firePlanT{flex:1;font-size:13px;font-weight:700}#firePop .frow>.btn{flex:1}#firePop .frow>#fireCancel{flex:none}';
+  document.body.append(pop);
+  const q = (id) => pop.querySelector('#' + id);
+  const choice = { sec: 15 };
+  for (const sec of FIREWORK.secs) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = sec + '초'; b.dataset.sec = sec;
+    b.addEventListener('click', () => { choice.sec = sec; paintPop(); });
+    q('fireSecs').append(b);
+  }
+  q('fireText').maxLength = FIREWORK.text * 2;
+  // 고른 시각: 오늘의 그 시각, 이미 지났으면 내일
+  function pickedAt() {
+    const m = /^(\d\d):(\d\d)/.exec(q('fireAt').value);
+    if (!m) return 0;
+    const t = now(), d = new Date(t); d.setHours(+m[1], +m[2], 0, 0);
+    return d.getTime() > t + 1500 ? d.getTime() : d.getTime() + 86400000;
+  }
+  function paintPop() {
+    for (const b of q('fireSecs').children) b.setAttribute('aria-pressed', String(+b.dataset.sec === choice.sec));
+    const at = pickedAt();
+    q('fireNow').setAttribute('aria-pressed', String(!at)); q('fireAtL').classList.toggle('on', !!at);
+    q('fireGo').textContent = at ? `${hhmm(at)}에 터뜨리기` : '터뜨리기';
+    q('firePlan').hidden = !plan;
+    if (plan) q('firePlanT').textContent = `${hhmm(plan.at)}에 터뜨리기로 했어요${plan.text ? ' · ' + plan.text : ''}`;
+  }
+  function openPop(on) { pop.hidden = !on; if (on) paintPop(); }
+  q('fireNow').addEventListener('click', () => { q('fireAt').value = ''; paintPop(); });
+  q('fireAt').addEventListener('input', paintPop);
+  q('fireClose').addEventListener('click', () => openPop(false));
+  q('fireCancel').addEventListener('click', () => cancelPlan(true));
+  pop.addEventListener('pointerdown', (e) => { if (e.target === pop) openPop(false); });
+  q('fireText').addEventListener('keydown', (e) => { if (e.key === 'Enter') q('fireText').blur(); });
+  q('fireGo').addEventListener('click', () => { if (pressFire(true, { sec: choice.sec, at: pickedAt(), text: q('fireText').value })) { q('fireAt').value = ''; openPop(false); } });
+  fireBtn.addEventListener('click', () => openPop(true));
 
   /* ───────── 1분마다: 하늘·빛·날씨 ───────── */
   const BRIGHT = K.bright, BASE = [...BRIGHT];
@@ -511,7 +679,7 @@ export function makeSky(K) {
     const pk = phase === 'band' ? 'b' + Math.ceil(left) : phase === 'count' ? 'c' + Math.ceil(left) : phase || '';
     if (pk === phaseKey) return;
     const was = phaseKey; phaseKey = pk;
-    band.hidden = phase !== 'band';
+    band.hidden = phase !== 'band'; if (plan) paintPlan();
     document.body.classList.toggle('xmas-band', phase === 'band');
     if (phase === 'band') { const s = Math.ceil(left), m = Math.floor(s / 60); band.textContent = `🎄 크리스마스까지 ${m}:${String(s % 60).padStart(2, '0')}`; }
     if (phase === 'count') { const n = Math.ceil(left); big(String(n), 'num'); tick(n <= 3 ? 880 : 620); }
@@ -530,7 +698,7 @@ export function makeSky(K) {
   function frame(dt) {
     const c = clock();
     U.uTime.value = c % 1000;
-    if (c - checkAt > 0.5) { checkAt = c; update(false); paintFireBtn(); }
+    if (c - checkAt > 0.5) { checkAt = c; update(false); paintFireBtn(); duePlan(); }
     applyLight();
     midnight();
     // 눈: 날씨가 바뀌면 몇 초에 걸쳐 늘고 준다
@@ -553,8 +721,9 @@ export function makeSky(K) {
         const fin = show.mid && show.until - t < 6000; // 마지막 6초는 한꺼번에
         burst(fin || Math.random() < 0.15);
         if (fin || Math.random() < 0.3) burst(false);
-        show.next = c + (fin ? rnd(0.25, 0.45) : rnd(0.55, 1.1));
+        show.next = c + (fin ? rnd(0.25, 0.45) : show.words ? rnd(0.9, 1.5) : rnd(0.55, 1.1)); // 글자가 있으면 글자가 보이게 조금 드물게
       }
+      if (show && show.words && c >= show.wordAt && show.until - t > 1500) { wordBurst(show.words[show.wi++ % show.words.length]); show.wordAt = c + 3.6; }
       if (show && show.mid && show.hi && c - show.hi > 6 && bigEl.className.startsWith('word')) bigEl.textContent = '';
     }
     // 방을 물들이는 빛과 창 그림의 불꽃
@@ -583,25 +752,32 @@ export function makeSky(K) {
   function paintFireBtn() {
     const on = (isXmas(now()) && K.canEdit()) || K.isHost();
     if (fireRow.hidden === on) { fireRow.hidden = !on; K.resized(); }
+    if (!on && !pop.hidden) openPop(false);
   }
   update(true);
   applyLight();
 
+  // 친구가 터뜨린 불꽃놀이. 받을 만한 소식이면 true (방장이 다른 사람들에게 전해 준다)
+  function peerIn(m, id) {
+    const t = now(), d = new Date(t), o = parseFire(m.v, t);
+    if (!o || !K.mayLead(id)) return false;
+    // 방장이 받는 손님의 소식은 크리스마스 때만 (시계가 조금 다른 친구까지 24~26일). 손님은 방장이 걸러 보낸 것(방장 자신의 것 포함)을 그대로 받는다
+    if (K.isHost() && (d.getMonth() !== 11 || Math.abs(d.getDate() - 25) > 1)) return false;
+    if (o.sec === 0) return cancelPlan(false);
+    if (!o.at && (t - lastFire) / 1000 < XMAS.gap - 5) return false;
+    return pressFire(false, o);
+  }
   return {
     tick: frame,
-    // 친구가 터뜨린 불꽃놀이. 받을 만한 소식이면 true (방장이 다른 사람들에게 전해 준다)
-    peerFx(m, id) {
-      if (m.v !== 'fire' || !K.mayLead(id)) return false;
-      const t = now(), d = new Date(t);
-      // 방장이 받는 손님의 소식은 크리스마스 때만 (시계가 조금 다른 친구까지 24~26일). 손님은 방장이 걸러 보낸 것(방장 자신의 것 포함)을 그대로 받는다
-      if (K.isHost() && (d.getMonth() !== 11 || Math.abs(d.getDate() - 25) > 1)) return false;
-      if ((t - lastFire) / 1000 < XMAS.gap - 5) return false;
-      return pressFire(false);
-    },
+    peerFx: peerIn,
     // 자동 검사가 쓰는 창구
     test: {
       get state() { return { day: cur.day, dusk: cur.dusk, weather: cur.weather, snow: cur.snow, phase: skyAt(now()).phase, hemi: hemi.intensity, sun: sun.intensity, base: [...BRIGHT], stars: U.uStars.value, moon: U.uMoon.value, glass: glassMat.color.getHex(), pool: poolMat.opacity, top: U.uTop.value.getHex(), hor: U.uHor.value.getHex() }; },
-      get show() { return show ? { mid: show.mid, left: (show.until - now()) / 1000 } : null; },
+      get show() { return show ? { mid: show.mid, left: (show.until - now()) / 1000, words: show.words || [] } : null; },
+      get plan() { return plan ? { ...plan } : null; },
+      get fband() { return fband.hidden ? null : fband.textContent; },
+      get word() { let n = 0; const t = clock(); for (let k = TBASE; k < FN; k++) if (t >= fInfo[k * 4] && t <= fInfo[k * 4] + fInfo[k * 4 + 1]) n++; return n; },
+      wordBurst: (w) => wordBurst(w), peer: (v) => peerIn({ k: 'show', v }, 'h'), cancel: () => cancelPlan(true),
       get fire() { let n = 0; const t = clock(); for (let k = 0; k < FN; k++) if (t >= fInfo[k * 4] && t <= fInfo[k * 4] + fInfo[k * 4 + 1]) n++; return { visible: fire.visible, live: n, flashes: flashes.length, tint: hemi.color.getHex() }; },
       get band() { return band.hidden ? null : band.textContent; },
       get big() { return bigEl.textContent; },
@@ -609,7 +785,7 @@ export function makeSky(K) {
       get snowShown() { return snowPts.visible; },
       get ceil() { return room.floors[room.floors.length - 1].ceil.visible; },
       get button() { return !fireRow.hidden; },
-      burst: (b) => burst(!!b), press: () => pressFire(true), refresh: () => { update(true); paintFireBtn(); },
+      burst: (b) => burst(!!b), press: (o) => pressFire(true, o || {}), refresh: () => { update(true); paintFireBtn(); },
       panes: () => { let n = 0; room.floors.forEach((f) => f.g.traverse((m) => { if (m.material === pane) n++; })); return n; },
       yardMats: () => yardMats.length,
     },
