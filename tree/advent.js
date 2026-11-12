@@ -124,7 +124,7 @@ addShape('train', (g) => { // 3 × 1, 선로 위의 장난감 기차
   put(rbox(0.32, 0.12, 0.22, 0.02), 0xE0AE3A, -0.48, 0.15, 0, g); wheels(-0.48, DARK);
   put(new THREE.ConeGeometry(0.08, 0.22, 7), M(0x2F7D56, true), -0.48, 0.32, 0, g);
 });
-addShape('flake', (g) => { // 눈 결정 조명: 대 위에 스스로 빛나는 눈 결정
+addShape('snowlamp', (g) => { // 눈 결정 조명: 대 위에 스스로 빛나는 눈 결정
   put(cyl(0.14, 0.16, 0.04, 14), DARK, 0, 0.02, 0, g);
   put(cyl(0.018, 0.018, 1.0, 8), 0xC9D6E0, 0, 0.52, 0, g);
   const f = new THREE.Group(); f.position.set(0, 1.18, 0.02); g.add(f);

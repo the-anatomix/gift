@@ -33,7 +33,7 @@ export const FURNITURE = [
   { id: 'bigcane', name: '큰 사탕 지팡이', icon: '🍭', w: 1, d: 1, solid: true, day: 7 },
   { id: 'pile', name: '선물 더미', icon: '🎁', w: 2, d: 2, solid: true, day: 11 },
   { id: 'train', name: '장난감 기차', icon: '🚂', w: 3, d: 1, solid: true, day: 15 },
-  { id: 'flake', name: '눈 결정 조명', icon: '✨', w: 1, d: 1, solid: true, day: 18 },
+  { id: 'snowlamp', name: '눈 결정 조명', icon: '✨', w: 1, d: 1, solid: true, day: 18 },
   { id: 'ginger', name: '진저브레드 집', icon: '🏠', w: 2, d: 2, solid: true, day: 22 },
   { id: 'sled', name: '산타 썰매', icon: '🛷', w: 3, d: 2, solid: true, day: 24 },
 ];
