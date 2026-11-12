@@ -418,7 +418,7 @@ export function makeSky(K) {
   fireBtn.type = 'button'; fireBtn.id = 'fireShow'; fireBtn.className = 'btn main'; fireBtn.style.padding = '0 10px'; fireBtn.textContent = '🎆 불꽃놀이';
   // 판이 길어지면 트리가 작아지므로 새 줄을 만들지 않고, 전구 줄(두 줄로 접히는 자리)의 빈자리에 붙인다
   const fireRow = fireBtn; fireBtn.hidden = true;
-  queueMicrotask(() => { const c = $('ornCount'), h = c && c.parentNode; if (h) { h.style.alignItems = 'center'; h.style.gap = '8px'; c.style.marginLeft = 'auto'; h.insertBefore(fireBtn, c); } else { const box = $('lightList'); if (box) box.append(fireBtn); } }); // 트리 판 제목 줄의 빈자리에 (전구 줄에 두면 판이 한 줄 높아져 트리를 가린다)
+  queueMicrotask(() => { const c = $('ornCount'), h = c && c.parentNode; if (h) { h.style.alignItems = 'center'; h.style.gap = '8px'; c.style.marginLeft = 'auto'; fireBtn.style.margin = '-8px 0'; h.insertBefore(fireBtn, c); } else { const box = $('lightList'); if (box) box.append(fireBtn); } }); // 트리 판 제목 줄의 빈자리에 (전구 줄에 두면 판이 한 줄 높아져 트리를 가린다)
 
   /* ───────── 불꽃놀이 장면 ───────── */
   // show = { until(실제 시각 ms), next(다음 불꽃, 초), mid(자정 장면인지) }
