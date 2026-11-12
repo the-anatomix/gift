@@ -309,7 +309,7 @@ async function walkAndTrace(p, act) {
     await N1.tap('#lookDone'); await sleep(300);
     const st0 = await T(N1, () => window.__tree.serialize());
     const up = st0.items.filter((it) => it[0].startsWith('up')), low = st0.items.filter((it) => !it[0].startsWith('up'));
-    check('처음 시작하는 방에는 놀 수 있는 가구(벽난로·TV·다트판·오르골)와 주방·방 가구 12개, 마당·2층·3층 가구 13개가 놓여 있음', low.length === 12 && up.length === 13 && ['dart', 'fire', 'music', 'tv', 'cake', 'counter', 'stove', 'fridge', 'bed', 'closet', 'stand'].every((k) => low.some((it) => it[1] === k)) && (await T(N1, () => window.__tree.itemObjs)) === 25, st0.items);
+    check('처음 시작하는 방에는 놀 수 있는 가구(벽난로·TV·다트판·오르골)와 주방·방 가구 12개, 마당·2층·3층 가구와 방명록 14개가 놓여 있음', low.length === 12 && up.length === 14 && ['dart', 'fire', 'music', 'tv', 'cake', 'counter', 'stove', 'fridge', 'bed', 'closet', 'stand'].every((k) => low.some((it) => it[1] === k)) && (await T(N1, () => window.__tree.itemObjs)) === 26, st0.items);
     check('기본 가구는 제 방에 놓여 있음 (주방 가구는 주방, 침대는 방, 마당 가구는 마당, 위층 가구는 위층)', low.every((it) => (it[0].startsWith('base') ? it[2] < 20 : it[2] > 20 && it[2] < 30)) && low.find((it) => it[1] === 'cake')[3] < 9 && low.find((it) => it[1] === 'bed')[3] > 9
       && up.filter((it) => it[2] < 30).length === 3 && up.filter((it) => it[2] < 30).every((it) => it[3] >= 19) && up.filter((it) => it[2] >= 32 && it[2] < 62).length === 5 && up.filter((it) => it[2] >= 64).length === 5, st0.items);
     check('기본 가구는 꾸민 것으로 치지 않음 (친구 방에 들어갈 때 친구 방을 덮지 않게)', st0.at === 0 && st0.sync === 0);
@@ -334,7 +334,7 @@ async function walkAndTrace(p, act) {
     await T(N1, () => localStorage.setItem('nolja-tree-room', JSON.stringify({ v: 1, at: 1700000000000, sync: 0, items: [['old1', 'sofa', 1, 6, 1], ['old2', 'lamp', 0, 15, 0]], orns: [['o1', 'red', 0.3, 1.2, 0.4]], lights: ['warm', 'on'], wall: 'sage', floor: 'walnut' })));
     await N1.reload(); await ready(N1);
     const mg = await T(N1, () => window.__tree.serialize());
-    check('예전에 꾸민 방을 열면 꾸민 것은 그대로이고 주방·방 가구와 마당·위층 가구가 더해짐', mg.items.length === 23 && mg.items.filter((it) => /^up\d+$/.test(it[0])).length === 13 && mg.items.some((it) => it[0] === 'old1' && it[2] === 1 && it[3] === 6) && mg.items.some((it) => it[1] === 'cake') && !mg.items.some((it) => it[0].startsWith('base')) && mg.orns.length === 1 && mg.wall === 'sage' && mg.at === 1700000000000, mg.items.map((it) => it[0]));
+    check('예전에 꾸민 방을 열면 꾸민 것은 그대로이고 주방·방 가구와 마당·위층 가구가 더해짐', mg.items.length === 24 && mg.items.filter((it) => /^up\d+$/.test(it[0])).length === 14 && mg.items.some((it) => it[0] === 'old1' && it[2] === 1 && it[3] === 6) && mg.items.some((it) => it[1] === 'cake') && !mg.items.some((it) => it[0].startsWith('base')) && mg.orns.length === 1 && mg.wall === 'sage' && mg.at === 1700000000000, mg.items.map((it) => it[0]));
     await ctx3.close();
 
     check('페이지 오류 없음', errors.length === 0, errors);
