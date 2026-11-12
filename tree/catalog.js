@@ -29,6 +29,9 @@ export const FURNITURE = [
   { id: 'guest', name: '방명록', icon: '📖', w: 1, d: 1, solid: true, play: 'guest' }, // 놀러 온 사람이 한마디 남긴다 (book.js)
 ];
 
+// 큰 가구: 방에 다른 사람이 있으면 놓인 것을 옮길 때 둘이 든다 (coop.js). 혼자 있으면 그대로 혼자 옮긴다
+for (const f of FURNITURE) if (f.id === 'sofa' || f.id === 'bed') f.heavy = true;
+
 // 새로 시작하는 방에 처음부터 놓여 있는 가구 [종류, i, j, 돌린 횟수]. 놀 수 있는 가구들이고, 다른 가구처럼 옮기거나 치울 수 있다.
 export const STARTER = [['fire', 6, 0, 0], ['tv', 0, 6, 1], ['dart', 11, 0, 0], ['music', 15, 12, 3]];
 // 주방과 방에 처음부터 놓여 있는 가구. 거실만 있던 때(저장 형식 v 1)에 꾸민 방을 열 때도 이것만 더해 준다.
