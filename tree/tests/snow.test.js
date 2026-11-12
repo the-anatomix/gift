@@ -161,7 +161,7 @@ const idle = (p) => until(() => T(p, () => window.__snow.balls === 0 && window._
     await idle(A); await sleep(300);
     check('집 안에 있는 사람은 맞지 않음 (벽을 넘지 않음)', (await T(A, () => window.__snow.hits)) === 1 && !(await T(B, () => window.__snow.snowy('me'))));
     // 2층에 있는 사람도 맞지 않는다: 격자에서 2층 자리는 마당과 겹치지 않는다
-    check('2층에 있는 사람은 마당 사람으로 치지 않음', await T(A, () => { const t = window.__tree; return t.LOFT && t.toWorld(t.LOFT.i0 * 0.5 - 4 + 0.25, 7)[1] > 0; }));
+    check('2층에 있는 사람은 마당 사람으로 치지 않음', await T(A, () => { const t = window.__tree; return t.FLOOR_DX > 15 && t.toWorld(t.FLOOR_DX + 1, 2)[1] > 0 && t.toWorld(1, 7)[1] === 0; }));
 
     /* 이상한 소식 */
     const n0 = await T(B, () => window.__snow.balls);
