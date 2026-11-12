@@ -3,7 +3,10 @@
 // 친구에게는 놀이 소식으로 전한다: { k: 'snow', v: 'x,z' }(떨어질 자리), { k: 'hit', v: 맞은 사람 id }.
 // 맞았는지는 던진 사람 화면에서만 정한다(날아가는 길에 마당에 선 사람이 HIT_R 안에 들어오면). 집 안·2층 사람은 맞지 않는다.
 // app.js 가 넘겨주는 창구 K 로 아바타·카메라·소식을 다룬다.
+// 눈싸움 팀전(snowteam.js)과 눈사람 같이 만들기(snowman.js)도 여기서 만들어 잇는다. 눈 굴리기와 눈덩이 던지기는 같이 켜지지 않는다.
 import { THREE, M } from './kit.js';
+import { makeTeam } from './snowteam.js';
+import { makeSnowman } from './snowman.js';
 import { X0, X1, GZ1, cellOf, zoneOf, levelOf } from './path.js';
 
 const $ = (id) => document.getElementById(id);
@@ -48,17 +51,19 @@ export function makeSnow(K) {
     v = !!v && allowed();
     if (v === on) return on;
     on = v;
+    if (on) man.off(); // 눈 굴리기를 끈다
     if (on) K.toast(K.eye() ? '눈싸움! 누른 쪽으로 눈덩이를 던져요 (F 키는 화면 가운데로)' : '눈싸움! 마당을 누르면 그쪽으로 눈덩이를 던져요');
     paint();
     return on;
   }
   // 단추 자리: 아래 판 바로 위, 오른쪽 끝 (가운데 #act 단추와 겹치지 않는다)
+  const baseY = () => { const b = $('bottom'); return (b ? window.innerHeight - b.getBoundingClientRect().top : 122) + 8; };
   function paint() {
     const show = allowed();
     btn.hidden = !show; score.hidden = !show || (!on && !hits);
     btn.setAttribute('aria-pressed', String(on));
     if (show) {
-      const b = $('bottom'), base = (b ? window.innerHeight - b.getBoundingClientRect().top : 122) + 8;
+      const base = baseY();
       btn.style.bottom = base + 'px'; score.style.bottom = (base + 64) + 'px';
       score.textContent = `❄️ 명중 ${hits}`;
     }
@@ -168,15 +173,19 @@ export function makeSnow(K) {
       const b = balls.find((x) => x.who === id);
       if (b) land(b, new THREE.Vector3(v.root.position.x, v.root.position.y + 1.2, v.root.position.z));
       cover(v);
-      if (v === K.me) K.toast('눈덩이에 맞았어요! ☃️');
+      const said = team.hit(id, m.v); // 팀전이면 점수를 센다
+      if (v === K.me) K.toast(said === '같은 팀이에요! 점수는 없어요' ? '같은 팀 눈덩이에 맞았어요! ☃️' : '눈덩이에 맞았어요! ☃️');
       return true;
     }
+    if (m.k === 'team') return team.peerFx(m, id);                       // 팀전
+    if (m.k === 'ball' || m.k === 'made') return man.peerFx(m, id);     // 눈사람
     return false;
   }
 
   /* ───────── 매 장면 ───────── */
   function tick(dt) {
     clock += dt;
+    team.tick(); man.tick(dt);
     if (on && !allowed()) { on = false; paint(); }
     sinceUi += dt;
     if (sinceUi > 0.2) { sinceUi = 0; paint(); }
@@ -192,7 +201,7 @@ export function makeSnow(K) {
           land(b); hits++;
           cover(K.others().get(hitId));
           K.fx({ k: 'hit', v: hitId });
-          K.toast('명중! ❄️');
+          K.toast(team.hit(K.myId(), hitId) || '명중! ❄️'); // 팀전이면 점수를 센다
           paint();
           continue;
         }
@@ -223,6 +232,10 @@ export function makeSnow(K) {
     }
   }
 
+  // 팀전과 눈사람
+  const team = makeTeam(K, { on: () => on, setOn: (v) => setOn(v), shown: () => allowed(), base: baseY, eye: () => K.eye() });
+  const man = makeSnowman(K, { snowOff: () => setOn(false), base: baseY, eye: () => K.eye() });
+
   const api = {
     // 눈싸움 모드에서 화면을 눌렀을 때: 던졌거나 던지려 했으면 true (걸어가지 않는다)
     tap(px, py) { if (!on || !allowed()) return false; throwToScreen(px, py); return true; },
@@ -233,7 +246,7 @@ export function makeSnow(K) {
   window.__snow = {
     get on() { return on; }, set: (v) => setOn(v), get hits() { return hits; }, get balls() { return balls.length; }, get puffs() { return puffs.length; },
     get shown() { return !btn.hidden; }, get yard() { return inYard(); }, get ready() { return clock - last >= GAP; },
-    throwAt, throwAhead, throwToScreen,
+    throwAt, throwAhead, throwToScreen, team: team.test, man: man.test,
     snowy: (id) => { const a = avatarOf(id); return !!(a && a.snowy); },
     flying: () => balls.map((b) => ({ who: b.who, x: b.m.position.x, y: b.m.position.y, z: b.m.position.z, to: b.to })),
     arm: (id) => { const a = avatarOf(id); return a && a.parts ? a.parts.arms[0].rotation.x : null; },

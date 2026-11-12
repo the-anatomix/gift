@@ -32,7 +32,11 @@
 //                                       저장된 방을 열 때는 cake = true(이미 담긴 것), open = true 면 열린 선물
 //   { t: 'giftOpen', id }              선물 열기 (몇 시부터 열 수 있는지는 화면에서 본다)
 //   { t: 'giftDel', id }               선물 치우기
+// 마당 눈사람 (구경하는 사람도 할 수 있다. 놓인 뒤에는 보통 가구 눈사람이라 'move'·'del' 로 옮기고 치운다. 저장도 가구로 한다)
+//   { t: 'snowman', id, i, j }         같이 만든 눈사람을 마당 칸 (i, j) 에 놓는다. 방에 눈사람이 SNOWMEN 개 있으면 더 놓지 못한다
 import { GX, GZ } from './path.js';
+import { zoneOf } from './path.js';
+import { SNOWMEN } from './catalog.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, CREAMS, TOPPINGS, CAKE, NOTE, BEST } from './catalog.js';
 import { GIFT, WRAPS } from './catalog.js';
 
@@ -339,6 +343,16 @@ export function apply(S, op, fixed) {
     }
     case 'giftOpen': { const g = S.gifts.get(op.id); if (!g || g.open) return false; g.open = true; return true; }
     case 'giftDel': return S.gifts.delete(op.id);
+    case 'snowman': { // 마당에서 같이 만든 눈사람: 마당 칸에만, 방에 눈사람이 SNOWMEN 개가 될 때까지
+      if (!okId(op.id) || S.items.has(op.id) || S.cakes.has(op.id) || S.items.size >= MAX_ITEMS || zoneOf(op.i, op.j) !== 'yard') return false;
+      let n = 0;
+      for (const o of S.items.values()) if (o.k === 'snowman') n++;
+      if (n >= SNOWMEN) return false;
+      const it = { id: op.id, k: 'snowman', i: op.i, j: op.j, r: 0 };
+      if (!canPlace(S, it, fixed)) return false;
+      S.items.set(it.id, it);
+      return true;
+    }
     case 'wall': if (!has(WALLS, op.v)) return false; S.wall = op.v; return true;
     case 'floor': if (!has(FLOORS, op.v)) return false; S.floor = op.v; return true;
     default: return false;

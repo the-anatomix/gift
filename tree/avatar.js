@@ -204,6 +204,7 @@ export function makeAvatar(look) {
     root, look: null, path: [], onArrive: null, moving: false, t: Math.random() * 6, blend: 0, face: 0,
     doing: null, blink: Math.random() * 4, // doing = 하고 있는 행동 { id, t, sec }
     hold: false, // 케이크를 들고 있는지 (두 팔을 앞으로 내민다)
+    push: false, // 눈 뭉치를 굴리는 중인지 (몸을 숙이고 두 손으로 민다. snowman.js 가 켠다)
     hop: null,   // 사다리를 오르내리는 중 { pts: 세상 좌표 네 점, t, to: [x, z] }
     rest: null,  // 누워 있는 자리 { pos: [x, y, z](발끝, 세상 좌표), ry, head: [x, y, z], id(침대), side }
     get climbing() { return !!A.hop; },
@@ -312,6 +313,7 @@ export function makeAvatar(look) {
         for (const k of ['by', 'bx', 'bz', 'hx', 'hz', 'as']) P[k] = mix(P[k], Q[k]);
       }
       if (A.hold) { P.ax = [-1.2, -1.2]; P.az = [0.16, -0.16]; P.as = 1.15; } // 무엇을 들고 있으면 두 팔은 그대로 앞으로
+      if (A.push && !A.hold && !A.doing) { const c = Math.sin(A.t) * A.blend; P.ax = [-1.0 + 0.12 * c, -1.0 - 0.12 * c]; P.az = [0.22, -0.22]; P.bx = 0.2 + 0.03 * A.blend; P.hx = -0.16; P.as = 1.12; } // 눈 뭉치를 두 손으로 밀며 굴린다 (snowman.js)
       if (A.hop && A.hop.on) { // 사다리: 팔과 다리를 번갈아 올린다
         const c = Math.sin(A.hop.t * 11);
         P.ax = [-2.3 + 0.45 * c, -2.3 - 0.45 * c]; P.az = [-0.1, 0.1]; P.lx = [-0.55 * Math.max(0, c), -0.55 * Math.max(0, -c)]; P.by = 0; P.bx = 0.1; P.hx = -0.25; P.hz = 0; P.as = 1.1;
