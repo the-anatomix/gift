@@ -58,6 +58,7 @@ sun.shadow.camera.near = 1; sun.shadow.camera.far = 46; // 3층 꼭대기에서 
 sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02; sun.shadow.radius = 5;
 scene.add(sun);
 const glow = new THREE.PointLight(0xFFC27A, 1.6, 6, 1.6); // 트리 둘레의 은은한 빛. 전구를 켜면 더 밝아진다
+const snowG = new THREE.Group(); scene.add(snowG); // 마당 눈덩이. 위층에 있을 때는 숨긴다
 glow.position.set(0, 1.3, 0);
 scene.add(glow);
 
@@ -408,6 +409,7 @@ function paintLevels() {
   if (ghost) ghost.g.visible = true;
   for (const a of others.values()) a.root.visible = floorOf(a) === myLv;
   glow.visible = myLv === 0;
+  snowG.visible = myLv === 0;
   dirty = true;
 }
 
@@ -982,7 +984,7 @@ const party = makeParty({
 });
 // 마당 눈싸움 (snow.js)
 const snow = makeSnow({
-  scene, me, others: () => others, myId: () => duo.me, mode: () => mode, ghost: () => !!ghost, eye: () => usingEye(),
+  scene: snowG, me, others: () => others, myId: () => duo.me, mode: () => mode, ghost: () => !!ghost, eye: () => usingEye(),
   ray(px, py) { aimRay(px, py); return ray.ray; },
   fx: (m) => duo.fx(m), toast: (m) => toast(m), dirty: () => { dirty = true; },
 });
