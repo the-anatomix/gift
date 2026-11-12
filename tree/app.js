@@ -18,6 +18,7 @@ import { makeBook } from './book.js';
 import { makeParty } from './party.js';
 import { makeSnow } from './snow.js';
 import { makeCoop } from './coop.js';
+import { makeGames } from './games.js';
 import { makeCakeView, dressCake, flicker, pickTop, disposeCakeView } from './cake.js';
 
 const $ = (id) => document.getElementById(id);
@@ -685,7 +686,9 @@ const duo = makeDuo({
   },
   peerFx(m, id) {
     if (m && m.k === 'bell') { if (duo.role !== 'host') ding(false); return false; } // 초인종 소식은 방장만 전한다
+    if (m && m.k === 'gm') return games.peerFx(m, id); // 같이 놀기 (games.js)
     if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false;
+    if (m.k === 'act' && games.quiet(id)) return true; // 술래에게는 숨은 사람의 행동이 안 보인다
     if (m.k === 'act') { const a = others.get(id); return !!(a && a.act(m.v)); } // 그 사람이 한 행동
     if (m.k === 'lie') { // 그 사람이 침대에 누웠거나('침대:자리') 일어났다('')
       const a = others.get(id);
@@ -1002,6 +1005,13 @@ const coop = makeCoop({
   fx: (m) => duo.fx(m), toast: (m) => toast(m), dirty: () => { dirty = true; }, nameOf: (id) => nameOf(id), key, store,
   treeGlow: () => glow.intensity / (bulbs.on ? 2.6 : 1.6), actBottom: () => $('act').style.bottom,
 });
+// 같이 놀기: 숨바꼭질, 몰래 산타 (games.js)
+const games = makeGames({
+  me, others: () => others, myId: () => duo.me, online: () => duo.mode === 'on', canEdit: () => canEdit, nameOf: (id) => nameOf(id),
+  items: () => S.items, orns: () => S.orns, orn: (id) => ornObj.get(id), screenOf, eye: () => usingEye(),
+  caster(px, py) { aimRay(px, py); return ray; },
+  fx: (m) => duo.fx(m), toast: (m) => toast(m), dirty: () => { dirty = true; },
+});
 // 놀 수 있는 가구를 누르면: 그 앞으로 걸어가서 놀이를 연다
 // 가구 앞으로 걸어가서 then 을 한다 (이미 앞에 있거나 갈 수 없으면 바로)
 function approach(id, then) {
@@ -1191,6 +1201,7 @@ function climb(L, up) {
 // 지금 서 있는 자리에서 할 수 있는 일 { label, run }. 누워 있으면 일어나기, 사다리 옆이면 오르내리기, 아니면 가장 가까운(바라보는) 가구
 function nearAction() {
   if (mode !== null || ghost || me.hop) return null;
+  { const g = games.action(); if (g) return g; } // 같이 놀기 중에 할 수 있는 일 (찾았다·옷장·슬쩍)
   if (me.rest) return { label: '🛏️ 일어나기', run: getUp };
   { const c = coop.near(); if (c) return c; } // 받쳐 주기·별 달기·같이 들기 (coop.js)
   const [ci, cj] = cellOf(me.x, me.z), by = (c) => Math.abs(ci - c[0]) <= 1 && Math.abs(cj - c[1]) <= 1;
@@ -1266,6 +1277,7 @@ function lift(e, ok) {
   if (mode === 'door') { aimRay(e.clientX, e.clientY); if (outside.hitBell(ray)) ring(); return; } // 초인종
   if (mode === 'play') { play.tap(e.clientX, e.clientY); return; }
   if (snow.tap(e.clientX, e.clientY)) return; // 눈싸움 모드: 걸어가는 대신 눈덩이를 던진다
+  if (games.tap(e.clientX, e.clientY)) return; // 숨바꼭질: 술래가 숨은 사람을 누름
   if (mode === null) { const id = pickItem(e.clientX, e.clientY); if (id && useItem(id)) return; } // 케이크 내려놓기, 놀 수 있는 가구, 침대, 냉장고
   if (mode === 'tree') { treeTap(e.clientX, e.clientY); return; }
   if (mode === 'furn') { const id = pickItem(e.clientX, e.clientY); if (id && coop.heavyPick(id)) return; } // 큰 가구는 친구가 있으면 둘이 든다 (coop.js)
@@ -1350,6 +1362,7 @@ function cleanSay(text) {
 const nameOf = (who) => (who === 'me' ? '나' : who === 'h' ? '방장' : '친구' + (parseInt(who.slice(1), 36) || ''));
 // 누가 말했다: 말풍선을 띄우고 지난 말에 적는다
 function said(who, text) {
+  if (who !== 'me' && games.muffle(who)) return; // 술래에게는 숨은 사람의 말이 "어디선가 소리"로만
   let b = bubbles.get(who);
   if (!b) { b = { el: document.createElement('div'), until: 0 }; b.el.className = 'bub'; $('bubbles').appendChild(b.el); bubbles.set(who, b); }
   b.el.textContent = text; b.until = clock + SAY_SHOW;
@@ -1572,6 +1585,7 @@ function frame(now) {
   party.tick();
   snow.tick(dt);
   coop.tick(dt);
+  games.tick();
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
   renderer.render(scene, cam());
