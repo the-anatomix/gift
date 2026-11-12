@@ -63,8 +63,9 @@ const idle = (p) => until(() => T(p, () => window.__snow.balls === 0 && window._
     await idle(A);
     // 날아가는 동안의 높이를 장면마다 적어 둔다
     const ys = await T(A, () => new Promise((res) => { const t = window.__tree.me, out = []; window.__snow.throwAt(t.x + 3, t.z); const f = () => { const b = window.__snow.flying()[0]; if (b) { out.push(b.y); requestAnimationFrame(f); } else res(out); }; requestAnimationFrame(f); }));
-    check('눈덩이는 손 높이에서 떠올라 포물선으로 날아감', ys.length > 3 && ys[0] > 0.9 && Math.max(...ys) > ys[0] + 0.2 && ys[ys.length - 1] < 0.4, ys.map((y) => +y.toFixed(2)));
+    check('눈덩이는 손 높이에서 떠올라 포물선으로 날아감', ys.length > 3 && ys[0] > 0.9 && Math.max(...ys) > 1.4 && Math.max(...ys) > ys[0] + 0.1 && ys[ys.length - 1] < 0.4, ys.map((y) => +y.toFixed(2)));
     check('떨어진 자리에 눈이 퍽 흩어짐', await until(() => T(A, () => window.__snow.balls === 0 && window.__snow.puffs > 0), 2000));
+    await idle(A);
     check('0.6초에 한 번까지만 던짐', await T(A, () => { window.__snow.throwAt(3, 9); return window.__snow.throwAt(3, 9) === false && window.__snow.balls === 1; }));
     await idle(A);
     fl = await T(A, () => { window.__snow.throwAt(window.__tree.me.x + 20, window.__tree.me.z); return window.__snow.flying(); });
@@ -140,13 +141,13 @@ const idle = (p) => until(() => T(p, () => window.__snow.balls === 0 && window._
     check('던진 사람 화면에서 친구가 맞으면 "명중!" 과 맞힌 횟수가 오름', await until(async () => (await T(A, () => window.__snow.hits)) === 1 && (await A.textContent('#toast')).includes('명중'), 2500), { hits: await T(A, () => window.__snow.hits), toast: await A.textContent('#toast') });
     check('화면 한쪽에 내가 맞힌 횟수가 보임', (await A.isVisible('#snowScore')) && (await A.textContent('#snowScore')).includes('1'));
     check('맞은 사람은 모두의 화면에서 눈을 뒤집어씀 (머리·어깨에 눈 뭉치)', await until(async () => (await T(A, (b) => window.__snow.snowy(b), bid)) && (await T(B, (b) => window.__snow.snowy(b), bid)) && (await T(C, (b) => window.__snow.snowy(b), bid)), 2500));
+    check('옷을 바꿔도 눈은 그대로 붙어 있음', await T(B, async () => { window.__tree.setLook({ outfit: 'santa' }); await new Promise((r) => setTimeout(r, 200)); const s = window.__tree.me.snowy; return !!s && s.gs[0].parent === window.__tree.me.parts.head; }));
     check('맞은 사람에게 "눈덩이에 맞았어요! ☃️" 알림', (await B.textContent('#toast')).includes('눈덩이에 맞았어요'), await B.textContent('#toast'));
     check('맞은 사람의 머리와 어깨에 흰 눈 뭉치가 붙어 있음', await T(B, () => { const s = window.__tree.me.snowy; return !!s && s.gs[0].parent === window.__tree.me.parts.head && s.gs[0].children.length >= 3 && s.gs[1].children.length >= 4; }));
     check('맞히지 않은 사람(구경하는 사람)은 그대로', !(await T(A, (c) => window.__snow.snowy(c), cid)) && !(await T(C, () => window.__snow.snowy('me'))));
     await T(A, () => window.__snow.set(true));
     await B.screenshot({ path: path.join(__dirname, 'out', 'snow-hit-b.png') });
     await A.screenshot({ path: path.join(__dirname, 'out', 'snow-hit-a.png') });
-    check('옷을 바꿔도 눈은 그대로 붙어 있음', await T(B, async () => { window.__tree.setLook({ outfit: 'santa' }); await new Promise((r) => setTimeout(r, 200)); const s = window.__tree.me.snowy; return !!s && s.gs[0].parent === window.__tree.me.parts.head; }));
     check('몇 초 뒤에는 털어 냄', await until(async () => !(await T(B, () => window.__snow.snowy('me'))) && !(await T(A, (b) => window.__snow.snowy(b), bid)), 8000));
     // 손님이 던져 방장을 맞힘 (방장이 다른 사람에게 전해 준다)
     await T(B, () => window.__snow.throwAt(1.5, 8.5));

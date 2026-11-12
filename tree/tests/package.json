@@ -3,7 +3,7 @@
   "private": true,
   "description": "트리 같이 꾸미기 자동 검사",
   "scripts": {
-    "test": "node room.test.js && node decor.test.js && node pov.test.js && node play.test.js && node cake.test.js && node door.test.js && node chat.test.js && node emote.test.js && node carry.test.js && node duo.test.js",
+    "test": "node room.test.js && node decor.test.js && node pov.test.js && node play.test.js && node cake.test.js && node door.test.js && node chat.test.js && node emote.test.js && node carry.test.js && node snow.test.js && node duo.test.js",
     "test:peer": "node duo.test.js --peer && node media.test.js"
   },
   "devDependencies": {

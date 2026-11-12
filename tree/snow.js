@@ -21,7 +21,7 @@ export function makeSnow(K) {
   let on = false, last = -9, clock = 0, hits = 0, sinceUi = 1;
   const balls = [];          // 날아가는 눈덩이 { m, from, to, T, H, t, who(던진 사람 id, 나는 'me'), mine }
   const puffs = [];          // 흩어지는 눈 { g, t, parts: [{ m, v }], disc }
-  const snowy = new Map();   // 아바타 → 눈을 털어 낼 시각
+  const snowy = new Map();   // 아바타 → 눈을 털어 낼 시각 (실제 시각, 느린 기기에서도 몇 초 뒤면 털어 낸다)
   const swing = new Map();   // 아바타 → 던지는 몸짓을 시작한 시각
   const ballGeo = new THREE.SphereGeometry(BALL_R, 12, 9), bitGeo = new THREE.SphereGeometry(0.035, 6, 5), discGeo = new THREE.CircleGeometry(0.28, 16);
   const white = M(0xFFFFFF), discMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.85, depthWrite: false });
@@ -83,7 +83,7 @@ export function makeSnow(K) {
     const m = new THREE.Mesh(ballGeo, white);
     m.castShadow = true; m.position.set(from[0], from[1], from[2]);
     K.scene.add(m);
-    balls.push({ m, from, to: [to[0], BALL_R, to[1]], T: 0.32 + 0.07 * d, H: 0.3 + 0.12 * d, t: 0, who, mine });
+    balls.push({ m, from, to: [to[0], BALL_R, to[1]], T: 0.32 + 0.07 * d, H: 0.45 + 0.12 * d, t: 0, who, mine });
     swing.set(a, clock);
     a.turnTo(to[0] - a.x, to[1] - a.z);
   }
@@ -145,7 +145,7 @@ export function makeSnow(K) {
     balls.splice(balls.indexOf(b), 1);
   }
   const avatarOf = (id) => (id === 'me' || id === K.myId() ? K.me : K.others().get(id));
-  function cover(a) { snowy.set(a, clock + SNOWY); a.snowed(true); K.dirty(); }
+  function cover(a) { snowy.set(a, performance.now() + SNOWY * 1000); a.snowed(true); K.dirty(); }
   // 마당에 서 있어서 맞을 수 있는 사람인지
   function inYardA(a) { if (a.hop || levelOf(a.x)) return false; const [i, j] = cellOf(a.x, a.z); return zoneOf(i, j) === 'yard'; }
 
@@ -219,7 +219,7 @@ export function makeSnow(K) {
     // 눈을 뒤집어쓴 사람: 시간이 지나면 털어 낸다 (생김새를 바꿨으면 새 몸에 다시 얹는다)
     for (const [a, until] of snowy) {
       const live = a === K.me || [...K.others().values()].includes(a);
-      if (!live || clock > until) { a.snowed(false); snowy.delete(a); K.dirty(); } else a.snowed(true);
+      if (!live || performance.now() > until) { a.snowed(false); snowy.delete(a); K.dirty(); } else a.snowed(true);
     }
   }
 
