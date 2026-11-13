@@ -142,6 +142,7 @@ export function soft() {
 const DENS = { plain: 0, paper: 1.6, wood: 1.3, fabric: 5, plaid: 2.4, knit: 7, brick: 1.5, stone: 1.6, pleat: 2.2, plank: 2.5 };
 const tms = new Map();
 export function T(hex, kind = 'wood', flat = false) {
+  if (kind === 'wood' || kind === 'fabric' || kind === 'stone') return M(hex, flat); // 은은한 결은 넓은 면을 덮어 느린 기기에서 무겁다. 눈에 띄는 무늬(체크·뜨개·벽돌·주름)만 그림을 입힌다
   const key = hex + kind + (flat ? 'f' : '');
   let m = tms.get(key);
   if (!m) { m = new THREE.MeshLambertMaterial({ color: hex, map: tex(kind), flatShading: flat }); m.userData.bk = { kind, flat }; tms.set(key, m); }

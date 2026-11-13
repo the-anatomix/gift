@@ -443,6 +443,30 @@ function buildYard(scene) {
   put(new THREE.TorusGeometry(0.07, 0.03, 5, 10), M(C.pine, true), lx, 1.3, lz + 0.04, g, false);
   for (const s of [-1, 1]) put(new THREE.BoxGeometry(0.04, 0.12, 0.012), C.pot, lx + s * 0.03, 1.19, lz + 0.07, g, false).rotation.z = s * 0.3;
   put(ball(0.2, 8, 5), SN(), lx, 0.01, lz, g, false).scale.set(1.4, 0.3, 1.4);
+  // 현관 옆 눈 더미에 기대 세운 나무 썰매 (벽 줄이라 걸어갈 수 없는 자리)
+  { const sl = new THREE.Group(); sl.position.set(FRONT.x + FRONT.w / 2 + 0.62, 0.2, zs + 0.13); sl.rotation.set(-0.3, 0.12, 0.05); g.add(sl);
+    for (let k = 0; k < 4; k++) put(new THREE.BoxGeometry(0.075, 0.86 - (k % 3 ? 0 : 0.08), 0.02), k % 2 ? 0xC18A56 : 0xB37B49, -0.135 + k * 0.09, 0.45, 0, sl, false);
+    for (const y of [0.2, 0.68]) put(new THREE.BoxGeometry(0.4, 0.05, 0.03), 0x8E5E3B, 0, y, -0.025, sl, false);
+    for (const x of [-0.2, 0.2]) { put(new THREE.BoxGeometry(0.03, 0.98, 0.03), C.pot, x, 0.47, -0.07, sl, false); const c = put(new THREE.TorusGeometry(0.06, 0.016, 4, 6, Math.PI), C.pot, x, 0.96, -0.01, sl, false); c.rotation.y = Math.PI / 2; for (const y of [0.2, 0.68]) put(new THREE.BoxGeometry(0.02, 0.02, 0.06), 0x8E5E3B, x, y, -0.045, sl, false); }
+    put(new THREE.BoxGeometry(0.36, 0.03, 0.05), SN(), 0, 0.9, 0.005, sl, false);
+    put(ball(0.22, 6, 2), SN(), sl.position.x, 0.2, zs + 0.2, g, false).scale.set(1.3, 0.3, 0.7); }
+  // 현관 옆의 작은 등불
+  { const lx2 = FRONT.x - FRONT.w / 2 - 0.34, lz2 = zs + 0.1, y0 = 0.2;
+    put(new THREE.BoxGeometry(0.15, 0.03, 0.15), 0x2B2420, lx2, y0 + 0.015, lz2, g, false);
+    put(new THREE.BoxGeometry(0.1, 0.15, 0.1), L(0xFFD98A), lx2, y0 + 0.105, lz2, g, false);
+    for (const dx of [-1, 1]) for (const dz of [-1, 1]) put(new THREE.BoxGeometry(0.014, 0.16, 0.014), 0x2B2420, lx2 + dx * 0.055, y0 + 0.105, lz2 + dz * 0.055, g, false);
+    put(new THREE.ConeGeometry(0.11, 0.07, 4), 0x2B2420, lx2, y0 + 0.22, lz2, g, false).rotation.y = Math.PI / 4;
+    put(new THREE.ConeGeometry(0.075, 0.04, 4), SN(), lx2, y0 + 0.25, lz2, g, false).rotation.y = Math.PI / 4;
+    put(new THREE.TorusGeometry(0.035, 0.008, 4, 8), 0x2B2420, lx2, y0 + 0.29, lz2, g, false); }
+  // 대문 양옆 울타리에 꽂은 지팡이 사탕
+  for (const [cx2, s2] of [[gate[0] - 0.3, 1], [gate[1] + 0.86, -1]]) {
+    const cz2 = fz1 - 0.08;
+    put(cyl(0.028, 0.028, 0.62, 7), 0xFFFAF2, cx2, 0.31, cz2, g, false);
+    for (let k = 0; k < 5; k++) put(cyl(0.0295, 0.0295, 0.045, 7), C.pot, cx2, 0.08 + k * 0.125, cz2, g, false).rotation.z = 0.35;
+    const hook = put(new THREE.TorusGeometry(0.075, 0.028, 5, 8, Math.PI), 0xFFFAF2, cx2 + s2 * 0.075, 0.62, cz2, g, false);
+    for (let k = 0; k < 3; k++) { const a = 0.5 + k * 1.05; put(ball(0.031, 5, 3), C.pot, cx2 + s2 * 0.075 - s2 * Math.cos(a) * 0.075, 0.62 + Math.sin(a) * 0.075, cz2, g, false); }
+    put(ball(0.03, 5, 3), 0xFFFAF2, cx2 + s2 * 0.15, 0.62, cz2, g, false);
+  }
   bake(g, 4, false);
   return g;
 }
