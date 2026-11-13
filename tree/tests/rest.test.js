@@ -160,7 +160,7 @@ const stand = async (p, x, z) => { await T(p, (a) => { const W = window.__tree; 
     const P = await open(ctx2, `${BASE}?ns=rp`);
     await T(P, () => window.__tree.dispatch({ t: 'put', id: 'dt', k: 'dart', i: 11, j: 0, r: 0 }));
     await stand(P, 1.75, -3.0);
-    check('PC 에서는 단추에 "· 스페이스" 가 붙음', (await P.textContent('#act')) === '🎯 다트 하기 · 스페이스', await P.textContent('#act'));
+    check('PC 에서는 단추에 "· 스페이스" 가 붙음', await until(async () => (await P.textContent('#act')) === '🎯 다트 하기 · 스페이스', 3000), await P.textContent('#act'));
     await P.keyboard.press('Space');
     await until(() => T(P, () => window.__play.on), 6000); await sleep(300);
     await P.keyboard.press('Space');
