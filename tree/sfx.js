@@ -1,7 +1,7 @@
 // 효과음. 소리 파일 없이 WebAudio 로 그 자리에서 만들어 낸다(용량 0, 저작권 걱정 없음).
 // 쓰는 법: import { sfx } from './sfx.js';  sfx('bite');               내가 낸 소리
 //                                            sfx('bite', 아바타나 물체);  남이 낸 소리(거리에 따라 작게, 다른 층이면 더 작게)
-// - 첫 누르기·키 입력 뒤에만 소리가 난다(브라우저 자동 재생 정책). 그 전의 요청은 기록만 하고 버린다
+// - 첫 누르기·키 입력 뒤에만 소리가 난다(브라우저 자동 재생 정책). 그 전의 요청은 기록만 하고 버린다. 소리가 2초쯤 없으면 소리 장치를 재워 두었다가 다음 소리에 깨운다
 // - 같은 소리는 잠깐(GAP) 안에 다시 내지 않고, 한꺼번에 울리는 소리 수도 제한한다(VOICES)
 // - 켜고 끄기와 음량은 기기에 기억한다(localStorage 'tree.sfx'). 단추는 mountSfxUI 가 "같이" 판에 넣는다
 // - 기존 소리(오르골 play.js, 점등식 party.js, 불꽃놀이 sky.js, 초인종 app.js, 보이스·TV media.js)는 저마다 따로 내고 여기서 건드리지 않는다
@@ -27,11 +27,7 @@ function ctx() {
   } catch (_) { ac = null; }
   return ac;
 }
-function unlock() {
-  unlocked = true;
-  const a = ctx();
-  if (a && a.state === 'suspended') a.resume().catch(() => {});
-}
+function unlock() { unlocked = true; } // 소리 장치는 첫 소리를 낼 때 만든다
 for (const ev of ['pointerdown', 'keydown', 'touchend']) window.addEventListener(ev, unlock, { capture: true, passive: true });
 
 /* ───────── 소리의 재료 ───────── */
@@ -153,6 +149,15 @@ function nearness(src) {
   return Math.max(0.1, Math.min(1, 1 / (1 + (d / 2.4) * (d / 2.4))));
 }
 
+// 소리가 한동안 없으면 소리 장치를 재운다 (켜 둔 채로 두면 조용할 때도 기기가 계속 일한다)
+let napT = 0;
+function nap() {
+  const now = performance.now() / 1000;
+  if (!ac || ac.state !== 'running') return;
+  if (ends.some((t) => t > now - 1)) { napT = setTimeout(nap, 1500); return; }
+  ac.suspend().catch(() => {});
+}
+
 // 소리를 낸다. src 가 있으면 남이(또는 떨어진 곳에서) 낸 소리, vol 은 덧곱하는 크기
 export function sfx(name, src = null, vol = 1) {
   const def = S[name];
@@ -168,7 +173,9 @@ export function sfx(name, src = null, vol = 1) {
   last.set(key, now);
   rec.played = true; // 낼 차례가 됐다 (아직 화면을 누르지 않았으면 실제 소리는 나지 않는다)
   const a = ctx();
-  if (!a || a.state !== 'running') { if (a) a.resume().catch(() => {}); return false; }
+  if (!a) return false;
+  if (a.state !== 'running') a.resume().catch(() => {}); // 쉬고 있었으면 깨운다 (예약해 둔 소리는 깨어나면서 난다)
+  clearTimeout(napT); napT = setTimeout(nap, (def[1] + 2) * 1000);
   try {
     const g = a.createGain(); g.gain.value = k; g.connect(master);
     def[0](g);
