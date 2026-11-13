@@ -21,6 +21,7 @@ export const FURNITURE = [
   { id: 'counter', name: '조리대', icon: '🔪', w: 2, d: 1, solid: true },
   { id: 'stove', name: '오븐', icon: '🍳', w: 2, d: 1, solid: true, play: 'bake' }, // 새 케이크를 굽는다
   { id: 'fridge', name: '냉장고', icon: '🧊', w: 2, d: 1, solid: true, snack: true },
+  { id: 'wine', name: '와인 냉장고', icon: '🍷', w: 1, d: 1, solid: true, snack: true }, // 유리문 와인 셀러. 모양과 꺼내 마시기는 food.js
   // 방
   { id: 'bed', name: '침대', icon: '🛏️', w: 3, d: 4, solid: true, lie: true },
   { id: 'closet', name: '옷장', icon: '🚪', w: 3, d: 1, solid: true, dress: true }, // 열면 옷을 갈아입는다
@@ -47,6 +48,7 @@ export const STARTER = [['fire', 6, 0, 0], ['tv', 0, 6, 1], ['dart', 11, 0, 0], 
 export const STARTER_EAST = [
   ['counter', 21, 0, 0], ['stove', 23, 0, 0], ['counter', 25, 0, 0], ['fridge', 28, 0, 0], ['cake', 24, 4, 0],
   ['bed', 26, 12, 3], ['stand', 29, 11, 3], ['closet', 22, 17, 2],
+  ['wine', 27, 0, 0], // 조리대와 냉장고 사이. 맨 끝에 더해서 앞의 것들의 이름(east0…)이 바뀌지 않게
 ];
 
 // 마당과 위층에 처음부터 놓여 있는 가구. 마당·위층이 없던 때에 꾸민 방을 열 때도 이것만 더해 준다.

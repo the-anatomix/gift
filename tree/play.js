@@ -5,6 +5,7 @@
 import { THREE, M, put, cyl } from './kit.js';
 import { DART, TV, SONGS, CREAMS, TOPPINGS, CAKE, dartScore } from './catalog.js';
 import { TV_MAT } from './furniture.js';
+import { sfx } from './sfx.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -94,14 +95,14 @@ export function makePlay(K) {
       m.rotation.set(-0.34, 0.2, 0); // 꽁지가 조금 들려서 꽂힌다 (화살 몸통이 보이게)
       c.g.add(m); c.darts.push(m);
       c.fly = { m, t: 0, from: [0.25, DART.y - 0.45, 1.7], to: [ax, DART.y + ay, DART.z] };
-      c.phase = 'fly'; c.aim.visible = false;
+      c.phase = 'fly'; c.aim.visible = false; sfx('dart');
     },
     land(c) {
       const x = c.fly.to[0], y = c.fly.to[1] - DART.y, r = dartScore(x, y);
       c.last = { x, y, pts: r.pts };
       c.score += r.pts; c.left--;
       if (Math.hypot(x, y) > DART.out) { c.fall = c.fly.m; c.fallT = 0; } // 판 밖으로 나간 화살은 바닥으로 떨어진다
-      c.fly = null;
+      c.fly = null; sfx('dartHit');
       K.toast(r.say);
       if (c.left > 0) { c.phase = 'aim'; c.aim.visible = true; }
       else {
@@ -275,7 +276,7 @@ export function makePlay(K) {
     reset(c) { c.heat = 0; c.phase = 'idle'; c.t = 0; fire.color(c); fire.paint(c); },
     color(c) { grade(STOPS, c.heat, c.mat.color); },
     paint(c) {
-      if (c.phase === 'idle') panel('마시멜로 굽기', '불에 대고 있다가 노릇노릇해졌을 때 꺼내요. 색을 잘 보세요.' + roomBest('fire'), [{ label: '굽기 시작', main: true, id: 'playGo', fn: () => { c.phase = 'roast'; fire.paint(c); } }, quit]);
+      if (c.phase === 'idle') panel('마시멜로 굽기', '불에 대고 있다가 노릇노릇해졌을 때 꺼내요. 색을 잘 보세요.' + roomBest('fire'), [{ label: '굽기 시작', main: true, id: 'playGo', fn: () => { c.phase = 'roast'; sfx('sizzle'); fire.paint(c); } }, quit]);
       else if (c.phase === 'roast') panel('굽는 중…', '너무 오래 두면 타요.', [{ label: '꺼내기', main: true, id: 'playGo', fn: () => fire.out(c) }]);
       else {
         panel(`${c.say} (${c.pts}점)`, '한 번 더 구워 볼까요?' + roomBest('fire'), [
@@ -286,7 +287,7 @@ export function makePlay(K) {
     out(c) {
       if (c.phase !== 'roast') return;
       [c.say, c.pts] = toast2(c.heat);
-      c.phase = 'done';
+      c.phase = 'done'; sfx(c.pts >= 80 ? 'top' : 'sizzle');
       K.toast(c.say);
       K.fx({ k: 'fire', v: c.pts });
       record('fire', c.pts);
@@ -331,12 +332,12 @@ export function makePlay(K) {
       c.batter.scale.y = s; c.batter.position.y = 0.008 + 0.015 * s;
     },
     paint(c) {
-      if (c.phase === 'idle') panel('케이크 굽기', '반죽을 틀에 붓고 오븐에 넣어요', [{ label: '굽기 시작', main: true, id: 'playGo', fn: () => { c.phase = 'bake'; bake.paint(c); } }, quit]);
+      if (c.phase === 'idle') panel('케이크 굽기', '반죽을 틀에 붓고 오븐에 넣어요', [{ label: '굽기 시작', main: true, id: 'playGo', fn: () => { c.phase = 'bake'; sfx('pour'); setTimeout(() => sfx('whisk'), 550); setTimeout(() => sfx('ovenOn'), 1150); bake.paint(c); } }, quit]);
       else if (c.phase === 'bake') panel('굽는 중…', '노릇노릇해지면 꺼내요. 너무 오래 두면 타요.', [{ label: '꺼내기', main: true, id: 'playGo', fn: () => bake.out(c) }]);
       else if (c.phase === 'burnt') panel('새까맣게 탔어요', '다시 구워 봐요', [{ label: '다시 굽기', main: true, id: 'playGo', fn: () => bake.reset(c) }, quit]);
       else panel('새 케이크가 작업대에 나왔어요', '작업대에 가서 크림과 장식으로 꾸며 보세요.', [quit]);
     },
-    burn(c) { c.phase = 'burnt'; K.toast('새까맣게 탔어요. 다시 구워 봐요'); bake.paint(c); },
+    burn(c) { c.phase = 'burnt'; sfx('sizzle'); K.toast('새까맣게 탔어요. 다시 구워 봐요'); bake.paint(c); },
     out(c) {
       if (c.phase !== 'bake') return;
       if (c.heat < 0.5) { K.toast('아직 덜 익었어요. 조금 더 구워요'); return; } // 그대로 계속 굽는다

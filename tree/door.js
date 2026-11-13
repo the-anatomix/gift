@@ -1,6 +1,7 @@
 // 집 밖: 초대받은 사람이 처음 보는 장면. 눈 내리는 밤의 집 앞에서 초인종을 누르고, 문이 열리면 걸어 들어간다.
 // 집 안과 겹치지 않게 멀리(z 쪽으로 OZ 만큼) 떨어뜨려 짓고, 문 앞에 있을 때만 보이게 한다.
 import { THREE, M, put, rbox, cyl, ball } from './kit.js';
+import { sfx } from './sfx.js';
 
 const OZ = 70;                 // 집 밖 장면이 놓인 자리 (집 안은 z -4 ~ 5)
 const lit = (hex) => new THREE.MeshBasicMaterial({ color: hex });
@@ -78,7 +79,7 @@ export function buildOutside(scene) {
     hitBell: (ray) => ray.intersectObject(hitBox, false).length > 0,
     bellPoint() { const v = new THREE.Vector3(); btn.getWorldPosition(v); return [v.x, v.y, v.z]; },
     // 문이 열리고 안으로 걸어 들어간다. 다 들어가면 done 을 부른다. 돌려주는 값 = 그동안의 카메라 자리를 주는 함수
-    open(done) { opening = { t: 0, done }; },
+    open(done) { opening = { t: 0, done }; sfx('door'); },
     // dt 초 진행. 걸어 들어가는 중이면 그때의 카메라 자리를 돌려준다
     tick(dt) {
       if (!g.visible) return null;
