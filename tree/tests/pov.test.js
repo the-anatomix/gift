@@ -124,7 +124,7 @@ const audit = (p) => p.evaluate(() => {
     await T(B, () => { const W = window.__tree; W.me.place(3, 3); W.me.turnTo(-1, -1); W.setPov(true); });
     await sleep(300);
     const b0 = await me(B), bl = await look(B);
-    await B.keyboard.down('KeyW'); await sleep(600); await B.keyboard.up('KeyW'); await sleep(150);
+    await B.keyboard.down('KeyW'); await sleep(1100); await B.keyboard.up('KeyW'); await sleep(150);
     const b1 = await me(B);
     const al = (b1.x - b0.x) * -Math.sin(bl.fy) + (b1.z - b0.z) * -Math.cos(bl.fy);
     check('PC 1인칭: W 키로 보는 쪽으로 걸음', al > 0.5, { b0, b1 });
