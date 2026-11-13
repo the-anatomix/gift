@@ -13,6 +13,8 @@
 //   손님 → 주인  { t: 'sync' }                                          방이 달라진 것 같으니 통째로 다시 달라
 //   서로         { t: 'look', look } { t: 'pos', x, z } { t: 'fx', k, v } { t: 'say', text }   주인이 전해 줄 때는 누구 것인지 id 를 붙인다
 //   서로         { t: 'ping', h }                                       h = 방의 지문
+//   서로         { t: 'photo', h, d } { t: 'photoq', h }                액자에 넣은 사진 한 장 / 그 지문의 사진을 달라 (photo.js). 방의 상태에는 지문만 있고 사진은 이렇게 따로 다닌다.
+//                                                                       주인은 꾸밀 수 있는 손님이 보낸 것이나 방이 쓰는 지문의 사진만 받아서 다른 사람들에게 전한다
 // 공동 관리자 (admin.js): 방장이 지정한 기기는 초인종 없이 들어오고, 문 앞 사람을 들이거나 돌려보내고 방 안 사람을 내보낼 수 있다
 //   손님 → 주인  knock 에 tk(그 기기의 이 방 전용 비밀표)와 auto(초인종을 누르지 않고 스스로 보낸 것)가 붙는다. 주인은 tk 의 지문이 방의 공동 관리자 표에 있으면 바로 들인다
 //   주인 → 손님  { t: 'noadm' }                                         스스로 보낸 knock 인데 공동 관리자가 아니다: 초인종을 눌러야 한다
@@ -262,6 +264,15 @@ export function makeDuo(K) {
         break;
       }
       case 'ping': if (typeof m.h === 'string' && m.h === K.hash() && p.edit) K.synced(); break;
+      case 'photo': if (K.photoIn && K.photoIn(m, p.edit)) relay({ t: 'photo', h: m.h, d: m.d }, pid); break; // 새로 받은 사진만 전한다
+      case 'photoq': { // 한 사람이 같은 사진을 2초에 한 번만 달라고 할 수 있다
+        const now = performance.now(), d = K.photoGive && typeof m.h === 'string' ? K.photoGive(m.h) : null;
+        if (!p.pq) p.pq = new Map();
+        if (!d || now - (p.pq.get(m.h) || -1e9) < 2000 || p.pq.size > 400) return;
+        p.pq.set(m.h, now);
+        link.send({ t: 'photo', h: m.h, d }, pid);
+        break;
+      }
       case 'boss': { // 공동 관리자가 한 일: 들이기·돌려보내기·내보내기 (방장과 다른 공동 관리자는 내보내지 못한다)
         const q = typeof m.id === 'string' ? peers.get(m.id) : null;
         if (!adm(p) || !q || q === p) return;
@@ -301,6 +312,8 @@ export function makeDuo(K) {
       case 'say': K.peerSay(typeof m.id === 'string' ? m.id : 'h', m.text); break;
       case 'admit': if (mode === 'door') K.admitted(); break; // 문이 열린다. 다 들어가면 app.js 가 enter() 를 부른다
       case 'deny': denied(m.why); break;
+      case 'photo': if (mode === 'on' && K.photoIn) K.photoIn(m, true); break;
+      case 'photoq': { const d = mode === 'on' && K.photoGive && typeof m.h === 'string' ? K.photoGive(m.h) : null; if (d) link.send({ t: 'photo', h: m.h, d }); break; }
       case 'noadm': if (mode === 'door') { rang = false; if (K.passLost) K.passLost(); K.status(); } break; // 공동 관리자가 아니게 됐다: 초인종을 눌러야 한다
       case 'adms': {
         if (!Array.isArray(m.ids)) return;
@@ -380,6 +393,8 @@ export function makeDuo(K) {
     pos(x, z) { out({ t: 'pos', x, z }); },
     fx(m) { out({ t: 'fx', k: m.k, v: m.v }); },
     say(text) { out({ t: 'say', text }); },
+    // 액자의 사진을 보내거나 달라고 한다 (photo.js). 손님은 주인에게, 주인은 방 안의 모두에게
+    photo(m) { if (!link || mode !== 'on') return; if (role === 'host') relay(m); else link.send(m); },
     // 초대 링크. edit = 같이 꾸미기(열쇠가 들어 있다), 아니면 구경
     inviteUrl(edit = true) {
       if (!room) return '';

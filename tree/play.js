@@ -463,6 +463,8 @@ export function makePlay(K) {
     // 다른 모듈의 놀이를 더한다 (방명록: book.js). impl = { start(c), paint(c), tick, tap, stop }
     add(kind, impl) { KINDS[kind] = impl; },
     panel, // 아래 판을 그린다 (다른 모듈의 놀이가 쓴다)
+    pose: (p) => K.setPose(p), // 놀이 중 카메라 자리 (다른 모듈의 놀이가 쓴다)
+    get showing() { return hasVideo() || hasRemote(); }, // TV·스크린에 동영상이 나오고 있는지 (영화관의 영사기 빛: cinema.js)
     get cur() { return cur; },
     get spot() { return cur ? cur.spot || cur.id : null; }, // 놀이가 벌어지는 가구 (탁자에 올려놓은 케이크면 그 탁자)
     // 놀이를 연다. id = 가구, kind = 그 가구의 놀이 (케이크면 id = 케이크, 그 케이크가 놓인 가구에서 논다)

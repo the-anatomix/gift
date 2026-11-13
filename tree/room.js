@@ -513,11 +513,13 @@ function buildUpper(scene, lv, mats, floorMat) {
   put(new THREE.BoxGeometry(W, 0.02, D), floorMat, cx, -0.005, cz, g, false);
   const walls = { n: wall(g, 'n', mats), s: wall(g, 's', mats), w: wall(g, 'w', mats), e: wall(g, 'e', mats) };
   const cur = lv === 1 ? 0x5E8F6E : 0x5B7BC4; // 층마다 커튼 색이 다르다
-  for (const v of lv === 1 ? [-2.4, 1.2, 4.8, 8.6] : [-1.2, 3.6, 8.4]) windowOn(walls.n, v, cur);
-  for (const v of lv === 1 ? [-2.4, 2.4] : [0.4]) windowOn(walls.w, v, cur);
-  windowOn(walls.e, -1.9, cur); windowOn(walls.e, 2.6, cur);
-  windowOn(walls.s, -1.6, cur); windowOn(walls.s, 6.2, cur); pictureOn(walls.s, 2.4);
-  if (lv === 2) { wreathOn(walls.n, 1.2); pictureOn(walls.w, -2.2); pictureOn(walls.w, 3.0); }
+  // 3층의 창·리스·액자·줄 장식은 벽마다 따로 묶어 둔다(deco): 영화관일 때는 숨긴다 (setTheater)
+  const deco = lv !== 2 ? walls : Object.fromEntries(Object.entries(walls).map(([k, w]) => { const d = new THREE.Group(); d.userData.own = true; d.userData.deco = true; w.upper.add(d); return [k, { ...w, upper: d }]; }));
+  for (const v of lv === 1 ? [-2.4, 1.2, 4.8, 8.6] : [-1.2, 3.6, 8.4]) windowOn(deco.n, v, cur);
+  for (const v of lv === 1 ? [-2.4, 2.4] : [0.4]) windowOn(deco.w, v, cur);
+  windowOn(deco.e, -1.9, cur); windowOn(deco.e, 2.6, cur);
+  windowOn(deco.s, -1.6, cur); windowOn(deco.s, 6.2, cur); pictureOn(deco.s, 2.4);
+  if (lv === 2) { wreathOn(deco.n, 1.2); pictureOn(deco.w, -2.2); pictureOn(deco.w, 3.0); }
   // 아래층에서 올라오는 구멍과 그 위로 나온 사다리 손잡이
   const dn = LADDERS[lv - 1], hx = X0 + (dn.foot[0] + 0.5) * CELL, hz = Z0 + (dn.foot[1] + 0.5) * CELL;
   put(new THREE.BoxGeometry(CELL, 0.012, CELL), new THREE.MeshBasicMaterial({ color: 0x2B2420 }), hx, 0.012, hz, g, false);
@@ -533,13 +535,36 @@ function buildUpper(scene, lv, mats, floorMat) {
   for (const sz of [-1, 1]) { put(cbox(0.06, 0.62, 0.06, 0.015), R, hx + hw, 0.31, hz + sz * hw, rails); put(ball(0.045, 6, 5), C.knob, hx + hw, 0.65, hz + sz * hw, rails, false); for (const y of [0.3, 0.56]) put(new THREE.BoxGeometry(CELL, 0.04, 0.035), R, hx, y, hz + sz * hw, rails, false); }
   for (const y of [0.3, 0.56]) put(new THREE.BoxGeometry(0.035, 0.04, CELL), R, hx - hw, y, hz, rails, false);
   bake(rails, 0, false);
-  garlands(walls);
+  garlands(deco);
   for (const k of ['n', 's', 'w', 'e']) bake(walls[k].g, 5, false);
   if (lv < LEVELS - 1) ladder(g, LADDERS[lv]);
   const ceil = put(new THREE.PlaneGeometry(W + 0.3, D + 0.3), new THREE.MeshLambertMaterial({ color: 0xFFF6E6 }), cx, WALL_H, cz, g, false);
   ceil.rotation.x = Math.PI / 2; ceil.receiveShadow = false; ceil.visible = false;
-  return { g, walls, ceil };
+  return { g, walls, ceil, deco: lv === 2 ? Object.values(deco).map((d) => d.upper) : [] };
 }
+// 영화관 카펫: 짙은 남색 바탕에 작은 무늬가 흩어져 있다 (직접 그린 그림)
+function carpetTexture(rx, rz) {
+  const S = 256, c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d');
+  g.fillStyle = '#252C4C'; g.fillRect(0, 0, S, S);
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let k = 0; k < 900; k++) { g.fillStyle = `rgba(${rnd() < 0.5 ? '12,14,30' : '70,80,130'},${0.05 + rnd() * 0.08})`; g.fillRect(rnd() * S, rnd() * S, 2, 2); } // 보풀
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
+    const ox = x * 64 + (y % 2 ? 32 : 0), oy = y * 64 + 32, k = (x + y * 3) % 4;
+    for (const dx of [0, -S, S]) { // 가장자리에서 이어지게
+      const px = ox + dx;
+      if (k === 0) { g.fillStyle = '#C9A24A'; g.beginPath(); g.moveTo(px, oy - 9); g.lineTo(px + 6, oy); g.lineTo(px, oy + 9); g.lineTo(px - 6, oy); g.fill(); }
+      else if (k === 1) { g.strokeStyle = '#A8384A'; g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.arc(px, oy, 11, 0.3, 2.4); g.stroke(); }
+      else if (k === 2) { g.fillStyle = '#3F8F8A'; g.beginPath(); g.arc(px, oy, 5, 0, 7); g.fill(); g.fillStyle = '#C9A24A'; g.beginPath(); g.arc(px + 12, oy - 10, 2.5, 0, 7); g.fill(); }
+      else { g.strokeStyle = '#6E78B8'; g.lineWidth = 3; g.lineCap = 'round'; g.beginPath(); g.moveTo(px - 9, oy + 6); g.lineTo(px, oy - 6); g.lineTo(px + 9, oy + 6); g.stroke(); }
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, rz); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+const THEATER = { wall: 0x54202E, panel: 0x2C1722, ceil: 0x1D1722 }; // 영화관의 벽(짙은 자주)·아랫단·천장
 
 export function buildRoom(world) {
   const scene = new THREE.Group(); // 1층과 마당의 묶음
@@ -593,8 +618,11 @@ export function buildRoom(world) {
   // 위층들 (바닥재는 1층 거실과 같이 바뀐다)
   const upMat = new THREE.MeshLambertMaterial({ map: floorTexture(FLOORS[0].tones, W / 3, D / 3) });
   const floors = [{ g: scene, walls, ceil }];
+  // 3층은 벽·바닥 재질을 따로 둔다: 보통은 다른 층과 같은 색이고, 영화관일 때만 어두운 벽과 카펫이 된다 (setTheater)
+  const mats3 = { wall: mats.wall.clone(), panel: mats.panel.clone() }, upMat3 = upMat.clone();
+  let theater = false, carpet = null, wallId = WALLS[0].id;
   for (let lv = 1; lv < LEVELS; lv++) {
-    const f = buildUpper(world, lv, mats, upMat);
+    const f = buildUpper(world, lv, lv === 2 ? mats3 : mats, lv === 2 ? upMat3 : upMat);
     if (lv < LEVELS - 1) { const h = hole(), L = LADDERS[lv]; h.position.x = X0 + (L.foot[0] + 0.5) * CELL - cx; h.position.y = Z0 + (L.foot[1] + 0.5) * CELL - cz; f.ceil.add(h); }
     floors.push(f);
   }
@@ -615,12 +643,31 @@ export function buildRoom(world) {
       }
       return moved;
     },
-    setWall(id) { const w = WALLS.find((x) => x.id === id) || WALLS[0]; mats.wall.color.setHex(w.wall); mats.panel.color.setHex(w.panel); },
+    setWall(id) {
+      const w = WALLS.find((x) => x.id === id) || WALLS[0];
+      wallId = w.id;
+      mats.wall.color.setHex(w.wall); mats.panel.color.setHex(w.panel);
+      mats3.wall.color.setHex(theater ? THEATER.wall : w.wall); mats3.panel.color.setHex(theater ? THEATER.panel : w.panel);
+    },
+    // 3층을 영화관답게(어두운 벽·카펫 바닥·창과 줄 장식 없이) 하거나 되돌린다. 바뀌었으면 true (cinema.js: 3층에 스크린이 있는 동안)
+    get theater() { return theater; },
+    setTheater(on) {
+      if (!!on === theater) return false;
+      theater = !!on;
+      const top = floors[LEVELS - 1];
+      if (theater && !carpet) carpet = carpetTexture(W / 1.5, D / 1.5);
+      upMat3.map = theater ? carpet : upMat.map; upMat3.needsUpdate = true;
+      top.ceil.material.color.setHex(theater ? THEATER.ceil : 0xFFF6E6);
+      for (const d of top.deco) d.visible = !theater;
+      this.setWall(wallId);
+      return true;
+    },
     setFloor(id) {
       const f = FLOORS.find((x) => x.id === id) || FLOORS[0];
       if (f.id === floorId) return;
       floorId = f.id;
       for (const [m, tex] of [[floorMat, wood(f.tones)], [upMat, floorTexture(f.tones, W / 3, D / 3)]]) { const old = m.map; m.map = tex; m.needsUpdate = true; if (old) old.dispose(); }
+      if (!theater) { upMat3.map = upMat.map; upMat3.needsUpdate = true; }
     },
   };
 }

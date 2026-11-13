@@ -48,10 +48,13 @@ const audit = (p) => p.evaluate(() => {
     const all = await items(N), k3 = kinds(all, 2);
     check('새 방의 3층에 영화관이 차려져 있음: 스크린 1, 좌석 6(세 가지 단), 유도등 3, 팝콘 기계 1, 그림 7', k3.screen === 1 && k3.seat === 6 && k3.guide === 3 && k3.popcorn === 1 && k3.art === 7 && Object.values(k3).reduce((a, b) => a + b, 0) === 18, k3);
     check('좌석은 뒤로 갈수록 높은 단(seat, seat2, seat3 두 개씩)', ['seat', 'seat2', 'seat3'].every((k) => all.filter((it) => it[1] === k).length === 2));
-    check('기본 가구는 모두 놓였고(40개) 1·2층과 마당은 예전 그대로', all.length === 40 && all.filter((it) => it[2] < 32).length === 17 && all.filter((it) => Math.floor(it[2] / 32) === 1).length === 5 && !!(await T(N, () => window.__cinema.has)), all.length);
+    check('기본 가구는 모두 놓였고(41개) 1·2층과 마당은 예전 그대로', all.length === 41 && all.filter((it) => it[2] < 32).length === 18 && all.filter((it) => Math.floor(it[2] / 32) === 1).length === 5 && !!(await T(N, () => window.__cinema.has)), all.length);
     await stand(N, 2, 20, 8); await sleep(900);
     check('3층에 올라가면 영화관 가구가 보임', (await T(N, () => window.__tree.level)) === 2 && (await T(N, () => window.__tree.serialize().items.filter((it) => it[2] >= 64).every((it) => window.__tree.itemShown(it[0])))));
     await N.screenshot({ path: path.join(__dirname, 'out', 'cinema-new.png') });
+    const th = await T(N, () => ({ on: window.__cinema.theater, fix: window.__cinema.fixtures, deco: window.__cinema.decoShown, beam: window.__cinema.beam, calls: window.__tree.calls }));
+    check('영화관인 3층은 극장답게: 어두운 벽·카펫, 창과 줄 장식은 숨고, 벽 등·영사실·비상구 표시가 붙음', th.on === true && th.fix === 4 && th.deco === false && th.beam === false, th);
+    check('그리기 호출 수가 크게 늘지 않음 (3층 전체 화면에서 110번 이하)', th.calls > 20 && th.calls <= 110, th.calls);
 
     /* 좌석에 앉기 */
     const seat = all.find((it) => it[1] === 'seat2' && it[3] === 4);
@@ -84,6 +87,23 @@ const audit = (p) => p.evaluate(() => {
     check('영화 보기 판의 단추가 화면 안·44px 이상', (await audit(N)).length === 0, await audit(N));
     await sleep(400);
     await N.screenshot({ path: path.join(__dirname, 'out', 'cinema-screen.png') });
+    // 영사기 빛줄기: 스크린에 동영상이 나오는 동안만
+    const b64 = await N.evaluate(() => new Promise((ok, no) => {
+      const c = document.createElement('canvas'); c.width = 96; c.height = 54;
+      const g = c.getContext('2d'); let k = 0;
+      const paint = () => { g.fillStyle = '#E01010'; g.fillRect(0, 0, 96, 54); g.fillStyle = '#fff'; g.fillRect(k++ % 90, 20, 6, 6); };
+      paint(); const iv = setInterval(paint, 40);
+      const rec = new MediaRecorder(c.captureStream(25), { mimeType: 'video/webm' }), parts = [];
+      rec.ondataavailable = (e) => parts.push(e.data);
+      rec.onstop = () => { clearInterval(iv); const fr = new FileReader(); fr.onload = () => ok(fr.result.split(',')[1]); fr.onerror = no; fr.readAsDataURL(new Blob(parts, { type: 'video/webm' })); };
+      rec.start(); setTimeout(() => rec.stop(), 900);
+    }));
+    await N.setInputFiles('#tvFile', { name: 'clip.webm', mimeType: 'video/webm', buffer: Buffer.from(b64, 'base64') });
+    check('스크린에 동영상을 틀면 영사실에서 스크린까지 빛줄기가 켜짐', await until(() => T(N, () => window.__cinema.beam), 10000));
+    await sleep(500);
+    await N.screenshot({ path: path.join(__dirname, 'out', 'cinema-beam.png') });
+    await T(N, () => window.__play.clearVideo());
+    check('동영상을 빼면 빛줄기가 꺼짐', await until(async () => !(await T(N, () => window.__cinema.beam)), 5000));
     await T(N, () => window.__play.close()); await sleep(300);
 
     /* 벽에 건 그림은 그 벽이 내려가면 같이 숨는다 */
@@ -97,7 +117,7 @@ const audit = (p) => p.evaluate(() => {
 
     /* 다시 열어도 그대로이고 또 더해지지 않는다 */
     await sleep(500); await N.reload(); await ready(N);
-    check('다시 열어도 영화관은 그대로(가구 40개, 또 더해지지 않음)', (await items(N)).length === 40 && kinds(await items(N), 2).screen === 1);
+    check('다시 열어도 영화관은 그대로(가구 41개, 또 더해지지 않음)', (await items(N)).length === 41 && kinds(await items(N), 2).screen === 1);
     await N.close();
 
     /* 이미 3층을 꾸며 둔 방: 그대로 둔다 */
@@ -105,6 +125,7 @@ const audit = (p) => p.evaluate(() => {
     await T(O, () => { const W = window.__tree; W.dispatch({ t: 'put', id: 'mybed', k: 'bed', i: 64 + 3, j: 1, r: 0 }); W.dispatch({ t: 'put', id: 'myrug', k: 'rug', i: 64 + 9, j: 8, r: 0 }); W.dispatch({ t: 'put', id: 'sofa1', k: 'sofa', i: 2, j: 6, r: 1 }); W.dispatch({ t: 'put', id: 'up2f', k: 'lamp', i: 32 + 5, j: 5, r: 0 }); });
     await sleep(700); await O.reload(); await ready(O);
     check('이미 3층을 꾸며 둔 방은 다시 열어도 그대로(영화관이 끼어들지 않음)', (await items(O)).length === 4 && !(await T(O, () => window.__cinema.has)), await items(O));
+    check('영화관이 아닌 3층은 예전 모습 그대로(창과 줄 장식이 보이고 극장 장식은 없음)', (await T(O, () => window.__cinema.theater)) === false && (await T(O, () => window.__cinema.decoShown)) === true && (await T(O, () => window.__cinema.fixtures)) === 0);
     await O.tap('#tabs button[data-m="paint"]'); await sleep(300);
     check('방장의 "벽·바닥" 판에 "3층을 영화관으로 바꾸기" 단추가 있음 (화면 안·44px 이상)', (await O.isVisible('#cineBtn')) && (await O.textContent('#cineBtn')).includes('3층을 영화관으로 바꾸기') && (await audit(O)).length === 0, await audit(O));
     await O.tap('#cineBtn'); await sleep(200);
@@ -113,6 +134,7 @@ const audit = (p) => p.evaluate(() => {
     await O.tap('#cineBtn'); await sleep(500);
     const after = await items(O);
     check('한 번 더 누르면 3층 가구를 치우고 영화관을 차림 (다른 층은 그대로)', after.length === 20 && !after.some((it) => it[0] === 'mybed' || it[0] === 'myrug') && after.some((it) => it[0] === 'sofa1') && after.some((it) => it[0] === 'up2f') && kinds(after, 2).screen === 1 && kinds(after, 2).seat === 6 && kinds(after, 2).art === 7, kinds(after, 2));
+    check('영화관으로 바꾸면 3층의 벽·바닥도 같이 극장답게 바뀜', await until(() => T(O, () => window.__cinema.theater === true && window.__cinema.fixtures === 4 && !window.__cinema.decoShown), 3000));
     check('바꾼 뒤에는 단추가 처음 글로 돌아옴', (await O.textContent('#cineBtn')).includes('3층을 영화관으로 바꾸기'));
 
     /* 여럿이: 손님에게도 같은 영화관, 단추는 방장(과 공동 관리자)에게만 */
@@ -131,6 +153,9 @@ const audit = (p) => p.evaluate(() => {
     await T(G, () => window.__tree.setMode(null)); await stand(G, 2, 5, 5); await sleep(500);
     await T(G, (id) => window.__tree.lieDown(id), s2[0]);
     check('친구가 좌석에 앉으면 방장에게도 그 자리에 앉은 것으로 보임', await until(() => T(G, () => window.__cinema.sitting), 8000) && await until(async () => { const o = (await T(O, () => window.__duo.others))[0]; return o && o.lying && o.lying.id === s2[0]; }, 5000));
+    // 스크린을 치우면 3층은 보통 방으로 돌아간다 (벽지·바닥은 다른 층과 같이)
+    await T(O, () => { const W = window.__tree; W.dispatch({ t: 'del', id: W.serialize().items.find((it) => it[1] === 'screen')[0] }); });
+    check('스크린을 치우면 극장 벽·바닥과 장식이 걷히고, 손님 화면도 같음', await until(async () => (await T(O, () => window.__cinema.theater === false && window.__cinema.fixtures === 0 && window.__cinema.decoShown)) && (await T(G, () => window.__cinema.theater === false && window.__cinema.decoShown)), 6000));
     await ctx.close();
     check('페이지 오류 없음', errors.length === 0, errors);
   } finally {

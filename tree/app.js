@@ -30,6 +30,7 @@ import { makeGift } from './gift.js';
 import { makeFoodPlay } from './food.js';
 import { makeLights } from './lights.js';
 import { makeCinema } from './cinema.js';
+import { makePhotos } from './photo.js';
 import { makeAdmin } from './admin.js';
 import { ADMINS } from './catalog.js';
 import { makeCheers } from './cheers.js';
@@ -212,6 +213,7 @@ function dispatch(op, from = 'me') {
   if (op.t === 'lamp') lights.onOp(op, from); else if (op.t === 'adm' && from !== 'load') admin.onChange(op, from); // 방 불, 공동 관리자
   if (from === 'load') return true;
   sfxOp(op, from, (o) => itemObj.get(o.id)); // 효과음 (sfx.js)
+  if (op.t === 'pic') photos.onOp(op); // 액자의 사진 (photo.js)
   if (op.t === 'note' || op.t === 'noteDel' || op.t === 'best') book.onOp(op, from); // 방명록과 이 방 최고 기록
   if (op.t === 'best' || op.t === 'score') rank.onOp(op, from); // 이름별 순위 (rank.js)
   coop.onOp(op, from); // 꼭대기 별, 둘이 든 큰 가구 (coop.js)
@@ -628,7 +630,7 @@ function roomHash() {
   const d = serialize(S), byId = (a, b) => (a[0] < b[0] ? -1 : 1);
   // 케이크 장식은 올린 순서가 사람마다 다를 수 있어 자리 순으로 맞춰서 견준다
   const cakes = d.cakes.map((r) => [r[0], r[1], r[2], r[3].map((t) => t.join(',')).sort(), r[4] || '', r[5] || '', ...r.slice(6)]).sort(byId);
-  const txt = JSON.stringify([d.items.sort(byId), d.orns.sort(byId), d.lights, d.wall, d.floor, cakes, d.notes.sort(byId), Object.keys(d.best).sort().map((k) => [k, ...d.best[k]]), ...(d.lamps || d.adm ? [d.lamps || 0, d.adm || 0] : [])]); // 방 불·공동 관리자는 있을 때만 (예전 지문과 같게)
+  const txt = JSON.stringify([d.items.sort(byId), d.orns.sort(byId), d.lights, d.wall, d.floor, cakes, d.notes.sort(byId), Object.keys(d.best).sort().map((k) => [k, ...d.best[k]]), ...(d.lamps || d.adm ? [d.lamps || 0, d.adm || 0] : []), ...(d.pics ? [d.pics] : [])]); // 방 불·공동 관리자는 있을 때만 (예전 지문과 같게)
   let h = 5381;
   for (let k = 0; k < txt.length; k++) h = ((h << 5) + h + txt.charCodeAt(k)) | 0;
   return (h >>> 0).toString(36) + '.' + d.items.length + '.' + d.orns.length;
@@ -712,6 +714,8 @@ const duo = makeDuo({
   peerGone: (id) => dropPeer(id),
   peersGone() { for (const id of [...others.keys()]) dropPeer(id); },
   peerOp: (op) => dispatch(op, 'peer'),
+  // 액자의 사진 (photo.js): 받은 사진 한 장(새로 받았으면 true), 달라고 한 사진
+  photoIn: (m, trusted) => photos.recv(m, trusted), photoGive: (h) => photos.give(h),
   peerLook(id, lk) { const c = okLook(lk, id), a = others.get(id); if (!a || !c) return null; a.setLook(c); dirty = true; return c; },
   peerPos(id, x, z) {
     const a = others.get(id);
@@ -1103,6 +1107,11 @@ const sky = makeSky({
   mayLead: (id) => duo.role !== 'host' || duo.people.some((p) => p.id === id && p.edit), // isHost: 방장(혼자 노는 내 방 포함)은 아무 날에나 불꽃놀이
   resized: () => { if (mode === 'tree') measure(false); },
 });
+// 액자에 내 사진 넣기 (photo.js): 사진은 방의 상태와 따로 주고받고 기기에 따로 기억한다
+const photos = makePhotos({
+  key, S: () => S, op: (o) => dispatch(o), canEdit: () => canEdit, toast: (m) => toast(m), online: () => duo.mode === 'on', send: (m) => duo.photo(m),
+  play, setPose: (p) => play.pose(p), close: () => setMode(null), changed: () => { dirty = true; },
+});
 // 공동 관리자 (admin.js), 방 불 (lights.js), 3층 영화관 (cinema.js)
 const admin = makeAdmin({
   store, key, room: () => (cur ? cur.id : null), mine: () => !!(cur && cur.mine), S: () => S, duo: () => duo,
@@ -1116,6 +1125,7 @@ const cinema = makeCinema({
   S: () => S, kindOf, levelOfCell, op: (o) => dispatch(o), newId, canManage: () => admin.canManage(), canEdit: () => canEdit,
   approach: (id, then) => approach(id, then), eat: () => doAct('eat'), mode: () => mode, measure: () => measure(false), toast: (m) => toast(m),
   itemObj: (id) => itemObj.get(id), wallShown: (lv, side) => room.floors[lv].walls[side].upper.visible, dirty: () => { dirty = true; },
+  photo: (h) => photos.get(h), room, showing: () => play.showing, level: () => myLv,
 });
 // 어드벤트 달력 (advent.js): 달력 가구는 play 의 놀이 하나로 더해진다
 const advent = makeAdvent({
@@ -1170,6 +1180,7 @@ function startPlay(id, cakeId = null) {
   if (!kind || !g) return false;
   if (kind === 'cake' && !cakeId) cakeId = cakeAtBench(S, id); // 작업대 위에 있는 케이크
   if (kind === 'cake' && !cakeId) return false;
+  if (kind === 'pic' && !canEdit) return false; // 구경하는 사람은 액자의 사진을 바꾸지 못한다 (photo.js)
   if (kind === 'bake' && !canEdit) { toast('구경하는 중에는 케이크를 구울 수 없어요'); return true; }
   if (kind === 'bake' && !freeBench()) { toast(hasKind('cake') ? '작업대가 비어 있어야 새 케이크를 구울 수 있어요. 케이크를 탁자로 옮기거나 다 먹으면 비어요' : '케이크 작업대가 있어야 구울 수 있어요'); return true; }
   const pid = cakeId || id;
@@ -1319,6 +1330,7 @@ const PLAY_LABEL = { dart: '🎯 다트 하기', tv: '📺 TV 보기', fire: '�
   $('tools').insertBefore(b, $('snap') || null);
 }
 PLAY_LABEL.advent = '🗓️ 어드벤트 달력'; // advent.js
+PLAY_LABEL.pic = '🖼️ 사진 바꾸기'; // photo.js (꾸밀 수 있는 사람만)
 // 냉장고: 앞으로 가서 문을 열고 먹을 것을 고른다 (food.js)
 function snack(id) {
   const it = S.items.get(id);
@@ -1342,7 +1354,7 @@ function actionOf(it) {
   if (f.holds) return cakeOn(it.id) ? '🍰 케이크 먹기·꾸미기' : null;
   if (it.k === 'cake') return cakeAtBench(S, it.id) ? '🎂 케이크 꾸미기·먹기' : null;
   { const c = cinema.label(it); if (c) return c; } // 영화 보기, 팝콘 먹기 (cinema.js)
-  if (f.play) return f.play === 'bake' && !canEdit ? null : PLAY_LABEL[f.play] || null;
+  if (f.play) return (f.play === 'bake' || f.play === 'pic') && !canEdit ? null : PLAY_LABEL[f.play] || null;
   if (f.lie) return '🛏️ 눕기';
   if (f.sit) return '💺 앉기';
   if (f.snack) return food.labelOf(it.k);
@@ -1762,7 +1774,7 @@ function frame(now) {
   names.tick();
   sky.tick(dt);
   advent.tick(dt); gift.tick(dt); food.tick(dt); cheers.tick(dt); sfxWalk(dt, me, others.values());
-  lights.tick(dt); cinema.tick();
+  lights.tick(dt); cinema.tick(); photos.tick(dt);
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
   renderer.render(scene, cam());
@@ -1826,7 +1838,8 @@ window.__sky = sky.test;
 window.__master = { get on() { return master.on; }, get given() { return master.test.given; }, key: master.test.key };
 window.__food = food.test; window.__cheers = cheers.test;
 window.__lights = Object.assign(lights.test, { toggle: (lv) => lights.toggle(lv), near: () => { const a = lights.near(); return a ? a.label : null; }, lamp: () => [...LAMP] });
-window.__cinema = { convert: () => cinema.convert(), get has() { return cinema.has; }, artShown: (id) => cinema.artShown(id), get sitting() { return !!(me.rest && me.rest.sit); } };
+window.__photo = { choose: (id, f) => photos.choose(id, f), reset: (id) => photos.reset(id), get: (h) => photos.get(h), get count() { return photos.count; }, of: (id) => S.pics.get(id) || '', shown: (id) => cinema.picShown(id), tidy: () => photos.tidy() };
+window.__cinema = { convert: () => cinema.convert(), get has() { return cinema.has; }, get theater() { return cinema.theater; }, get beam() { return cinema.beam; }, get fixtures() { return cinema.fixtures; }, get decoShown() { return room.floors[2].deco.every((d) => d.visible); }, artShown: (id) => cinema.artShown(id), get sitting() { return !!(me.rest && me.rest.sit); } };
 window.__admin = {
   get isMe() { return admin.isMe(); }, get isOwner() { return admin.isOwner(); }, get canManage() { return admin.canManage(); }, get hasPass() { return admin.hasPass(); },
   get tag() { return admin.tag; }, get tk() { return admin.tk(); }, get list() { return [...S.adm]; }, get here() { return duo.admins; }, get absent() { return admin.absent(); },
@@ -1853,6 +1866,7 @@ window.__tree = {
   get ghost() { return ghost ? { k: ghost.k, i: ghost.i, j: ghost.j, r: ghost.r, id: ghost.id, ok: ghost.ok } : null; },
   get look() { return look; }, get lookOpen() { return mode === 'look'; }, get bulbsOn() { return bulbs.on; },
   get itemsShown() { return itemsG.visible; }, get itemObjs() { return itemObj.size; }, get ornObjs() { return ornObj.size; },
+  get calls() { return renderer.info.render.calls; }, // 마지막 화면을 그리는 데 든 그리기 호출 수
   get frames() { return frames; }, get yawK() { return yawK; }, get quality() { return quality; },
   get view() { return { z: view.z, goal: zoomGoal(), pxu: view.z / view.sFit, whole: mode !== 'tree' && zoomGoal() <= 1.001, top: view.top, bottom: view.bottom, settled: Math.abs(view.z - zoomGoal()) < 1e-3 }; },
   get turning() { return Math.abs(Math.atan2(Math.sin(yawOf(yawK) - yaw), Math.cos(yawOf(yawK) - yaw))) > 1e-3; },
