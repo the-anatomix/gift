@@ -179,7 +179,7 @@ export function makeGift(K) {
     const cake = withCake ? cakeToPack() : '';
     if (withCake && !cake) { K.toast('조각이 남은 케이크가 없어요'); withCake = false; paint(); return false; }
     if (!K.op({ t: 'gift', id: K.newId(), to, from, text, wrap, at: Math.round(now()), cake: cake || '' })) { K.toast('선물을 두지 못했어요'); return false; }
-    if (cleanWords(draft.from, GIFT.name) && from !== cleanWords(K.defName(), NOTE.name)) K.store.set(NAME_KEY, from);
+    if (cleanWords(draft.from, GIFT.name) && from !== cleanWords(K.defName(), NOTE.name)) { if (K.setName) K.setName(from); else K.store.set(NAME_KEY, from); }
     lastAt = performance.now();
     draft = { to: '', from, text: '' }; withCake = false;
     for (const i of panel.querySelectorAll('input')) i.blur();

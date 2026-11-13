@@ -664,5 +664,5 @@ export function makeGames(K) {
     action: () => { const a = action(); return a ? a.label : null; }, act: () => { const a = action(); if (a) a.run(); return !!a; },
     find, closet, steal, meet, vote, tap, quiet, why,
   };
-  return { tick, peerFx, action, tap, muffle, quiet, get on() { return !!G; } };
+  return { tick, peerFx, action, tap, muffle, quiet, tagged: (id) => tags.has(id), get on() { return !!G; } };
 }

@@ -168,6 +168,8 @@ export const SNOWMEN = 8;      // 마당에서 같이 만들어 놓는 눈사람
 export const NOTE = { max: 60, name: 10, text: 80, gap: 5000 };
 // 이 방 최고 기록을 남기는 놀이와 그 점수의 끝 (다트 = 화살 3개의 합, 마시멜로 = 구운 점수)
 export const BEST = { dart: { name: '다트', top: 180 }, fire: { name: '마시멜로 굽기', top: 100 } };
+// 이름별 순위(rank.js): 놀이마다 방에 남기는 사람 수, 순위 판에 보이는 등수
+export const RANK = { keep: 20, show: 10 };
 
 // 어드벤트 달력 (advent.js): 12월 d 일이 되면 d 번 칸을 열 수 있고, 열면 그 방에 그날의 것이 풀린다.
 // 위 목록들에서 day 가 붙은 것이 그 칸의 선물이다. 하루에 하나씩, 25 칸 모두 다르다.
