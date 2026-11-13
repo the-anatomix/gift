@@ -40,7 +40,7 @@ const audit = (p) => p.evaluate(() => {
     const vp = { viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true };
     const ctx = await browser.newContext(vp);
     const A = await open(ctx, `${BASE}?net=bc&door=0&ns=ca`);
-    check('아래 탭이 여섯 개(채팅 포함)이고 모두 화면 안·44px 이상', (await A.locator('#tabs button').count()) === 6 && (await A.isVisible('#tabs button[data-m="chat"]')) && (await audit(A)).length === 0, await audit(A));
+    check('아래 탭이 여섯 개(채팅 포함)이고 모두 화면 안·44px 이상', (await A.locator('#tabs button:not([hidden])').count()) === 6 && (await A.isVisible('#tabs button[data-m="chat"]')) && (await audit(A)).length === 0, await audit(A));
     await A.tap('#tabs button[data-m="chat"]'); await sleep(300);
     check('채팅 탭을 누르면 입력칸과 보내기 단추가 나옴', (await A.isVisible('#chatIn')) && (await A.isVisible('#chatSend')) && (await A.textContent('#chatLog')).includes('아직 아무 말도') && (await audit(A)).length === 0, await audit(A));
     await A.fill('#chatIn', '안녕 메리 크리스마스');
