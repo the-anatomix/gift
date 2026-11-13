@@ -260,14 +260,14 @@ export function makeWardrobe(K) {
     for (const b of tabs.children) b.setAttribute('aria-pressed', String(b.dataset.v === tab));
     for (const k in boxes) for (const b of boxes[k].children) b.setAttribute('aria-pressed', String(b.dataset.v === (k === 'outfit' ? L.outfit : L[k])));
     const jet = outfitBox.querySelector(`[data-v="${HOST_OUTFIT}"]`); // 방장이 아니면 잠겨 보인다
-    jet.textContent = host ? '🚀 비행 슈트' : '🔒 비행 슈트'; jet.dataset.lock = host ? '' : '1'; jet.setAttribute('aria-label', host ? '비행 슈트' : '비행 슈트 (잠김: 방장만 입을 수 있어요)');
+    jet.hidden = !host; jet.dataset.lock = host ? '' : '1'; jet.setAttribute('aria-label', host ? '비행 슈트' : '비행 슈트 (잠김: 방장만 입을 수 있어요)');
   }
   return {
     paint,
     // 고른 생김새를 지금 입을 수 있는 것으로 맞춘다: 방장이 아니면 비행 슈트를 못 입는다
     allow(L, was) {
       if (L.outfit !== HOST_OUTFIT || K.isHost()) return L;
-      K.toast('🔒 비행 슈트는 방장만 입을 수 있어요');
+      K.toast('입을 수 없는 옷이에요');
       return { ...L, outfit: was && was.outfit !== HOST_OUTFIT ? was.outfit : 'basic' };
     },
     get tab() { return tab; }, set tab(v) { if (boxes[v]) { tab = v; paint(); K.measure(); } },

@@ -11,7 +11,7 @@
 import { THREE } from './kit.js';
 const NS = (() => { try { const n = new URLSearchParams(location.search).get('ns'); return n ? '.' + n : ''; } catch (_) { return ''; } })(); // 자동 검사는 ?ns= 로 창마다 저장값을 나눈다
 const HASH = 'de94e28d7a302b52374831e94e8c70adddf861c691e77ab53f0646f55543a3e7', SLOT = 'tree.master' + NS, GRANT = 'tree.grant' + NS;
-export const LOCK = 1, FIRE = 2, SKY = 4, GIFT = 8, ALL = 15;
+export const LOCK = 1, FIRE = 2, SKY = 4, GIFT = 8, SUIT = 16, ALL = 31;
 export const KEY_AT = { x: -3.72, y: 0.03, z: -3.72 };
 const get = (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } };
 export function isMaster() { return get(SLOT) === HASH; }
@@ -31,7 +31,7 @@ export function makeMaster(K) {
   const panel = el('div', 'sheet'); panel.id = 'masterP'; panel.hidden = true;
   const css = el('style');
   css.textContent = '#masterP .who{display:flex;align-items:center;gap:5px}#masterP .who span{flex:1;min-width:0;font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
-    + '#masterP .chip{min-width:44px;min-height:44px;padding:0 6px}#masterP #mkPeople{display:flex;flex-direction:column;gap:6px;max-height:150px;overflow-y:auto}';
+    + '#masterP .chip{min-width:44px;min-height:44px;padding:0 4px}#masterP #mkPeople{display:flex;flex-direction:column;gap:6px;max-height:150px;overflow-y:auto}';
   document.head.appendChild(css);
   const h = el('h2', '', '🔑 마스터'), skyRow = el('div', 'row'), people = el('div'), off = el('button', 'btn', '마스터키 끄기'), foot = el('div', 'row');
   people.id = 'mkPeople'; off.type = 'button'; off.id = 'masterOff'; skyRow.id = 'mkSky';
@@ -54,7 +54,7 @@ export function makeMaster(K) {
   lampRow.appendChild(lampBox);
   panel.append(h, skyRow, lampRow, people, foot);
   $('tabs').parentNode.insertBefore(panel, $('tabs'));
-  const BITS = [[LOCK, '🔓', '달력 잠금 없이 쓰기'], [FIRE, '🎆', '불꽃놀이'], [SKY, '🌙', '하늘 바꾸기'], [GIFT, '🎁', '선물 미리 열기']];
+  const BITS = [[LOCK, '🔓', '달력 잠금 없이 쓰기'], [FIRE, '🎆', '불꽃놀이'], [SKY, '🌙', '하늘 바꾸기'], [GIFT, '🎁', '선물 미리 열기'], [SUIT, '🚀', '비행 슈트']];
   let listKey = '';
   function paint() {
     const m = isMaster(), show = m || can(SKY);
@@ -115,7 +115,7 @@ export function makeMaster(K) {
     brand.style.pointerEvents = 'auto';
     brand.addEventListener('click', () => {
       const t = Date.now();
-      taps = taps.filter((x) => t - x < 3000); taps.push(t);
+      taps = taps.filter((x) => t - x < 5000); taps.push(t);
       if (taps.length < 7) return;
       taps = [];
       if (isMaster()) open(); else ask();

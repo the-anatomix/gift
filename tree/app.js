@@ -24,7 +24,8 @@ import { makeGames } from './games.js';
 import { makeNames } from './names.js';
 import { makeRank } from './rank.js';
 import { makeSky } from './sky.js';
-import { makeMaster, can, LOCK, FIRE } from './master.js';
+import { makeMaster, can, LOCK, FIRE, SUIT } from './master.js';
+import './hint.js';
 import { makeAdvent } from './advent.js';
 import { makeGift } from './gift.js';
 import { makeFoodPlay } from './food.js';
@@ -636,7 +637,6 @@ function roomHash() {
 // 친구가 보낸 생김새가 아는 값일 때만 받는다 (아니면 null)
 function okLook(lk, id) {
   let c = cleanLook(lk);
-  if (c.outfit === HOST_OUTFIT && id !== 'h') c = { ...c, outfit: 'basic' }; // 비행 슈트는 방장 것만 받는다
   return lk && typeof lk === 'object' && c.gender === lk.gender && cleanLook(lk).outfit === lk.outfit && (lk.face === undefined || c.face === lk.face) ? c : null; // 표정이 없던 때의 것도 받는다
 }
 const okId = (id) => typeof id === 'string' && /^[a-z0-9]{1,8}$/.test(id);
@@ -1085,7 +1085,7 @@ const names = makeNames({
 });
 const rank = makeRank({ op: (o) => dispatch(o), list: (k) => rankList(S, k), best: () => S.best, myName: () => names.myName(), toast: (m) => toast(m) });
 // 의상과 방장의 비행 슈트 (costume.js, fly.js). 방장 = 방을 만든 사람(혼자 노는 내 방 포함)
-const isHost = () => duo.role === 'host' || (!duo.role && (!cur || cur.mine));
+const isHost = () => can(SUIT); // 비행 슈트·날기: 마스터키를 켠 사람과 마스터가 허락한 사람만 (master.js). 방장인지는 따지지 않는다
 const fly = makeFly({
   me, others: () => others, grid, fixed: fixedCell, isHost, look: () => look, setLook: (p) => setLook(p),
   online: () => duo.mode === 'on', fx: (m) => duo.fx(m), toast: (m) => toast(m), dirty: () => { dirty = true; },
@@ -1125,7 +1125,7 @@ const advent = makeAdvent({
 });
 // 숨은 마스터키 (master.js): 제목을 일곱 번 누른다
 const master = makeMaster({
-  toast: (m) => toast(m), sky: { time: () => sky.time, setTime: (v) => sky.setTime(v) }, lamp: { on: (lv) => lights.isOn(lv), toggle: (lv) => lights.toggle(lv) }, changed: () => { advent.repaint(); dirty = true; },
+  toast: (m) => toast(m), sky: { time: () => sky.time, setTime: (v) => sky.setTime(v) }, lamp: { on: (lv) => lights.isOn(lv), toggle: (lv) => lights.toggle(lv) }, changed: () => { advent.repaint(); wardrobe.paint(); dirty = true; },
   scene, ray(px, py) { aimRay(px, py); return ray.ray; }, shown: () => myLv === 0,
   fx: (m) => duo.fx(m), myId: () => duo.me, others: () => [...others.keys()], nameOf: (id) => nameOf(id), setMode: (m) => setMode(m), mode: () => mode,
   resized: () => { if (mode === 'master') measure(false); },
