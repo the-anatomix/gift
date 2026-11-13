@@ -54,7 +54,7 @@ async function walkAndTrace(p, act) {
     // 캐릭터 고르기
     check('처음 오면 캐릭터 고르기가 먼저 열림', (await A.isVisible('#look')) && (await A.evaluate(() => window.__tree.lookOpen)));
     check('고르기 판의 버튼이 화면 안·44px 이상', (await audit(A)).length === 0, await audit(A));
-    check('성별 2가지, 옷 3가지(평상복·산타·루돌프)', (await A.locator('#pickGender .chip').count()) === 2 && (await A.locator('#pickOutfit .chip').count()) === 3 && (await A.textContent('#pickOutfit')).includes('산타') && (await A.textContent('#pickOutfit')).includes('루돌프'));
+    check('성별 2가지, 옷 12가지(평상복·산타·루돌프 …. 나머지는 costume.test.js)', (await A.locator('#pickGender .chip').count()) === 2 && (await A.locator('#pickOutfit .chip').count()) === 12 && (await A.textContent('#pickOutfit')).includes('산타') && (await A.textContent('#pickOutfit')).includes('루돌프'));
     const meshes = () => A.evaluate(() => { let n = 0; window.__tree.me.root.traverse((o) => { if (o.isMesh) n++; }); return n; });
     const n0 = await meshes();
     await A.tap('#pickGender .chip[data-v="m"]');

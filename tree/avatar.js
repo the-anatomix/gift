@@ -1,10 +1,11 @@
 // 치비 아바타. 머리가 큰 2.5등신 사람. 도형만으로 만든다(나중에 모델 파일로 바꿔 끼울 수 있다).
-// 고를 수 있는 것: 성별(여자·남자), 옷(평상복·산타·루돌프), 표정. 그리고 잠깐 하는 행동(손 흔들기, 춤 …).
+// 고를 수 있는 것: 성별(여자·남자), 옷과 색·소품(costume.js), 표정. 그리고 잠깐 하는 행동(손 흔들기, 춤 …).
 import { THREE, M, put, ball, cap, cyl } from './kit.js';
+import { OUTFITS, cleanExtra, suitOf, dressUp } from './costume.js';
 import { toWorld, levelOf, LADDERS, FLOOR_H, X0, Z0, CELL } from './path.js';
 
 export const GENDERS = [{ id: 'f', name: '여자' }, { id: 'm', name: '남자' }];
-export const OUTFITS = [{ id: 'basic', name: '평상복' }, { id: 'santa', name: '🎅 산타' }, { id: 'rudolph', name: '🦌 루돌프' }];
+export { OUTFITS }; // 옷 목록과 색·소품은 costume.js
 // 표정: 고르면 바꿀 때까지 그 얼굴로 있다
 export const FACES = [
   { id: 'smile', name: '기본', icon: '🙂' }, { id: 'happy', name: '활짝', icon: '😄' }, { id: 'wink', name: '윙크', icon: '😉' },
@@ -16,7 +17,7 @@ export const ACTS = [
   { id: 'jump', name: '폴짝', icon: '🐰', sec: 1.3 }, { id: 'dance', name: '춤', icon: '💃', sec: 4.6 }, { id: 'bow', name: '꾸벅', icon: '🙇', sec: 1.8 },
   { id: 'eat', name: '냠냠', icon: '😋', sec: 2.0 },
 ];
-export const DEFAULT_LOOK = { gender: 'f', outfit: 'basic', face: 'smile' };
+export const DEFAULT_LOOK = { gender: 'f', outfit: 'basic', face: 'smile', ...cleanExtra(null) };
 // 저장된 값이나 상대가 보낸 값은 믿지 않고 아는 값만 받는다
 export function cleanLook(l) {
   const v = l && typeof l === 'object' ? l : {};
@@ -24,6 +25,7 @@ export function cleanLook(l) {
     gender: GENDERS.some((g) => g.id === v.gender) ? v.gender : DEFAULT_LOOK.gender,
     outfit: OUTFITS.some((o) => o.id === v.outfit) ? v.outfit : DEFAULT_LOOK.outfit,
     face: FACES.some((x) => x.id === v.face) ? v.face : DEFAULT_LOOK.face,
+    ...cleanExtra(v), // 색과 소품 (tint, hat, neck, eye, back)
   };
 }
 
@@ -40,6 +42,7 @@ const TEAR = new THREE.MeshBasicMaterial({ color: 0x8CCBF2 });
 
 const SIZE = 1.25;   // 방 크기에 맞춘 전체 배율
 const SPEED = 2.6;   // 걷는 빠르기 (1초에 가는 거리)
+export const FLY_SPEED = 4.2; // 나는 빠르기 (fly.js)
 export const BODY_R = 0.18;
 export const HEIGHT = 1.16 * SIZE; // 머리끝까지 높이 (모자·뿔 제외)
 // 사다리를 오르내리는 길 (세상 좌표). base = 사다리 밑, top = 2층 모서리. 걸리는 시간(초): 다가가기, 오르기, 올라서기
@@ -88,12 +91,14 @@ function buildFace(head, id, deer) {
 function build(L) {
   const f = L.gender === 'f', santa = L.outfit === 'santa', deer = L.outfit === 'rudolph';
   const hair = f ? COL.hairF : COL.hairM;
-  const top = santa ? COL.red : deer ? COL.deer : f ? COL.topF : COL.topM;
-  const bottom = santa ? COL.red : deer ? COL.deer : f ? COL.skirtF : COL.pantsM;
-  const skirt = f && !deer;
-  const legCol = skirt ? (santa ? COL.fur : COL.skin) : bottom;
-  const shoeCol = santa ? COL.belt : deer ? COL.deerDark : COL.shoe;
-  const handCol = deer ? COL.deerDark : COL.skin;
+  const sp = suitOf(L) || {}; // 새 옷들의 색과 모양 (costume.js). 산타·루돌프는 아래에서 그대로 만든다
+  const top = sp.top ?? (santa ? COL.red : deer ? COL.deer : f ? COL.topF : COL.topM);
+  const bottom = sp.bottom ?? (santa ? COL.red : deer ? COL.deer : f ? COL.skirtF : COL.pantsM);
+  const skirt = sp.skirt ?? (f && !deer);
+  const legCol = sp.leg ?? (skirt ? (santa ? COL.fur : COL.skin) : bottom);
+  const shoeCol = sp.shoe ?? (santa ? COL.belt : deer ? COL.deerDark : COL.shoe);
+  const handCol = sp.hand ?? (deer ? COL.deerDark : COL.skin);
+  const hood = deer ? COL.deer : sp.hood, hooded = hood != null; // 머리에 쓰는 모자(후드)
 
   const body = new THREE.Group();
   body.scale.setScalar(SIZE);
@@ -144,24 +149,24 @@ function build(L) {
   head.position.set(0, 0.86, 0);
   body.add(head);
   const R = 0.27;
-  put(ball(R, 22, 16), COL.skin, 0, 0, 0, head).scale.set(1.06, 0.96, 1);
-  const eyes = buildFace(head, L.face, deer);
+  put(ball(R, 22, 16), sp.skin ?? COL.skin, 0, 0, 0, head).scale.set(1.06, 0.96, 1);
+  const eyes = buildFace(head, L.face, deer || !!sp.nose);
   if (deer) put(ball(0.046, 12, 10), COL.nose, 0, -0.072, 0.262, head);
 
   // 머리카락: 뒤로 기울인 반구. 루돌프는 그 자리에 모자(후드)를 쓴다.
   const hairM = M(hair);
-  const cover = put(new THREE.SphereGeometry(R * (deer ? 1.13 : 1.09), 22, 14, 0, Math.PI * 2, 0, Math.PI * (deer ? 0.52 : f ? 0.56 : 0.5)),
-    deer ? M(COL.deer) : hairM, 0, 0.005, -0.012, head);
-  cover.rotation.x = deer ? -0.42 : f ? -0.42 : -0.36;
+  const cover = put(new THREE.SphereGeometry(R * (hooded ? 1.13 : 1.09), 22, 14, 0, Math.PI * 2, 0, Math.PI * (hooded ? 0.52 : f ? 0.56 : 0.5)),
+    hooded ? M(hood) : hairM, 0, 0.005, -0.012, head);
+  cover.rotation.x = hooded ? -0.42 : f ? -0.42 : -0.36;
   cover.scale.set(1.06, 1, 1.02);
   // 앞머리
-  const bangY = deer ? 0.105 : f ? 0.175 : santa ? 0.13 : 0.2; // 모자 밑으로 살짝 보이게
-  if (f) {
+  const bangY = hooded ? 0.105 : f ? 0.175 : santa || sp.head ? 0.13 : 0.2; // 모자 밑으로 살짝 보이게
+  if (sp.bald) { /* 머리를 다 덮는 옷(헬멧, 눈사람): 머리카락을 만들지 않는다 */ } else if (f) {
     for (const s of [-1, 0, 1]) put(ball(0.1, 10, 8), hairM, 0.115 * s, bangY - Math.abs(s) * 0.02, 0.19 - Math.abs(s) * 0.03, head).scale.set(1.15, 0.62, 0.7);
     // 단발: 옆머리와 뒷머리
     for (const s of [-1, 1]) put(ball(0.13, 12, 10), hairM, 0.215 * s, -0.09, -0.03, head).scale.set(0.75, 1.5, 1.15);
     put(ball(0.2, 12, 10), hairM, 0, -0.1, -0.14, head).scale.set(1.25, 1.1, 0.8);
-  } else if (!deer) {
+  } else if (!hooded) {
     // 짧은 머리: 한쪽으로 넘긴 앞머리 (루돌프 모자 안에서는 가려진다)
     put(ball(0.1, 10, 8), hairM, -0.07, bangY, 0.2, head).scale.set(1.5, 0.5, 0.7);
     put(ball(0.09, 10, 8), hairM, 0.11, bangY - 0.015, 0.185, head).scale.set(1.1, 0.5, 0.7);
@@ -188,7 +193,9 @@ function build(L) {
       ear.scale.set(1.25, 0.6, 0.45); ear.rotation.z = 0.5 * s;
     }
   }
-  return { body, legs, arms, head, eyes };
+  const parts = { body, legs, arms, head, eyes };
+  parts.jets = dressUp(parts, L, { top, bottom }); // 새 옷의 꾸밈과 소품. jets = 날 때만 보이는 불꽃 (없으면 null)
+  return parts;
 }
 
 export function makeAvatar(look) {
@@ -206,6 +213,7 @@ export function makeAvatar(look) {
     hold: false, // 케이크를 들고 있는지 (두 팔을 앞으로 내민다)
     push: false, // 눈 뭉치를 굴리는 중인지 (몸을 숙이고 두 손으로 민다. snowman.js 가 켠다)
     hop: null,   // 사다리를 오르내리는 중 { pts: 세상 좌표 네 점, t, to: [x, z] }
+    fly: null,   // 날고 있을 때 { y: 지금 높이(세상 좌표), to: 가려는 높이, mv: 이번에 옆으로 움직였는지 } (fly.js 가 켜고 끈다)
     rest: null,  // 누워 있는 자리 { pos: [x, y, z](발끝, 세상 좌표), ry, head: [x, y, z], id(침대), side }
     get climbing() { return !!A.hop; },
     get acting() { return A.doing ? A.doing.id : null; },
@@ -218,7 +226,7 @@ export function makeAvatar(look) {
     place(x, z) { px = x; pz = z; A.hop = null; A.sync(); },
     sync() {
       if (A.rest) { root.position.set(A.rest.pos[0], A.rest.pos[1], A.rest.pos[2]); return; }
-      const w = toWorld(px, pz); root.position.set(w[0], w[1], w[2]);
+      const w = toWorld(px, pz); root.position.set(w[0], A.fly ? A.fly.y : w[1], w[2]);
     },
     // 눕는다 / 일어난다
     lie(rest) { A.path = []; A.onArrive = null; A.doing = null; A.rest = rest; A.sync(); root.rotation.y = A.face = rest.ry; A.animate(0, false); },
@@ -242,7 +250,7 @@ export function makeAvatar(look) {
 
     // dt 초만큼 진행. 움직였으면 true.
     step(dt) {
-      let moved = false, left = SPEED * dt;
+      let moved = false, left = (A.fly ? FLY_SPEED : SPEED) * dt;
       if (A.rest && A.path.length) A.rise(); // 걸으려면 먼저 일어난다
       if (A.hop) { // 사다리를 타는 중: 밑(또는 위)까지 다가가고, 오르내리고, 올라선다
         const h = A.hop, T = LAD_T;
@@ -261,6 +269,7 @@ export function makeAvatar(look) {
         const [tx, tz] = A.path[0];
         const la = levelOf(px), lb = levelOf(tx);
         if (Math.abs(la - lb) > 1) { A.place(tx, tz); A.path.shift(); moved = true; continue; } // 두 층을 한 번에 건너뛸 수는 없다(늦게 온 소식): 바로 옮긴다
+        if (la !== lb && A.fly) { A.place(tx, tz); A.path.shift(); moved = true; continue; } // 날아서 층을 넘었다
         if (la !== lb) { // 다른 층으로 가는 점: 사다리를 탄다
           const up = lb > la, p = root.position, l = LAD[Math.min(la, lb)];
           A.hop = { t: 0, on: false, to: [tx, tz], pts: [[p.x, p.y, p.z], up ? l.base : l.top, up ? l.top : l.base, toWorld(tx, tz)] };
@@ -283,6 +292,7 @@ export function makeAvatar(look) {
 
     // 걷는 몸짓. moved 는 이번에 발을 옮겼는지.
     animate(dt, moved) {
+      if (A.fly && A.fly.mv) moved = true;
       A.moving = moved;
       A.blend += ((moved ? 1 : 0) - A.blend) * Math.min(1, dt * 12);
       A.t += dt * (moved ? 11 : 2.2);
@@ -318,6 +328,16 @@ export function makeAvatar(look) {
         const c = Math.sin(A.hop.t * 11);
         P.ax = [-2.3 + 0.45 * c, -2.3 - 0.45 * c]; P.az = [-0.1, 0.1]; P.lx = [-0.55 * Math.max(0, c), -0.55 * Math.max(0, -c)]; P.by = 0; P.bx = 0.1; P.hx = -0.25; P.hz = 0; P.as = 1.1;
       }
+      const fl = A.fly;
+      if (fl) { // 날고 있다: 떠 있을 때는 두 팔을 벌려 손바닥으로 받치고, 나아갈 때는 몸을 앞으로 눕힌다
+        fl.y += (fl.to - fl.y) * Math.min(1, dt * 10);
+        fl.t = (fl.t || 0) + dt;
+        const k = A.blend, b = Math.sin(fl.t * 2.6);
+        P.lx = [0.12 + 0.45 * k + 0.05 * b, 0.02 + 0.4 * k - 0.05 * b]; P.ax = [0.75 * k, 0.75 * k]; P.az = [-0.55 + 0.3 * k, 0.55 - 0.3 * k];
+        P.by = b * 0.025; P.bx = 0.08 + 0.62 * k; P.bz = 0; P.hx = -0.4 * k; P.hz = 0; P.as = 1; spin = 0;
+        root.position.y = fl.y;
+      }
+      if (parts.jets) for (const m of parts.jets) { m.visible = !!fl; if (fl) m.scale.y = 0.75 + 0.5 * Math.abs(Math.sin(fl.t * 31 + m.id)) + 0.5 * A.blend; }
       let lying = 0;
       if (A.rest) { // 누웠다: 등을 대고 반듯이, 눈을 감는다
         lying = -Math.PI / 2;

@@ -5,6 +5,8 @@
 import { THREE } from './kit.js';
 import { Grid, NX, NZ, CELL, X0, Z0, X1, Z1, GX, GZ, GX1, GZ1, LEVELS, FLOOR_H, FLOOR_DX, LADDERS, cellOf, centerOf, levelOf, levelOfCell, zoneOf, toWorld } from './path.js';
 import { buildRoom, WALL_H, TREE, FRONT, fixedCell, noBuild, surfaceR } from './room.js';
+import { makeWardrobe, HOST_OUTFIT } from './costume.js';
+import { makeFly } from './fly.js';
 import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, FACES, ACTS, BODY_R, SPEED } from './avatar.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER, STARTER_EAST, STARTER_UP, CAKE } from './catalog.js';
 import { makeState, apply, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake, benchOf, cakesList, cakeAtBench, cakeOnTable, sendHome, notesList } from './state.js';
@@ -416,7 +418,7 @@ function lookAtTree() { fy = Math.atan2(me.x, me.z); fpitch = 0.06; }
 /* ───────── 층: 1층(과 마당), 2층, 3층 ───────── */
 // 내가 있는 층만 보인다: 그 층의 바닥과 벽, 그 층에 놓인 가구, 그 층에 있는 사람. myLv = 내가 있는 층(0 = 1층)
 let myLv = 0;
-const floorOf = (a) => clamp(Math.round(a.root.position.y / FLOOR_H), 0, LEVELS - 1); // 사다리를 반쯤 오르면 위층으로 친다
+const floorOf = (a) => (a.fly ? a.level : clamp(Math.round(a.root.position.y / FLOOR_H), 0, LEVELS - 1)); // 나는 사람은 발밑의 층으로 친다 (fly.js) // 사다리를 반쯤 오르면 위층으로 친다
 function paintLevels() {
   room.showFloor(myLv);
   for (const [id, g] of itemObj) { const it = S.items.get(id); g.visible = !it || levelOfCell(it.i) === myLv; }
@@ -429,6 +431,7 @@ function paintLevels() {
 
 /* ───────── 걷기 ───────── */
 function goTo(x, z) {
+  if (fly.on && fly.goTo(x, z)) return true; // 나는 중에는 그쪽으로 날아간다 (fly.js)
   if (me.hop) return false; // 사다리를 타는 중에는 끝까지 간다
   const pts = grid.route(me.x, me.z, x, z);
   me.onArrive = null;
@@ -613,16 +616,17 @@ function roomHash() {
   return (h >>> 0).toString(36) + '.' + d.items.length + '.' + d.orns.length;
 }
 // 친구가 보낸 생김새가 아는 값일 때만 받는다 (아니면 null)
-function okLook(lk) {
-  const c = cleanLook(lk);
-  return lk && typeof lk === 'object' && c.gender === lk.gender && c.outfit === lk.outfit && (lk.face === undefined || c.face === lk.face) ? c : null; // 표정이 없던 때의 것도 받는다
+function okLook(lk, id) {
+  let c = cleanLook(lk);
+  if (c.outfit === HOST_OUTFIT && id !== 'h') c = { ...c, outfit: 'basic' }; // 비행 슈트는 방장 것만 받는다
+  return lk && typeof lk === 'object' && c.gender === lk.gender && cleanLook(lk).outfit === lk.outfit && (lk.face === undefined || c.face === lk.face) ? c : null; // 표정이 없던 때의 것도 받는다
 }
 const okId = (id) => typeof id === 'string' && /^[a-z0-9]{1,8}$/.test(id);
 // 한 사람의 아바타를 만들거나 고친다. 돌려주는 값 = 받아들인 { look, pos }
 const okPj = (v) => typeof v === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v);
 function setPeer(id, lk, pos, pj) {
   if (!okId(id)) return null;
-  const c = okLook(lk);
+  const c = okLook(lk, id);
   let a = others.get(id);
   if (!a) { a = makeAvatar(c || DEFAULT_LOOK); a.place(-1.75, 2.25); a.turnTo(1, 1); a.root.rotation.y = a.face; scene.add(a.root); others.set(id, a); }
   else if (c) a.setLook(c);
@@ -658,6 +662,7 @@ function paintRole() {
   if (!canEdit && (mode === 'furn' || mode === 'tree' || mode === 'paint')) setMode(null);
 }
 const FX = { dart: 'number', fire: 'number', music: 'string', act: 'string', lie: 'string', show: 'string' };
+FX.fly = 'string'; // 방장의 비행 슈트 (fly.js)
 FX.snow = FX.hit = 'string'; // 마당 눈싸움 (snow.js)
 FX.prop = FX.climb = FX.heavy = FX.help = 'string'; // 받쳐 주기·별 달기·큰 가구 둘이 들기 (coop.js)
 const duo = makeDuo({
@@ -683,7 +688,7 @@ const duo = makeDuo({
   peerGone: (id) => dropPeer(id),
   peersGone() { for (const id of [...others.keys()]) dropPeer(id); },
   peerOp: (op) => dispatch(op, 'peer'),
-  peerLook(id, lk) { const c = okLook(lk), a = others.get(id); if (!a || !c) return null; a.setLook(c); dirty = true; return c; },
+  peerLook(id, lk) { const c = okLook(lk, id), a = others.get(id); if (!a || !c) return null; a.setLook(c); dirty = true; return c; },
   peerPos(id, x, z) {
     const a = others.get(id);
     if (!a || !okXZ(x, z)) return false;
@@ -701,6 +706,7 @@ const duo = makeDuo({
     if (m && m.k === 'show' && typeof m.v === 'string' && m.v.startsWith('fire:') && m.v.length <= 64) return sky.peerFx(m, id); // 글자·길이·예약이 붙은 불꽃놀이 (값이 길어서 아래의 20자 검사보다 먼저)
     if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false;
     if (m.k === 'act' && games.quiet(id)) return true; // 술래에게는 숨은 사람의 행동이 안 보인다
+    if (m.k === 'fly') return fly.peerFx(m, id); // 방장이 날고 있는 높이 (fly.js)
     if (m.k === 'act') { const a = others.get(id); return !!(a && a.act(m.v)); } // 그 사람이 한 행동
     if (m.k === 'lie') { // 그 사람이 침대에 누웠거나('침대:자리') 일어났다('')
       const a = others.get(id);
@@ -1028,6 +1034,15 @@ const games = makeGames({
   caster(px, py) { aimRay(px, py); return ray; },
   fx: (m) => duo.fx(m), toast: (m) => toast(m), dirty: () => { dirty = true; },
 });
+// 의상과 방장의 비행 슈트 (costume.js, fly.js). 방장 = 방을 만든 사람(혼자 노는 내 방 포함)
+const isHost = () => duo.role === 'host' || (!duo.role && (!cur || cur.mine));
+const fly = makeFly({
+  me, others: () => others, grid, fixed: fixedCell, isHost, look: () => look, setLook: (p) => setLook(p),
+  online: () => duo.mode === 'on', fx: (m) => duo.fx(m), toast: (m) => toast(m), dirty: () => { dirty = true; },
+  // 날 수 없는 때: 걷기 화면이 아닐 때, 같이 놀기·눈싸움·눈 뭉치 굴리기 중, 케이크를 들었을 때, 누웠을 때, 사다리를 타는 중
+  busy: () => !(mode === null || mode === 'chat' || mode === 'emo') || !!ghost || !!pose || !!me.rest || !!me.hop || me.hold || me.push
+    || games.on || snow.on || !!(window.__snow && window.__snow.team && window.__snow.team.on),
+});
 // 창밖 낮과 밤, 눈 날씨, 크리스마스 자정 카운트다운과 불꽃놀이 (sky.js). 조명 바탕값 BRIGHT 를 하늘이 정하고, 점등식은 그 위에 곱한다
 const sky = makeSky({
   scene, hemi, sun, glow, room, bright: BRIGHT, front: FRONT,
@@ -1255,7 +1270,7 @@ function climb(L, up) {
 }
 // 지금 서 있는 자리에서 할 수 있는 일 { label, run }. 누워 있으면 일어나기, 사다리 옆이면 오르내리기, 아니면 가장 가까운(바라보는) 가구
 function nearAction() {
-  if (mode !== null || ghost || me.hop) return null;
+  if (mode !== null || ghost || me.hop || fly.on) return null; // 나는 중에는 쉰다 (fly.js)
   { const g = games.action(); if (g) return g; } // 같이 놀기 중에 할 수 있는 일 (찾았다·옷장·슬쩍)
   if (me.rest) return { label: '🛏️ 일어나기', run: getUp };
   { const f = food.action(); if (f) return f; } // 손에 든 것 먹기·마시기 (food.js)
@@ -1339,7 +1354,7 @@ function lift(e, ok) {
   if (games.tap(e.clientX, e.clientY)) return; // 숨바꼭질: 술래가 숨은 사람을 누름
   if ((mode === null || mode === 'gift') && gift.tap(e.clientX, e.clientY)) return; // 트리 밑 선물 상자
   if (mode === 'fridge' && food.tap(e.clientX, e.clientY)) return; // 열린 냉장고 안의 음식
-  if (mode === null) { const id = pickItem(e.clientX, e.clientY); if (id && useItem(id)) return; } // 케이크 내려놓기, 놀 수 있는 가구, 침대, 냉장고
+  if (mode === null && !fly.on) { const id = pickItem(e.clientX, e.clientY); if (id && useItem(id)) return; } // 케이크 내려놓기, 놀 수 있는 가구, 침대, 냉장고
   if (mode === 'tree') { treeTap(e.clientX, e.clientY); return; }
   if (mode === 'furn') { const id = pickItem(e.clientX, e.clientY); if (id && coop.heavyPick(id)) return; } // 큰 가구는 친구가 있으면 둘이 든다 (coop.js)
   if (mode === 'furn') { const id = pickItem(e.clientX, e.clientY); if (id) { ghostPick(id); return; } }
@@ -1386,6 +1401,7 @@ function keyWalk(dt) {
   let dx = -Math.sin(ya) * f + Math.cos(ya) * r, dz = -Math.cos(ya) * f - Math.sin(ya) * r;
   const len = Math.hypot(dx, dz); dx /= len; dz /= len;
   me.turnTo(dx, dz);
+  if (fly.on) return fly.push(dx, dz, push, dt); // 나는 중 (fly.js)
   { // 사다리 앞(위)에서 사다리 쪽으로 밀면 오르내린다
     const [ci, cj] = cellOf(me.x, me.z), at = (c) => ci === c[0] && cj === c[1];
     for (const L of LADDERS) if ((at(L.a) && dx > 0.6) || (at(L.b) && dx < -0.6)) { const c = at(L.a) ? L.b : L.a; me.walk([centerOf(c[0], c[1])]); return false; }
@@ -1526,7 +1542,7 @@ function picks(box, list, cls, onPick) {
 }
 const css = (hex) => '#' + hex.toString(16).padStart(6, '0');
 picks($('pickGender'), GENDERS, 'chip', (v) => setLook({ gender: v }));
-picks($('pickOutfit'), OUTFITS, 'chip', (v) => setLook({ outfit: v }));
+const wardrobe = makeWardrobe({ $, picks, look: () => look, setLook: (p) => setLook(p), isHost, toast: (m) => toast(m), measure: () => measure(false) }); // 옷·색·소품 고르기 (costume.js)
 picks($('faceList'), FACES, 'pick', (v) => setLook({ face: v }));
 picks($('actList'), ACTS, 'pick', (v) => doAct(v));
 $('emo').addEventListener('click', () => setMode('emo'));
@@ -1564,7 +1580,7 @@ for (const box of document.querySelectorAll('.scroll')) {
 
 const press = (sel, v) => { for (const b of document.querySelectorAll(sel)) b.setAttribute('aria-pressed', String(b.dataset.v === v)); };
 function paintPanels() {
-  press('#pickGender .chip', look.gender); press('#pickOutfit .chip', look.outfit); press('#faceList .pick', look.face);
+  press('#pickGender .chip', look.gender); wardrobe.paint(); press('#faceList .pick', look.face);
   press('#ornList .pick', tool);
   press('#lightList .chip', S.lights.set); press('#blinkList .chip', S.lights.blink);
   press('#wallList .sw', S.wall); press('#floorList .sw', S.floor);
@@ -1581,7 +1597,7 @@ function doAct(id) {
   return true;
 }
 function setLook(patch) {
-  look = cleanLook({ ...look, ...patch });
+  look = wardrobe.allow(cleanLook({ ...look, ...patch }), look);
   me.setLook(look);
   paintPanels();
   store.set(LOOK_KEY, look);
@@ -1615,7 +1631,8 @@ function frame(now) {
   dy = Math.atan2(Math.sin(dy), Math.cos(dy));
   if (Math.abs(dy) > 1e-4) { yaw += dy * Math.min(1, dt * 9); if (Math.abs(dy) < 2e-3) yaw = yawOf(yawK); aimCamera(yaw); showWalls(); }
 
-  // 걷기
+  // 걷기 (나는 중이면 fly.js 가 높이와 자리를 옮긴다)
+  fly.tick(dt);
   const byKey = keyWalk(dt);
   const moved = byKey ? (me.animate(dt, true), true) : me.step(dt);
   if (moved || me.blend > 0.01 || me.doing) dirty = true;
