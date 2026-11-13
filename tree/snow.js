@@ -7,6 +7,7 @@
 import { THREE, M } from './kit.js';
 import { makeTeam } from './snowteam.js';
 import { makeSnowman } from './snowman.js';
+import { sfx } from './sfx.js';
 import { X0, X1, GZ1, cellOf, zoneOf, levelOf } from './path.js';
 
 const $ = (id) => document.getElementById(id);
@@ -85,6 +86,7 @@ export function makeSnow(K) {
   }
   function launch(a, who, to, mine) {
     const from = handOf(a), d = Math.hypot(to[0] - from[0], to[1] - from[2]);
+    sfx('snowThrow', mine ? null : a);
     const m = new THREE.Mesh(ballGeo, white);
     m.castShadow = true; m.position.set(from[0], from[1], from[2]);
     K.scene.add(m);
@@ -145,6 +147,7 @@ export function makeSnow(K) {
   }
   function land(b, at) {
     const p = at || b.m.position;
+    sfx('snowHit', b.mine ? null : p);
     puff(p.x, Math.max(0, p.y - BALL_R), p.z);
     K.scene.remove(b.m);
     balls.splice(balls.indexOf(b), 1);

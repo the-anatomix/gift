@@ -32,6 +32,8 @@ import { makeLights } from './lights.js';
 import { makeCinema } from './cinema.js';
 import { makeAdmin } from './admin.js';
 import { ADMINS } from './catalog.js';
+import { makeCheers } from './cheers.js';
+import { sfx, sfxOp, sfxWalk, mountSfxUI } from './sfx.js';
 import { makeCakeView, dressCake, flicker, pickTop, disposeCakeView } from './cake.js';
 
 const $ = (id) => document.getElementById(id);
@@ -209,6 +211,7 @@ function dispatch(op, from = 'me') {
   if (op.t === 'adv') advent.onOp(op, from); else if (op.t.startsWith('gift')) gift.onOp(op, from); // 어드벤트 달력, 트리 밑 선물
   if (op.t === 'lamp') lights.onOp(op, from); else if (op.t === 'adm' && from !== 'load') admin.onChange(op, from); // 방 불, 공동 관리자
   if (from === 'load') return true;
+  sfxOp(op, from, (o) => itemObj.get(o.id)); // 효과음 (sfx.js)
   if (op.t === 'note' || op.t === 'noteDel' || op.t === 'best') book.onOp(op, from); // 방명록과 이 방 최고 기록
   if (op.t === 'best' || op.t === 'score') rank.onOp(op, from); // 이름별 순위 (rank.js)
   coop.onOp(op, from); // 꼭대기 별, 둘이 든 큰 가구 (coop.js)
@@ -534,13 +537,13 @@ function ghostNew(k) {
   if (!spot) { toast('놓을 자리가 없어요'); return; }
   const g = buildItem(k);
   scene.add(g);
-  ghost = { k, r: 0, i: spot[0], j: spot[1], id: null, g, ok: true };
+  ghost = { k, r: 0, i: spot[0], j: spot[1], id: null, g, ok: true }; sfx('lift');
   ghostPaint(); paintPanels(); measure(false);
 }
 function ghostPick(id) {
   ghostCancel();
   const it = S.items.get(id);
-  ghost = { k: it.k, r: it.r, i: it.i, j: it.j, id, g: itemObj.get(id), ok: true };
+  ghost = { k: it.k, r: it.r, i: it.i, j: it.j, id, g: itemObj.get(id), ok: true }; sfx('lift');
   ghostPaint(); paintPanels(); measure(false);
 }
 function ghostMoveTo(x, z) {
@@ -551,6 +554,7 @@ function ghostMoveTo(x, z) {
 }
 function ghostTurn() {
   if (!ghost) return;
+  sfx('turn');
   const [w0, d0] = footprint(ghost.k, ghost.r), cx = ghost.i + w0 / 2, cz = ghost.j + d0 / 2;
   ghost.r = (ghost.r + 1) % 4;
   const [w, d] = footprint(ghost.k, ghost.r);
@@ -722,6 +726,7 @@ const duo = makeDuo({
     if (m && m.k === 'bell') { if (duo.role !== 'host') ding(false); return false; } // 초인종 소식은 방장만 전한다
     if (m && m.k === 'gm') return games.peerFx(m, id); // 같이 놀기 (games.js)
     if (m && m.k === 'food') return food.peerFx(m, id); // 냉장고와 먹기 (food.js)
+    if (m && m.k === 'cheers') return cheers.peerFx(m, id); // 건배 (cheers.js)
     if (m && (m.k === 'team' || m.k === 'ball' || m.k === 'made')) return snow.peerFx(m, id); // 눈싸움 팀전·눈사람 (소식이 길어서 snow.js 가 따로 살핀다)
     if (m && m.k === 'mk') return master.peerFx(m, id); // 마스터가 나눠 주는 권한 (master.js)
     if (m && m.k === 'show' && typeof m.v === 'string' && /^sky:(auto|day|dusk|night)$/.test(m.v)) return sky.peerFx(m, id); // 하늘을 낮·노을·밤으로 (마스터 판)
@@ -729,7 +734,7 @@ const duo = makeDuo({
     if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false;
     if (m.k === 'act' && games.quiet(id)) return true; // 술래에게는 숨은 사람의 행동이 안 보인다
     if (m.k === 'fly') return fly.peerFx(m, id); // 방장이 날고 있는 높이 (fly.js)
-    if (m.k === 'act') { const a = others.get(id); return !!(a && a.act(m.v)); } // 그 사람이 한 행동
+    if (m.k === 'act') { const a = others.get(id); if (a && ACT_SFX[m.v]) sfx(ACT_SFX[m.v], a); return !!(a && a.act(m.v)); } // 그 사람이 한 행동
     if (m.k === 'lie') { // 그 사람이 침대에 누웠거나('침대:자리') 일어났다('')
       const a = others.get(id);
       if (!a) return false;
@@ -956,7 +961,7 @@ $('duoUrl').addEventListener('focus', (e) => e.target.select());
 
 // 촛불을 다 껐을 때: 모두의 화면에 축하가 쏟아진다
 function celebrate() {
-  toast('메리 크리스마스! 🎉');
+  toast('메리 크리스마스! 🎉'); sfx('hooray');
   const box = $('party');
   for (let k = 0; k < 28; k++) {
     const e = document.createElement('i');
@@ -1145,6 +1150,10 @@ const food = makeFoodPlay({
   ray(px, py) { aimRay(px, py); return ray.ray; },
   resized: () => { if (mode === 'fridge') measure(false); },
 });
+// 건배 (cheers.js), 효과음 (sfx.js): 소리는 내가 선 곳에서 듣고, 켜고 끄는 단추는 "같이" 판에 둔다
+const cheers = makeCheers({ food, me, others: () => others, fx: (m) => duo.fx(m), online: () => duo.mode === 'on', toast: (m) => toast(m), dirty: () => { dirty = true; } });
+sfx.listen(() => me); mountSfxUI($('duoP'));
+const ACT_SFX = { clap: 'clap', jump: 'jump', cheer: 'whoosh', dance: 'whoosh' };
 // 놀 수 있는 가구를 누르면: 그 앞으로 걸어가서 놀이를 연다
 // 가구 앞으로 걸어가서 then 을 한다 (이미 앞에 있거나 갈 수 없으면 바로)
 function approach(id, then) {
@@ -1282,7 +1291,7 @@ function lieDown(id) {
     if (fp) { fy = r.ry; fpitch = sit ? 0.04 : 0.45; } // 1인칭: 발치 쪽 천장을 올려다본다 (앉았으면 앞의 스크린을 본다)
     duo.fx({ k: 'lie', v: id + ':' + side });
     paintLie(); dirty = true;
-    toast(sit ? '자리에 앉았어요 💺 걸으면 일어나요' : '침대에 누웠어요 😴 걸으면 일어나요');
+    toast(sit ? '자리에 앉았어요 💺 걸으면 일어나요' : '침대에 누웠어요 😴 걸으면 일어나요'); sfx('bed');
   });
   return true;
 }
@@ -1336,7 +1345,7 @@ function actionOf(it) {
   if (f.play) return f.play === 'bake' && !canEdit ? null : PLAY_LABEL[f.play] || null;
   if (f.lie) return '🛏️ 눕기';
   if (f.sit) return '💺 앉기';
-  if (f.snack) return food.label;
+  if (f.snack) return food.labelOf(it.k);
   if (f.dress) return '👕 옷 갈아입기';
   return null;
 }
@@ -1350,6 +1359,7 @@ function nearAction() {
   if (mode !== null || ghost || me.hop || fly.on) return null; // 나는 중에는 쉰다 (fly.js)
   { const g = games.action(); if (g) return g; } // 같이 놀기 중에 할 수 있는 일 (찾았다·옷장·슬쩍)
   if (me.rest) return { label: me.rest.sit ? '💺 일어나기' : '🛏️ 일어나기', run: getUp };
+  { const c = cheers.action(); if (c) return c; } // 마실 것을 든 친구가 가까이 있으면 건배 (cheers.js)
   { const f = food.action(); if (f) return f; } // 손에 든 것 먹기·마시기 (food.js)
   // 트리 앞에서는: 진행 중인 놀이(위) > 별 달기 협동 > 트리 밑 선물. 혼자라서 별을 못 다는 때(weak)는 선물이 먼저이고, 선물은 도구 단추 🎁 로도 연다
   const starHint = coop.near();
@@ -1523,7 +1533,7 @@ function said(who, text) {
   if (who !== 'me' && games.muffle(who)) return; // 술래에게는 숨은 사람의 말이 "어디선가 소리"로만
   let b = bubbles.get(who);
   if (!b) { b = { el: document.createElement('div'), until: 0 }; b.el.className = 'bub'; $('bubbles').appendChild(b.el); bubbles.set(who, b); }
-  b.el.textContent = text; b.until = clock + SAY_SHOW;
+  b.el.textContent = text; b.until = clock + SAY_SHOW; sfx('pop', who === 'me' ? null : others.get(who));
   const log = $('chatLog'), ln = document.createElement('div'), nm = document.createElement('b');
   if (log.firstElementChild && log.firstElementChild.classList.contains('none')) log.textContent = '';
   ln.className = 'ln' + (who === 'me' ? ' me' : ''); nm.textContent = nameOf(who) + (who !== 'me' && duo.admins.includes(who) ? ' 🔑' : '');
@@ -1673,6 +1683,7 @@ function paintPanels() {
 function doAct(id) {
   me.stop(); me.onArrive = null;
   if (!me.act(id)) return false;
+  if (ACT_SFX[id]) sfx(ACT_SFX[id]);
   duo.fx({ k: 'act', v: id });
   dirty = true;
   return true;
@@ -1750,7 +1761,7 @@ function frame(now) {
   games.tick();
   names.tick();
   sky.tick(dt);
-  advent.tick(dt); gift.tick(dt); food.tick(dt);
+  advent.tick(dt); gift.tick(dt); food.tick(dt); cheers.tick(dt); sfxWalk(dt, me, others.values());
   lights.tick(dt); cinema.tick();
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
@@ -1813,7 +1824,7 @@ window.__play = Object.assign(play.test, {
 Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose }, id: { get: () => play.id }, spot: { get: () => play.spot } });
 window.__sky = sky.test;
 window.__master = { get on() { return master.on; }, get given() { return master.test.given; }, key: master.test.key };
-window.__food = food.test;
+window.__food = food.test; window.__cheers = cheers.test;
 window.__lights = Object.assign(lights.test, { toggle: (lv) => lights.toggle(lv), near: () => { const a = lights.near(); return a ? a.label : null; }, lamp: () => [...LAMP] });
 window.__cinema = { convert: () => cinema.convert(), get has() { return cinema.has; }, artShown: (id) => cinema.artShown(id), get sitting() { return !!(me.rest && me.rest.sit); } };
 window.__admin = {

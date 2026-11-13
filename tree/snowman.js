@@ -7,6 +7,7 @@
 //   { k: 'made', v: 'id,누구.누구' }           몸통 id 의 눈사람이 다 됐다 (만든 사람들)
 // 마당을 나가거나 굴리기를 끄면 굴리던 뭉치는 그 자리에 놓인다(l). 다시 켜고 그 옆에 서면 이어서 굴린다.
 import { THREE, M, put, ball, cyl } from './kit.js';
+import { sfx } from './sfx.js';
 import { X0, X1, Z1, GZ1, YARD, GX, cellOf, centerOf, zoneOf, levelOf } from './path.js';
 
 const $ = (id) => document.getElementById(id);
@@ -107,7 +108,7 @@ export function makeSnowman(K, S) {
           send(old, 'x'); drop(old);
         }
         const f = me.root.rotation.y, [x, z] = keepIn(me.x + Math.sin(f) * (0.32 + R0), me.z + Math.cos(f) * (0.32 + R0), R0);
-        pick = add(rnd(), 'r', x, z, R0);
+        pick = add(rnd(), 'r', x, z, R0); sfx('snowScoop');
         K.toast('걸으면 눈 뭉치가 굴러가며 커져요 ⛄');
       } else K.toast('놓여 있던 눈 뭉치를 이어서 굴려요');
       pick.s = 'r'; pick.by = myId(); pick.who.add(myId());
@@ -321,6 +322,7 @@ export function makeSnowman(K, S) {
       const [nx, nz] = keepIn(me.x + Math.sin(f) * (0.3 + b.r), me.z + Math.cos(f) * (0.3 + b.r), b.r);
       const d = rollTo(b, nx, nz);
       if (d > 0 && d < 0.5 && b.r < R1) { b.r = Math.min(R1, b.r + d * (R1 - R0) / GROW); shape(b); }
+      if (d > 0.002) sfx('snowRoll');
       if (d > 0 && sinceSend > 0.1) { sinceSend = 0; send(b); }
       else if (sinceSend > 2) { sinceSend = 0; send(b); } // 가끔은 가만히 있어도 알린다
     }

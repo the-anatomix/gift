@@ -178,7 +178,7 @@ const peerLv = (p) => T(p, () => window.__duo.others.map((o) => o.level));
     // 새 방
     const N2 = await open(ctx3, `${BASE}?ns=fn`, false);
     const s3 = await T(N2, () => window.__tree.serialize());
-    check('새 방에는 1층 기본 가구 12개 + 마당·위층(3층 영화관 18개) 기본 가구와 방명록·달력 28개', s3.items.length === 40 && s3.items.filter((it) => /^up\d+$/.test(it[0])).length === 28, s3.items.length);
+    check('새 방에는 1층 기본 가구 13개 + 마당·위층(3층 영화관 18개) 기본 가구와 방명록·달력 28개', s3.items.length === 41 && s3.items.filter((it) => /^up\d+$/.test(it[0])).length === 28, s3.items.length);
     await ctx3.close();
 
     /* 둘이: 다른 층에 있는 사람 */
