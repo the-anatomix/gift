@@ -48,7 +48,7 @@ const audit = (p) => p.evaluate(() => {
     const all = await items(N), k3 = kinds(all, 2);
     check('새 방의 3층에 영화관이 차려져 있음: 스크린 1, 좌석 6(세 가지 단), 유도등 3, 팝콘 기계 1, 그림 7', k3.screen === 1 && k3.seat === 6 && k3.guide === 3 && k3.popcorn === 1 && k3.art === 7 && Object.values(k3).reduce((a, b) => a + b, 0) === 18, k3);
     check('좌석은 뒤로 갈수록 높은 단(seat, seat2, seat3 두 개씩)', ['seat', 'seat2', 'seat3'].every((k) => all.filter((it) => it[1] === k).length === 2));
-    check('기본 가구는 모두 놓였고(40개) 1·2층과 마당은 예전 그대로', all.length === 40 && all.filter((it) => it[2] < 32).length === 17 && all.filter((it) => Math.floor(it[2] / 32) === 1).length === 5 && !!(await T(N, () => window.__cinema.has)), all.length);
+    check('기본 가구는 모두 놓였고(41개) 1·2층과 마당은 예전 그대로', all.length === 41 && all.filter((it) => it[2] < 32).length === 18 && all.filter((it) => Math.floor(it[2] / 32) === 1).length === 5 && !!(await T(N, () => window.__cinema.has)), all.length);
     await stand(N, 2, 20, 8); await sleep(900);
     check('3층에 올라가면 영화관 가구가 보임', (await T(N, () => window.__tree.level)) === 2 && (await T(N, () => window.__tree.serialize().items.filter((it) => it[2] >= 64).every((it) => window.__tree.itemShown(it[0])))));
     await N.screenshot({ path: path.join(__dirname, 'out', 'cinema-new.png') });
@@ -97,7 +97,7 @@ const audit = (p) => p.evaluate(() => {
 
     /* 다시 열어도 그대로이고 또 더해지지 않는다 */
     await sleep(500); await N.reload(); await ready(N);
-    check('다시 열어도 영화관은 그대로(가구 40개, 또 더해지지 않음)', (await items(N)).length === 40 && kinds(await items(N), 2).screen === 1);
+    check('다시 열어도 영화관은 그대로(가구 41개, 또 더해지지 않음)', (await items(N)).length === 41 && kinds(await items(N), 2).screen === 1);
     await N.close();
 
     /* 이미 3층을 꾸며 둔 방: 그대로 둔다 */
