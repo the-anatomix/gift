@@ -90,8 +90,8 @@ function wholeOf(k) {
   return geo;
 }
 
-// 다른 모듈이 장식 모양을 더한다 (어드벤트 달력에서 풀리는 특별 장식: advent.js). fn(g, add, P) 로 그린다
-export function addOrnament(k, fn) { B[k] = (g) => fn(g, add, P); }
+// 다른 모듈이 장식 모양을 더한다 (어드벤트 달력에서 풀리는 특별 장식: advent.js). fn(g, add, P) 로 그린다 (P 는 색을 그대로 돌려준다: 색은 add 가 꼭짓점에 넣는다)
+export function addOrnament(k, fn) { B[k] = (g) => fn(g, add, (hex) => hex); }
 // 장식 하나. o = { k, x, y, z } (트리 겉면 위의 점)
 export function buildOrnament(o) {
   const g = new THREE.Group();

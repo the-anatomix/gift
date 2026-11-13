@@ -218,7 +218,7 @@ const pov = (p, fp) => T(p, (fp) => { if ((window.__tree.pov === 'fp') !== fp) w
     await B.tap('#tabs button[data-m="tree"]'); await sleep(400);
     check('26일: 꾸미는 친구(손님)에게는 불꽃놀이 단추가 없음', !(await B.isVisible('#fireShow')));
     await T(B, () => window.__sky.press()); await sleep(300);
-    check('26일: 손님이 눌러도 안 됨 (안내만)', /크리스마스에만/.test(await B.textContent('#toast')), await B.textContent('#toast'));
+    check('26일: 손님이 눌러도 안 됨 (안내만)', /터뜨릴 수 없어요/.test(await B.textContent('#toast')), await B.textContent('#toast'));
     await B.tap('#tabs button[data-m="tree"]');
     await A.tap('#tabs button[data-m="tree"]'); await sleep(400);
     check('26일에도 방장에게는 불꽃놀이 단추가 있음', await A.isVisible('#fireShow'));

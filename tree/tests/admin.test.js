@@ -121,7 +121,7 @@ const audit = (p) => p.evaluate(() => {
     check('공동 관리자가 영화관을 차리면 방장의 방에도 차려짐', made === 18 && await until(async () => (await T(A, () => window.__cinema.has)) && (await hash(A)) === (await hash(B)), 8000), made);
     await T(B, () => window.__tree.setMode(null));
     check('공동 관리자가 불을 끄면 모두에게 꺼짐', (await T(B, () => window.__lights.toggle(2))) && await until(async () => (await T(A, () => window.__lights.lamps.join())) === '1,1,0', 4000));
-    check('크리스마스가 아닌 날에도 공동 관리자는 불꽃놀이를 터뜨릴 수 있고 방장에게도 터짐', (await T(B, () => window.__sky.press())) && await until(() => T(A, () => !!window.__sky.show), 5000), await T(B, () => document.getElementById('toast').textContent));
+    check('불꽃놀이는 마스터키를 켠 사람만: 공동 관리자도 못 터뜨림', !(await T(B, () => window.__sky.press())), await T(B, () => document.getElementById('toast').textContent));
 
     /* 흉내 내기 막기 */
     const E = await ctx.newPage();

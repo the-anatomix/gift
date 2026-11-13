@@ -1094,7 +1094,7 @@ const sky = makeSky({
   cam: () => cam(), eye: () => usingEye(), level: () => myLv, height: () => canvas.height,
   canFire: () => can(FIRE),
   busy: () => party.on === 'light', canEdit: () => canEdit, isHost: () => duo.role === 'host' || (!duo.role && (!cur || cur.mine)), fx: (m) => duo.fx(m), toast: (m) => toast(m),
-  admin: () => admin.isMe(), isAdmin: (id) => duo.admins.includes(id), // 공동 관리자도 아무 날에나 불꽃놀이 (admin.js)
+  admin: () => admin.isMe(), isAdmin: (id) => duo.admins.includes(id),
   mayLead: (id) => duo.role !== 'host' || duo.people.some((p) => p.id === id && p.edit), // isHost: 방장(혼자 노는 내 방 포함)은 아무 날에나 불꽃놀이
   resized: () => { if (mode === 'tree') measure(false); },
 });
