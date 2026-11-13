@@ -13,6 +13,7 @@
 import { THREE, M, put, rbox, ball } from './kit.js';
 import { GIFT, WRAPS, NOTE } from './catalog.js';
 import { cleanWords, giftsList, cakesList } from './state.js';
+import { can, GIFT as MK_GIFT } from './master.js';
 
 // 지금 시각. 검사에서는 window.__now 로 날짜를 바꾼다 (날짜는 그 사람 기기의 현지 시간)
 const now = () => (typeof window.__now === 'function' ? window.__now() : Date.now());
@@ -21,7 +22,7 @@ const DAY = 864e5;
 const hex = (v) => '#' + v.toString(16).padStart(6, '0');
 // 그 선물을 여는 때: 둔 해의 12월 25일 0시 (25일~31일에 둔 것은 둔 때보다 이르니 바로 열린다)
 export const openAt = (at) => new Date(new Date(at).getFullYear(), 11, 25).getTime();
-export const canOpen = (g) => now() >= openAt(g.at);
+export const canOpen = (g) => can(MK_GIFT) || now() >= openAt(g.at); // 마스터키는 날짜와 상관없이 연다
 // 크리스마스(이번 해 12월 25일)까지 남은 날
 function dDay() { const t = new Date(now()); return Math.round((new Date(t.getFullYear(), 11, 25) - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / DAY); }
 const xmas = () => { const t = new Date(now()); return t.getMonth() === 11 && t.getDate() >= 25; };

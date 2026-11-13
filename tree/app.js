@@ -9,7 +9,7 @@ import { makeWardrobe, HOST_OUTFIT } from './costume.js';
 import { makeFly } from './fly.js';
 import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, FACES, ACTS, BODY_R, SPEED } from './avatar.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER, STARTER_EAST, STARTER_UP, CAKE } from './catalog.js';
-import { makeState, apply, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake, benchOf, cakesList, cakeAtBench, cakeOnTable, sendHome, notesList } from './state.js';
+import { makeState, apply, setLockFree, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake, benchOf, cakesList, cakeAtBench, cakeOnTable, sendHome, notesList } from './state.js';
 import { buildItem } from './furniture.js';
 import { buildOrnament, buildLights } from './decor.js';
 import { makeDuo, ROOM_RE, CAP, ECAP, DOOR } from './duo.js';
@@ -22,6 +22,7 @@ import { makeSnow } from './snow.js';
 import { makeCoop } from './coop.js';
 import { makeGames } from './games.js';
 import { makeSky } from './sky.js';
+import { makeMaster, can, LOCK, FIRE } from './master.js';
 import { makeAdvent } from './advent.js';
 import { makeGift } from './gift.js';
 import { makeFoodPlay } from './food.js';
@@ -152,8 +153,12 @@ function dropObj(map, id, parent, own) {
   if (own) g.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); // 장식은 도형을 나눠 쓰므로 지우지 않는다
 }
 
+const MK_OPS = ['put', 'orn', 'lights', 'wall', 'floor'];
 // 방의 모든 변화는 여기를 지난다. from = 'me'(내가 함) | 'peer'(친구가 함) | 'load'(저장된 방을 여는 중)
 function dispatch(op, from = 'me') {
+  if (from === 'load') { setLockFree(true); try { return dispatch(op, 'load2'); } finally { setLockFree(false); } }
+  if (from === 'load2') from = 'load';
+  else if (from === 'me' && op && MK_OPS.includes(op.t) && can(LOCK)) op = { ...op, mk: 1 }; // 마스터키: 어드벤트 잠금 없이 (state.js 의 locked)
   if (op && op.t === 'cakeSet' && from !== 'load') return false; // 저장된 방을 풀 때만 쓰는 변화
   if (from === 'me' && !canEdit && op && op.t === 'star' && op.on === true) from = 'view'; // 꼭대기 별 달기는 구경하는 사람도 된다 (coop.js)
   if (from === 'me' && !canEdit && op && (op.t === 'gift' || op.t === 'giftOpen')) from = 'mine'; // 트리 밑 선물은 구경하는 사람도 두고 연다 (gift.js)
@@ -703,6 +708,8 @@ const duo = makeDuo({
     if (m && m.k === 'gm') return games.peerFx(m, id); // 같이 놀기 (games.js)
     if (m && m.k === 'food') return food.peerFx(m, id); // 냉장고와 먹기 (food.js)
     if (m && (m.k === 'team' || m.k === 'ball' || m.k === 'made')) return snow.peerFx(m, id); // 눈싸움 팀전·눈사람 (소식이 길어서 snow.js 가 따로 살핀다)
+    if (m && m.k === 'mk') return master.peerFx(m, id); // 마스터가 나눠 주는 권한 (master.js)
+    if (m && m.k === 'show' && typeof m.v === 'string' && /^sky:(auto|day|dusk|night)$/.test(m.v)) return sky.peerFx(m, id); // 하늘을 낮·노을·밤으로 (마스터 판)
     if (m && m.k === 'show' && typeof m.v === 'string' && m.v.startsWith('fire:') && m.v.length <= 64) return sky.peerFx(m, id); // 글자·길이·예약이 붙은 불꽃놀이 (값이 길어서 아래의 20자 검사보다 먼저)
     if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false;
     if (m.k === 'act' && games.quiet(id)) return true; // 술래에게는 숨은 사람의 행동이 안 보인다
@@ -1047,6 +1054,7 @@ const fly = makeFly({
 const sky = makeSky({
   scene, hemi, sun, glow, room, bright: BRIGHT, front: FRONT,
   cam: () => cam(), eye: () => usingEye(), level: () => myLv, height: () => canvas.height,
+  canFire: () => can(FIRE),
   busy: () => party.on === 'light', canEdit: () => canEdit, isHost: () => duo.role === 'host' || (!duo.role && (!cur || cur.mine)), fx: (m) => duo.fx(m), toast: (m) => toast(m),
   mayLead: (id) => duo.role !== 'host' || duo.people.some((p) => p.id === id && p.edit), // isHost: 방장(혼자 노는 내 방 포함)은 아무 날에나 불꽃놀이
   resized: () => { if (mode === 'tree') measure(false); },
@@ -1056,6 +1064,13 @@ const advent = makeAdvent({
   key, store, toast: (m) => toast(m), op: (o) => dispatch(o), load: (o) => dispatch(o, 'load'), canEdit: () => canEdit, defName: () => nameOf(duo.me),
   S: () => S, play, close: () => setMode(null), itemObj: (id) => itemObj.get(id), scene, dirty: () => { dirty = true; },
   findSpot: (k, r, x, z) => findSpot(k, r, x, z, []),
+});
+// 숨은 마스터키 (master.js): 제목을 일곱 번 누른다
+const master = makeMaster({
+  toast: (m) => toast(m), sky: { time: () => sky.time, setTime: (v) => sky.setTime(v) }, changed: () => { advent.repaint(); dirty = true; },
+  scene, ray(px, py) { aimRay(px, py); return ray.ray; }, shown: () => myLv === 0,
+  fx: (m) => duo.fx(m), myId: () => duo.me, others: () => [...others.keys()], nameOf: (id) => nameOf(id), setMode: (m) => setMode(m), mode: () => mode,
+  resized: () => { if (mode === 'master') measure(false); },
 });
 // 트리 밑 선물 (gift.js): 판은 setMode('gift') 로 연다
 const gift = makeGift({
@@ -1352,6 +1367,7 @@ function lift(e, ok) {
   if (mode === 'play') { play.tap(e.clientX, e.clientY); return; }
   if (snow.tap(e.clientX, e.clientY)) return; // 눈싸움 모드: 걸어가는 대신 눈덩이를 던진다
   if (games.tap(e.clientX, e.clientY)) return; // 숨바꼭질: 술래가 숨은 사람을 누름
+  if (mode === null && master.tap(e.clientX, e.clientY)) return; // 숨은 열쇠 (master.js)
   if ((mode === null || mode === 'gift') && gift.tap(e.clientX, e.clientY)) return; // 트리 밑 선물 상자
   if (mode === 'fridge' && food.tap(e.clientX, e.clientY)) return; // 열린 냉장고 안의 음식
   if (mode === null && !fly.on) { const id = pickItem(e.clientX, e.clientY); if (id && useItem(id)) return; } // 케이크 내려놓기, 놀 수 있는 가구, 침대, 냉장고
@@ -1498,7 +1514,7 @@ if (window.visualViewport) {
 $('zin').addEventListener('click', () => zoomBy(1.35));
 $('zout').addEventListener('click', () => zoomBy(1 / 1.35));
 
-const PANELS = { furn: 'furn', tree: 'treeP', paint: 'paint', look: 'look', duo: 'duoP', play: 'playP', chat: 'chatP', door: 'doorP', emo: 'emoP' };
+const PANELS = { master: 'masterP', furn: 'furn', tree: 'treeP', paint: 'paint', look: 'look', duo: 'duoP', play: 'playP', chat: 'chatP', door: 'doorP', emo: 'emoP' };
 PANELS.gift = 'giftP'; // 트리 밑 선물 (gift.js)
 PANELS.fridge = 'fridgeP'; // 냉장고 (food.js)
 const cakeObj = new Map(); // 케이크 id → 모양 (cake.js 의 makeCakeView)
@@ -1729,6 +1745,7 @@ window.__play = Object.assign(play.test, {
 });
 Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose }, id: { get: () => play.id }, spot: { get: () => play.spot } });
 window.__sky = sky.test;
+window.__master = { get on() { return master.on; }, get given() { return master.test.given; }, key: master.test.key };
 window.__food = food.test;
 window.__party = Object.assign(party.test, { bright: () => ({ hemi: hemi.intensity, sun: sun.intensity, glow: glow.intensity }) });
 window.__tree = {

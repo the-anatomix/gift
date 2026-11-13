@@ -685,13 +685,25 @@ export function makeSky(K) {
     if (gray) { top.lerp(tmp.copy(PAL.gray[0]).multiplyScalar(mix(0.35, 1, day)), gray); hor.lerp(tmp.copy(PAL.gray[1]).multiplyScalar(mix(0.35, 1, day)), gray); }
     return [top, hor];
   }
+  // 하늘을 낮·노을·밤으로 고정하기 (마스터 판). 방 사람들에게는 놀이 소식 { k: 'show', v: 'sky:night' } 로 전하고, 고정한 사람이 4초마다 다시 알려 늦게 온 사람도 맞춘다
+  const TIMES = { auto: null, day: 13 * 60, dusk: SUN.set + 4, night: 23 * 60 + 30 };
+  let timeMode = 'auto', timeMine = false, timeSent = 0;
+  const forcedTs = (t) => { const m = TIMES[timeMode]; if (m == null) return t; const d = new Date(t); d.setHours(Math.floor(m / 60), Math.floor(m % 60), 0, 0); return d.getTime(); };
+  function setTime(v, mine) {
+    if (!(v in TIMES)) return false;
+    timeMode = v; timeMine = !!mine && v !== 'auto';
+    if (mine) { K.fx({ k: 'show', v: 'sky:' + v }); timeSent = now(); }
+    update(true);
+    return true;
+  }
   function update(force) {
+    if (timeMine && now() - timeSent > 4000) { timeSent = now(); K.fx({ k: 'show', v: 'sky:' + timeMode }); }
     const t = now(), d = new Date(t), key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}-${d.getMinutes()}`;
     const weather = weatherAt(t);
     cur.weather = weather; cur.snowGoal = [0, 0.45, 1][weather];
     if (key !== cur.key || force) {
       cur.key = key;
-      const { day, dusk } = skyAt(t), gray = weather === 2 ? 0.45 : weather === 1 ? 0.2 : 0;
+      const { day, dusk } = skyAt(forcedTs(t)), gray = weather === 2 ? 0.45 : weather === 1 ? 0.2 : 0;
       cur.day = day; cur.dusk = dusk;
       const [top, hor] = colors(day, dusk, gray * Math.max(day, 0.3));
       U.uTop.value.copy(top); U.uHor.value.copy(hor);
@@ -812,7 +824,7 @@ export function makeSky(K) {
   // 마지막으로 터진 불꽃이 다 사라지는 때
   function lastBurstEnd() { let e = 0; for (let n = 0; n < FN; n++) e = Math.max(e, fInfo[n * 4] + fInfo[n * 4 + 1]); return e; }
   function paintFireBtn() {
-    const on = (isXmas(now()) && K.canEdit()) || K.isHost();
+    const on = K.canFire(); // 불꽃놀이는 마스터키를 켠 사람(과 마스터가 열어 준 사람)만 터뜨린다 (아무 날에나)
     if (fireRow.hidden === on) { fireRow.hidden = !on; K.resized(); }
     if (!on && !pop.hidden) openPop(false);
   }
@@ -821,6 +833,7 @@ export function makeSky(K) {
 
   // 친구가 터뜨린 불꽃놀이. 받을 만한 소식이면 true (방장이 다른 사람들에게 전해 준다)
   function peerIn(m, id) {
+    if (typeof m.v === 'string' && m.v.startsWith('sky:')) { const v = m.v.slice(4); if (!K.mayLead(id) || v === timeMode) return v === timeMode; timeMine = false; return setTime(v, false); }
     const t = now(), d = new Date(t), o = parseFire(m.v, t);
     if (!o || !K.mayLead(id)) return false;
     // 방장이 받는 손님의 소식은 크리스마스 때만 (시계가 조금 다른 친구까지 24~26일). 손님은 방장이 걸러 보낸 것(방장 자신의 것 포함)을 그대로 받는다
@@ -832,9 +845,10 @@ export function makeSky(K) {
   return {
     tick: frame,
     peerFx: peerIn,
+    get time() { return timeMode; }, setTime: (v) => setTime(v, true),
     // 자동 검사가 쓰는 창구
     test: {
-      get state() { return { day: cur.day, dusk: cur.dusk, weather: cur.weather, snow: cur.snow, phase: skyAt(now()).phase, hemi: hemi.intensity, sun: sun.intensity, base: [...BRIGHT], stars: U.uStars.value, moon: U.uMoon.value, glass: glassMat.color.getHex(), pool: poolMat.opacity, top: U.uTop.value.getHex(), hor: U.uHor.value.getHex() }; },
+      get state() { return { day: cur.day, dusk: cur.dusk, weather: cur.weather, snow: cur.snow, phase: skyAt(forcedTs(now())).phase, hemi: hemi.intensity, sun: sun.intensity, base: [...BRIGHT], stars: U.uStars.value, moon: U.uMoon.value, glass: glassMat.color.getHex(), pool: poolMat.opacity, top: U.uTop.value.getHex(), hor: U.uHor.value.getHex() }; },
       get show() { return show ? { mid: show.mid, left: (show.until - now()) / 1000, words: show.words || [] } : null; },
       get plan() { return plan ? { ...plan } : null; },
       get fband() { return fband.hidden ? null : fband.textContent; },

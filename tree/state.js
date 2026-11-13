@@ -157,7 +157,11 @@ export function lockDay(S, list, id) {
   return x && x.day && !(S.adv && S.adv.has(x.day)) ? x.day : 0;
 }
 // 아직 풀리지 않은 것을 놓거나 고르는 변화인지 (저장된 방을 열 때는 ops() 가 연 칸을 먼저 넣으므로 그대로 들어간다)
+// 잠금을 건너뛰는 때: 저장된 방을 풀 때(마스터키로 놓은 것이 다시 열 때 사라지지 않게), 그리고 마스터키를 켠 사람이 한 변화(op.mk === 1)
+let lockFree = false;
+export function setLockFree(v) { lockFree = !!v; }
 function locked(S, op) {
+  if (lockFree || (op && op.mk === 1)) return false;
   switch (op.t) {
     case 'put': return !!lockDay(S, FURNITURE, op.k);
     case 'orn': return !!lockDay(S, ORNAMENTS, op.k);

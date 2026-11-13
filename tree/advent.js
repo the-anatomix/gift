@@ -12,6 +12,7 @@ import { THREE, M, put, rbox, cyl, ball } from './kit.js';
 import { X0, Z0, CELL } from './path.js';
 import { ADVENT, ADVENT_LISTS, NOTE, STARTER_UP } from './catalog.js';
 import { cleanWords, lockDay } from './state.js';
+import { can, LOCK } from './master.js';
 import { addShape } from './furniture.js';
 import { addOrnament } from './decor.js';
 
@@ -402,7 +403,7 @@ export function makeAdvent(K) {
       const el = $(box);
       if (!el) continue;
       for (const b of el.querySelectorAll(sel)) {
-        const day = lockDay(S, ADVENT_LISTS[kind], b.dataset.v), was = b.classList.contains('locked');
+        const day = can(LOCK) ? 0 : lockDay(S, ADVENT_LISTS[kind], b.dataset.v), was = b.classList.contains('locked');
         if (day && !was) {
           if (sel !== '.sw') b.dataset.html = b.innerHTML;
           b.classList.add('locked'); b.dataset.day = String(day); b.setAttribute('aria-disabled', 'true');
@@ -501,5 +502,5 @@ export function makeAdvent(K) {
     get mark() { for (const it of K.S().items.values()) if (it.k === 'advent') { const g = K.itemObj(it.id); return !!(g && g.userData.advMark && g.userData.advMark.visible); } return null; },
     locks: () => [...document.querySelectorAll('.locked')].map((b) => ({ v: b.dataset.v, day: +b.dataset.day, list: b.parentElement.id })),
   };
-  return { onOp, tick, starter, refresh };
+  return { onOp, tick, starter, refresh, repaint: refresh };
 }
