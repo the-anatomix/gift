@@ -50,6 +50,27 @@ export function weatherAt(ts) {
   return 0;
 }
 // 크리스마스 자정: 그해 12월 25일 0시(현지)
+// 불꽃놀이를 누르는 사람이 정하는 것: 길이(초), 하늘에 쓸 글자(글자 수), 예약(몇 초 뒤까지)
+export const FIREWORK = { secs: [15, 30, 60], text: 10, word: 5, ahead: 24 * 3600 };
+export const cleanFireText = (s) => [...String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()].slice(0, FIREWORK.text).join('').trim();
+// 놀이 소식의 값: 'fire'(바로, 15초, 글자 없음) 또는 'fire:길이:시각(ms, 0 이면 바로):글자'. 길이 0 은 예약 취소
+export const fireMsg = (sec, at, text) => (sec === 15 && !at && !text ? 'fire' : `fire:${sec}:${at || 0}:${text || ''}`);
+export function parseFire(v, t) {
+  if (v === 'fire') return { sec: 15, at: 0, text: '' };
+  const m = /^fire:(\d{1,2}):(\d{1,14}):([\s\S]{0,40})$/.exec(typeof v === 'string' ? v : '');
+  if (!m) return null;
+  const sec = +m[1], at = +m[2];
+  if (sec === 0) return { sec: 0, at: 0, text: '' };
+  if (!FIREWORK.secs.includes(sec)) return null;
+  if (at && (at < t - 5000 || at > t + FIREWORK.ahead * 1000)) return null;
+  return { sec, at: at > t + 1500 ? at : 0, text: cleanFireText(m[3]) };
+}
+// 글자를 한 번에 터뜨릴 덩어리로: 띄어쓰기에서 나누고, 긴 낱말은 다섯 자씩
+export function fireWords(text) {
+  const out = [];
+  for (const w of cleanFireText(text).split(' ')) { const c = [...w]; for (let k = 0; k < c.length; k += FIREWORK.word) out.push(c.slice(k, k + FIREWORK.word).join('')); }
+  return out.filter(Boolean);
+}
 export const XMAS = { band: 600, count: 10, show: 40, gap: 30, again: 15 }; // 띠(초 전부터), 큰 숫자(초), 자정 불꽃(초), 다시 터뜨리기 간격·길이(초)
 export const xmasAt = (ts) => new Date(new Date(ts).getFullYear(), 11, 25).getTime();
 export const isXmas = (ts) => { const d = new Date(ts); return d.getMonth() === 11 && d.getDate() === 25; };
@@ -125,26 +146,71 @@ function paneMaterial(u) {
       }`,
   });
 }
-// 1인칭의 하늘 돔: 지평선 아래는 먼 눈밭, 위는 그라데이션과 별·달·해
+// 1인칭의 하늘 돔: 지평선은 밝고 위로 갈수록 짙은 하늘, 노을 띠, 해와 흘러가는 구름, 크기·밝기가 다른 별과 별똥별, 무늬와 달무리가 있는 달, 먼 눈 언덕과 마을 불빛
 function domeMaterial(u) {
   return new THREE.ShaderMaterial({
     uniforms: u, side: THREE.BackSide, depthWrite: false, fog: false,
     vertexShader: 'varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
     fragmentShader: `
-      uniform vec3 uTop, uHor, uGround; uniform float uStars, uMoon, uSun, uTime;
+      uniform vec3 uTop, uHor, uGround, uCloudC; uniform float uStars, uMoon, uSun, uTime, uDusk, uNight, uCover;
+      uniform vec4 uFw[4]; uniform vec3 uFwC[4];
       varying vec3 vDir;
       ${HASH}
+      float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+        return mix(mix(hash(i), hash(i + vec2(1., 0.)), f.x), mix(hash(i + vec2(0., 1.)), hash(i + vec2(1., 1.)), f.x), f.y); }
+      float fbm(vec2 p){ float a = .5, s = 0.; for (int i = 0; i < 4; i++) { s += a * vn(p); p = p * 2.03 + vec2(17., 9.); a *= .5; } return s; }
+      // 칸마다 별 하나: 밝을수록 크고, 저마다 다른 빠르기로 깜빡인다
+      float star(vec2 g, float thr, float sz){ vec2 id = floor(g); float h = hash(id); if (h < thr) return 0.;
+        float b = (h - thr) / (1. - thr), k = length(fract(g) - .5 - (vec2(hash(id + 3.), hash(id + 7.)) - .5) * .6);
+        return smoothstep(sz * (.45 + .75 * b), 0., k) * (.3 + .7 * b) * (.62 + .38 * sin(uTime * (.8 + 3. * hash(id + 11.)) + h * 50.)); }
       void main(){
-        vec3 d = normalize(vDir);
-        vec3 c = mix(uHor, uTop, smoothstep(0., .55, d.y));
-        if (uStars > 0. && d.y > .04) { vec2 g = vec2(atan(d.z, d.x) * 48., asin(d.y) * 48.); vec2 id = floor(g); float h = hash(id);
-          if (h > .93) { float k = length(fract(g) - .5 - (vec2(hash(id + 3.), hash(id + 7.)) - .5) * .5);
-            c += vec3(1.) * uStars * smoothstep(.1, 0., k) * (.55 + .45 * sin(uTime * 1.7 + h * 50.)) * smoothstep(.04, .2, d.y); } }
-        vec3 md = normalize(vec3(.35, .6, .72)); float m = dot(d, md);
-        if (uMoon > 0.) { c = mix(c, vec3(1., .96, .8), uMoon * smoothstep(.9988, .9992, m)); c += vec3(.4, .38, .3) * uMoon * pow(max(m, 0.), 90.) * .5; }
-        vec3 sd = normalize(vec3(-.2, .42, .88)); float s = dot(d, sd);
-        if (uSun > 0.) { c = mix(c, vec3(1., .98, .9), uSun * smoothstep(.9985, .999, s)); c += vec3(1., .85, .6) * uSun * pow(max(s, 0.), 40.) * .35; }
-        c = mix(c, uGround, smoothstep(.0, -.03, d.y));
+        vec3 d = normalize(vDir); float y = d.y, az = atan(d.z, d.x);
+        vec3 sd = normalize(vec3(-.2, .42, .88)), md = normalize(vec3(.35, .6, .72));
+        vec3 c = mix(uHor, uTop, pow(smoothstep(0., .8, y), .6));
+        // 노을: 지평선의 주황 띠(해 쪽이 더 짙다)와 그 위의 분홍
+        float toSun = .5 + .5 * dot(normalize(d.xz + 1e-5), normalize(sd.xz));
+        c += vec3(1., .42, .16) * uDusk * exp(-max(y, 0.) * 7.) * (.25 + .75 * toSun * toSun) * .5;
+        c += vec3(.85, .3, .45) * uDusk * exp(-abs(y - .2) * 8.) * .16;
+        vec2 g = d.xz / (1. + max(y, 0.)); // 하늘을 고르게 펴는 자리
+        if (uStars > 0. && y > .02) {
+          float lo = smoothstep(.02, .2, y);
+          float s1 = star(g * 70., .88, .11), s2 = star(g * 30. + 5., .9, .1) * 1.9, s3 = star(g * 12. + 9., .93, .055) * 3.2; // 잔별, 보통 별, 몇 개뿐인 큰 별
+          vec3 tint = mix(vec3(.78, .86, 1.), vec3(1., .88, .72), hash(floor(g * 30. + 5.)));
+          c += (vec3(.9, .94, 1.) * s1 + tint * s2 + vec3(1., .97, .9) * s3) * uStars * lo;
+          c += vec3(.42, .48, .78) * uStars * lo * .1 * fbm(g * 7.) * smoothstep(.5, 0., abs(dot(d, normalize(vec3(.62, .3, -.72))))); // 은하수
+          // 별똥별: 11초에 한 번, 1초 동안
+          float n = floor(uTime / 11.), ph = fract(uTime / 11.) * 11.;
+          if (ph < 1.) { vec2 a0 = vec2(hash(vec2(n, 1.)) - .5, hash(vec2(n, 2.)) - .5) * .9, dir = normalize(vec2(hash(vec2(n, 3.)) - .5, -.35 - hash(vec2(n, 4.)) * .3));
+            vec2 q = g - (a0 + dir * ph * .28); float al = dot(q, -dir), pe = length(q + dir * al);
+            c += vec3(1., .97, .9) * uStars * lo * smoothstep(.004, 0., pe) * smoothstep(.16, 0., al) * step(0., al) * sin(ph * 3.1416); }
+        }
+        // 달: 얼룩무늬, 가장자리는 조금 어둡게, 둘레에 달무리
+        float m = dot(d, md);
+        if (uMoon > 0. && m > 0.) { vec3 mx = normalize(cross(md, vec3(0., 1., 0.))), my = cross(mx, md); vec2 q = vec2(dot(d, mx), dot(d, my)) / .058; float r = length(q);
+          float disc = smoothstep(1., .93, r);
+          float tex = .86 + .16 * fbm(q * 2.6 + 3.) - .2 * smoothstep(.42, .16, length(q - vec2(-.3, .28))) - .15 * smoothstep(.3, .1, length(q - vec2(.36, -.22))) - .12 * smoothstep(.2, .06, length(q - vec2(.12, .52))) - .1 * smoothstep(.16, .05, length(q - vec2(-.45, -.35)));
+          float o = max(r - 1., 0.);
+          c += vec3(.5, .58, .85) * uMoon * (exp(-o * 1.6) * .3 + exp(-o * .32) * .09 + smoothstep(.5, 0., abs(o - 3.2)) * .035) * (1. - disc);
+          c = mix(c, vec3(1., .96, .84) * tex * mix(1., .78, r * r), uMoon * disc); }
+        // 해: 눈부신 원과 넓게 번지는 빛
+        float sn = dot(d, sd);
+        if (uSun > 0. && sn > 0.) { c += vec3(1., .86, .6) * uSun * (pow(sn, 320.) * .9 + pow(sn, 24.) * .32 + pow(sn, 4.) * .1); c = mix(c, vec3(1., .99, .93), uSun * smoothstep(.9988, .9994, sn)); }
+        // 구름: 머리 위 평평한 층이 천천히 흘러간다. 해 쪽 가장자리는 밝게
+        if (y > .015) { vec2 cp = d.xz / (y + .16) * .95 + vec2(uTime * .011, uTime * .004); float n = fbm(cp), cov = smoothstep(uCover, uCover + .2, n);
+          float lit = smoothstep(uCover + .32, uCover, n) * .5 + .5;
+          vec3 cc = uCloudC * mix(.72, 1.06, lit) + vec3(1., .5, .25) * uDusk * .3 * toSun + vec3(1., .9, .7) * uSun * pow(max(sn, 0.), 10.) * .3;
+          c = mix(c, cc, cov * .9 * smoothstep(.015, .2, y)); }
+        // 불꽃이 터질 때 하늘이 그 색으로 살짝 밝아진다
+        for (int i = 0; i < 4; i++) { float a = uFw[i].z; if (a > 0. && a < 1.) c += uFwC[i] * pow(1. - a, 3.) * .05 * smoothstep(-.1, .5, y); }
+        // 먼 눈 언덕 두 겹과 마을 불빛
+        float h1 = .05 + .022 * sin(az * 3. + 1.) + .013 * sin(az * 7. + .5) + .006 * sin(az * 17.);
+        float h2 = .018 + .013 * sin(az * 5. + 2.) + .007 * sin(az * 11. + 1.);
+        c = mix(c, mix(uGround, uHor, .55), smoothstep(h1 + .004, h1 - .004, y));
+        c = mix(c, mix(uGround, uHor, .15), smoothstep(h2 + .003, h2 - .003, y));
+        if (uNight > 0. && y < h1 && y > -.01) { float cell = az * 46.; float id = floor(cell), hh = hash(vec2(id, 3.));
+          if (hh > .62) { vec2 q = vec2((fract(cell) - .5) / 46. - (hash(vec2(id, 9.)) - .5) * .012, y - h2 * (.25 + .6 * hash(vec2(id, 5.))));
+            c += vec3(1., .74, .36) * uNight * (smoothstep(.0045, 0., length(q)) + smoothstep(.02, 0., length(q)) * .18) * (.75 + .25 * sin(uTime * 1.3 + hh * 40.)); } }
+        c = mix(c, uGround, smoothstep(.0, -.02, y));
         gl_FragColor = vec4(c, 1.);
         ${COLOR_OUT}
       }`,
@@ -179,18 +245,19 @@ function fireMaterial(u) {
       attribute vec3 aVel, aColor; attribute vec4 aInfo; attribute float aSize; uniform float uTime, uPx, uPersp; varying vec3 vC; varying float vA;
       ${POINT_SIZE}
       void main(){
-        float t = uTime - aInfo.x, a = 0.; vec3 p = position;
+        float t = uTime - aInfo.x, a = 0., hot = 0.; vec3 p = position;
         if (t >= 0. && t <= aInfo.y) {
-          float k = aInfo.z;
+          float k = aInfo.z, q = t / aInfo.y;
           p += k > 0. ? aVel * (1. - exp(-k * t)) / k : aVel * t;
           p.y -= .5 * aInfo.w * t * t;
-          a = pow(1. - t / aInfo.y, 1.3);
-          if (k > 0. && t > aInfo.y * .55) a *= .6 + .4 * sin(t * 38. + aVel.x * 13.);
+          a = pow(1. - q, 1.3);
+          if (k > 0. && q > .5) a *= .5 + .5 * sin(t * 40. + aVel.x * 13. + aVel.z * 7.); // 잔불이 깜빡이며 사라진다
+          hot = k > 0. ? 1. - smoothstep(0., .16, q) : 0.; // 터지는 순간은 하얗게 달아오른다
         }
-        vC = aColor; vA = a;
+        vC = mix(aColor, vec3(1.), hot * .8); vA = a;
         vec4 mv = modelViewMatrix * vec4(p, 1.);
         gl_Position = projectionMatrix * mv;
-        gl_PointSize = a > 0. ? max(1.5, ps(aSize, mv)) : 0.;
+        gl_PointSize = a > 0. ? clamp(uPersp > .5 ? aSize * uPx / -mv.z : aSize * uPx, 1.5, 200.) : 0.;
       }`,
     fragmentShader: `
       varying vec3 vC; varying float vA;
@@ -208,6 +275,7 @@ export function makeSky(K) {
   const U = {
     uTop: { value: new THREE.Color() }, uHor: { value: new THREE.Color() }, uGround: { value: new THREE.Color() },
     uStars: { value: 0 }, uMoon: { value: 0 }, uSun: { value: 0 }, uSnow: { value: 0 }, uTime: { value: 0 },
+    uDusk: { value: 0 }, uNight: { value: 0 }, uCover: { value: 0.56 }, uCloudC: { value: new THREE.Color(0xFFFFFF) },
     uFw: { value: [0, 1, 2, 3].map(() => new THREE.Vector4()) }, uFwC: { value: [0, 1, 2, 3].map(() => new THREE.Color()) },
   };
   const pane = paneMaterial(U);
@@ -294,7 +362,7 @@ export function makeSky(K) {
     g.fillStyle = gr; g.fillRect(0, 0, 128, 256);
     if (stars > 0.02) {
       let s = 11; const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
-      for (let k = 0; k < 70; k++) { const x = r() * 128, y = r() * 170; g.fillStyle = `rgba(255,250,235,${(0.35 + r() * 0.6) * stars})`; g.fillRect(x, y, 1, 0.6); }
+      for (let k = 0; k < 90; k++) { const x = r() * 128, y = r() * 170, b = r(), w = b > 0.9 ? 1.5 : 1; g.fillStyle = `rgba(${b > 0.5 ? '255,244,225' : '220,232,255'},${(0.3 + b * 0.65) * stars})`; g.fillRect(x, y, w, w * 0.6); }
     }
     bgTex.needsUpdate = true;
   }
@@ -317,7 +385,7 @@ export function makeSky(K) {
   })();
 
   /* ───────── 불꽃 ───────── */
-  const PER = 45, SLOTS = 8, FN = PER * SLOTS;
+  const PER = 130, SLOTS = 8, TRAIL = 7, STARS = 60, TN = 420, TBASE = PER * SLOTS, FN = TBASE + TN; // 뒤의 TN 개는 글자 불꽃
   const FU = { uTime: U.uTime, uPx: { value: 100 }, uPersp: { value: 0 } };
   const fg = new THREE.BufferGeometry();
   const fPos = new Float32Array(FN * 3), fVel = new Float32Array(FN * 3), fCol = new Float32Array(FN * 3), fInfo = new Float32Array(FN * 4).fill(-99), fSize = new Float32Array(FN);
@@ -327,7 +395,7 @@ export function makeSky(K) {
   scene.add(fire);
   let slot = 0;
   const flashes = []; // 방을 물들이는 빛 { t, c } 과 창 그림의 불꽃
-  const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
+  const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0), tmpC = new THREE.Color();
 
   // 불꽃 하나: 로켓이 올라가 터진다. 자리는 지금 쓰는 카메라에 맞춘다
   function burst(big = false) {
@@ -347,31 +415,100 @@ export function makeSky(K) {
       R = (cam.top - cam.bottom) / cam.zoom * rnd(0.17, 0.24);
     }
     if (big) R *= 1.3;
-    const col = FIRE[Math.floor(Math.random() * FIRE.length)], col2 = Math.random() < 0.35 ? FIRE[Math.floor(Math.random() * FIRE.length)] : col;
-    const ring = Math.random() < 0.3, rise = 0.6, base = slot * PER;
+    const pick = () => FIRE[Math.floor(Math.random() * FIRE.length)];
+    const rr = Math.random(), kind = rr < 0.3 ? 'mum' : rr < 0.46 ? 'willow' : rr < 0.6 ? 'ring' : rr < 0.74 ? 'heart' : rr < 0.86 ? 'star' : 'double';
+    const col = kind === 'willow' ? FIRE[Math.random() < 0.6 ? 1 : 7] : pick(), col2 = kind === 'willow' ? FIRE[1] : Math.random() < 0.6 ? pick() : col, col3 = Math.random() < 0.3 ? FIRE[6] : col;
+    const rise = 0.7, base = slot * PER;
     slot = (slot + 1) % SLOTS;
-    // 터지는 방향: 고리 모양이면 카메라를 마주보는 면 위에서
+    // 모양 불꽃이 놓이는 면: 1인칭은 똑바로 세워서 나를 보게, 내려다볼 때는 화면과 나란히
     cam.updateMatrixWorld(); cam.matrixWorld.extractBasis(vB, vC, vA);
-    for (let k = 0; k < PER; k++) {
-      const n = base + k, cc = k === 0 ? FIRE[6] : k % 2 ? col : col2;
-      if (k === 0) { // 로켓
-        fPos.set([c.x, c.y - R * 1.8, c.z], n * 3); fVel.set([0, R * 1.8 / rise, 0], n * 3);
-        fInfo.set([t, rise, 0, 0], n * 4); fSize[n] = R * 0.05;
+    if (cam.isPerspectiveCamera) { vA.copy(c).sub(cam.position); vA.y = 0; if (vA.lengthSq() < 1e-6) vA.set(0, 0, 1); vB.crossVectors(vA.normalize(), UP).normalize(); vC.copy(UP); }
+    const put = (n, x, y, z, vx, vy, vz, at, life, drag, grav, size, cc) => { fPos.set([x, y, z], n * 3); fVel.set([vx, vy, vz], n * 3); fInfo.set([at, life, drag, grav], n * 4); fSize[n] = size; fCol.set([cc.r, cc.g, cc.b], n * 3); };
+    // 번쩍임
+    put(base, c.x, c.y, c.z, 0, 0, 0, t + rise, 0.32, 0, 0, R * (cam.isPerspectiveCamera ? 2.4 : 1.5), tmpC.copy(col).lerp(FIRE[6], 0.6));
+    // 쏘아 올리는 불씨와 꼬리 (같은 길을 조금씩 늦게 따라가는 점들)
+    const sway = rnd(-0.25, 0.25) * R, up = R * 2.4;
+    for (let j = 0; j <= TRAIL; j++) { const dl = j * 0.045; put(base + 1 + j, c.x - sway, c.y - up, c.z, sway / rise, up / rise, 0, t + dl, rise - dl, 0, 0, R * (j ? 0.05 * (1 - j / (TRAIL + 2)) : 0.075), j ? FIRE[7] : FIRE[6]); }
+    // 터지는 별: 머리와 그 뒤를 따르는 꼬리 하나씩
+    const drag = kind === 'willow' ? 1.5 : 2.2, grav = R * (kind === 'willow' ? 0.8 : kind === 'mum' || kind === 'double' ? 0.34 : 0.12), lag = kind === 'willow' ? 0.13 : 0.07;
+    for (let i = 0; i < STARS; i++) {
+      let dx, dy, dz, sp = 1, cc = i % 3 === 0 ? col2 : i % 7 === 0 ? col3 : col;
+      if (kind === 'mum' || kind === 'willow' || kind === 'double') {
+        const z = rnd(-1, 1), a = rnd(0, Math.PI * 2), q = Math.sqrt(1 - z * z); dx = q * Math.cos(a); dy = z; dz = q * Math.sin(a);
+        sp = kind === 'willow' ? rnd(0.55, 0.9) : rnd(0.78, 1);
+        if (kind === 'double' && i < 22) { sp *= 0.48; cc = col2; } else if (kind === 'double') cc = col;
       } else {
-        let d;
-        if (ring) { const a = (k / (PER - 1)) * Math.PI * 2; d = vA.copy(vB).multiplyScalar(Math.cos(a)).addScaledVector(vC, Math.sin(a)); }
-        else { const z = rnd(-1, 1), a = rnd(0, Math.PI * 2), s = Math.sqrt(1 - z * z); d = vA.set(s * Math.cos(a), z, s * Math.sin(a)); }
-        const sp = R * 2.2 * (ring ? 1 : rnd(0.75, 1));
-        fPos.set([c.x, c.y, c.z], n * 3); fVel.set([d.x * sp, d.y * sp, d.z * sp], n * 3);
-        fInfo.set([t + rise, rnd(1.5, 2.1), 2.2, R * 0.35], n * 4); fSize[n] = R * rnd(0.065, 0.09);
+        let x, y;
+        if (kind === 'ring') { const a = (i / STARS) * Math.PI * 2; x = Math.cos(a); y = Math.sin(a); }
+        else if (kind === 'heart') { const a = (i / STARS) * Math.PI * 2, q = Math.sin(a); x = 16 * q * q * q / 17; y = (13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a)) / 17 + 0.12; }
+        else { const u = (i / STARS) * 10, v = Math.floor(u), f = u - v, P = (n) => { const a = Math.PI / 2 + n * Math.PI / 5, r = n % 2 ? 0.42 : 1; return [Math.cos(a) * r, Math.sin(a) * r]; }, A = P(v), B = P(v + 1); x = A[0] + (B[0] - A[0]) * f; y = A[1] + (B[1] - A[1]) * f; }
+        dx = vB.x * x + vC.x * y; dy = vB.y * x + vC.y * y; dz = vB.z * x + vC.z * y;
       }
-      fCol.set([cc.r, cc.g, cc.b], n * 3);
+      const v = R * drag * sp, life = kind === 'willow' ? rnd(2.6, 3.2) : rnd(1.7, 2.3), size = R * rnd(0.07, 0.095);
+      for (let e = 0; e < 2; e++) put(base + 2 + TRAIL + i * 2 + e, c.x, c.y, c.z, dx * v, dy * v, dz * v, t + rise + e * lag, life - e * lag * 1.5, drag, grav, size * (e ? 0.62 : 1), cc);
     }
     for (const k in attr) attr[k].needsUpdate = true;
     fire.visible = true;
     flashes.push({ t: t + rise, c: col, x: rnd(-0.4, 0.4), y: rnd(0.05, 0.3), w: Math.random() * 6 });
     if (flashes.length > 6) flashes.shift();
     boom(rise, big);
+  }
+
+  // 글자 불꽃: 글자를 작은 그림에 써서 점으로 옮기고, 가운데에서 그 자리로 퍼지게 한다
+  const tc = document.createElement('canvas'); tc.width = 400; tc.height = 104;
+  function wordBurst(word) {
+    const g = tc.getContext('2d', { willReadFrequently: true });
+    g.clearRect(0, 0, tc.width, tc.height);
+    g.font = '500 72px system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
+    const sc = Math.min(1, (tc.width - 16) / Math.max(1, g.measureText(word).width));
+    g.save(); g.translate(tc.width / 2, tc.height / 2 + 3); g.scale(sc, sc); g.fillText(word, 0, 0); g.restore();
+    const d = g.getImageData(0, 0, tc.width, tc.height).data;
+    // 전광판처럼 고른 간격으로 점을 찍는다. 입자 수 안에 들어오는 가장 촘촘한 간격을 고른다
+    let pts = [];
+    for (const st of [2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7, 8]) {
+      pts = [];
+      for (let y = 1; y < tc.height; y += st) for (let x = 1; x < tc.width; x += st) if (d[(Math.floor(y) * tc.width + Math.floor(x)) * 4 + 3] > 120) pts.push(x, y);
+      if (pts.length / 2 <= TN) break;
+    }
+    const all = Math.min(TN, pts.length / 2);
+    if (!all) return false;
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (let i = 0; i < all; i++) { x0 = Math.min(x0, pts[i * 2]); x1 = Math.max(x1, pts[i * 2]); y0 = Math.min(y0, pts[i * 2 + 1]); y1 = Math.max(y1, pts[i * 2 + 1]); }
+    const cam = K.cam(), t = clock(), c = new THREE.Vector3();
+    let W, H;
+    cam.updateMatrixWorld(); cam.matrixWorld.extractBasis(vB, vC, vA); // 오른쪽, 위, 뒤
+    if (cam.isPerspectiveCamera) {
+      const dist = 18, vh = 2 * dist * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2);
+      W = vh * cam.aspect * 0.74; H = vh * 0.2;
+      const f = new THREE.Vector3(); cam.getWorldDirection(f); f.y = 0; if (f.lengthSq() < 1e-6) f.set(0, 0, 1); f.normalize();
+      c.copy(cam.position).addScaledVector(f, Math.cos(0.24) * dist); c.y += Math.sin(0.24) * dist;
+      vB.crossVectors(f, UP).normalize(); vC.copy(UP); // 글자는 똑바로 세운다
+    } else {
+      const vw = (cam.right - cam.left) / cam.zoom, vh = (cam.top - cam.bottom) / cam.zoom;
+      W = vw * 0.84; H = vh * 0.16;
+      c.set(0, 0.5, 0).unproject(cam);
+      const f = new THREE.Vector3(); cam.getWorldDirection(f);
+      const q = new THREE.Vector3().copy(c).sub(cam.position); c.addScaledVector(f, 14 - q.dot(f));
+    }
+    const bw = Math.max(8, x1 - x0), bh = Math.max(8, y1 - y0), s = Math.min(W / bw, H / bh), size = bh * s;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, col = FIRE[Math.floor(Math.random() * (FIRE.length - 1))], kd = 3.2;
+    for (let k = 0; k < TN; k++) {
+      const n = TBASE + k;
+      if (k >= all) { fInfo.set([-99, 0, 0, 0], n * 4); continue; } // 남는 입자는 쉰다
+      const ox = (pts[k * 2] - cx + rnd(-0.4, 0.4)) * s, oy = -(pts[k * 2 + 1] - cy + rnd(-0.4, 0.4)) * s;
+      const cc = k % 5 === 0 ? FIRE[6] : col;
+      fPos.set([c.x, c.y, c.z], n * 3);
+      fVel.set([(vB.x * ox + vC.x * oy) * kd, (vB.y * ox + vC.y * oy) * kd, (vB.z * ox + vC.z * oy) * kd], n * 3);
+      fInfo.set([t + rnd(0, 0.1), rnd(4, 4.4), kd, size * 0.008], n * 4); fSize[n] = Math.min(size * 0.085, (x1 - x0) * s / 30) * rnd(0.85, 1.1);
+      fCol.set([cc.r, cc.g, cc.b], n * 3);
+    }
+    for (const k in attr) attr[k].needsUpdate = true;
+    fire.visible = true;
+    flashes.push({ t, c: col, x: 0, y: 0.2, w: Math.random() * 6 });
+    if (flashes.length > 6) flashes.shift();
+    boom(0, true);
+    return true;
   }
 
   /* ───────── 소리 (이미 소리가 켜져 있을 때만. 누른 사람은 그 김에 켠다) ───────── */
@@ -399,9 +536,9 @@ export function makeSky(K) {
 
   /* ───────── 화면의 글: 위의 띠, 큰 숫자, 인사 ───────── */
   const style = document.createElement('style');
-  style.textContent = '#xmasBand{position:absolute;left:50%;top:calc(58px + env(safe-area-inset-top));transform:translateX(-50%);z-index:5;pointer-events:none;white-space:nowrap;'
+  style.textContent = '#xmasBand,#fireBand{position:absolute;left:50%;top:calc(58px + env(safe-area-inset-top));transform:translateX(-50%);z-index:5;pointer-events:none;white-space:nowrap;'
     + 'padding:5px 13px;border-radius:999px;background:rgba(122,26,34,.9);color:#FFF4E0;font-size:13px;font-weight:800;box-shadow:0 3px 10px rgba(0,0,0,.3);font-variant-numeric:tabular-nums}'
-    + 'body.xmas-band #toast{top:calc(96px + env(safe-area-inset-top))}'
+    + 'body.xmas-band #toast,body.fire-band #toast{top:calc(96px + env(safe-area-inset-top))}'
     + '#xmasBig{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);z-index:7;pointer-events:none;white-space:nowrap;font-weight:900;color:#FFF4E0;line-height:1.1;text-align:center;'
     + 'text-shadow:0 4px 18px rgba(0,0,0,.55),0 0 2px rgba(0,0,0,.4);font-size:120px}#xmasBig:empty{display:none}'
     + '#xmasBig.word{font-size:min(10vw,60px);color:#FFE9A8;text-shadow:0 0 18px rgba(255,200,90,.9),0 4px 18px rgba(0,0,0,.5)}'
@@ -409,7 +546,8 @@ export function makeSky(K) {
   document.head.appendChild(style);
   const band = document.createElement('div'); band.id = 'xmasBand'; band.hidden = true; band.setAttribute('role', 'timer');
   const bigEl = document.createElement('div'); bigEl.id = 'xmasBig'; bigEl.setAttribute('role', 'status'); bigEl.setAttribute('aria-live', 'assertive');
-  document.body.append(band, bigEl);
+  const fband = document.createElement('div'); fband.id = 'fireBand'; fband.hidden = true; fband.setAttribute('role', 'timer'); // 예약한 불꽃놀이까지
+  document.body.append(band, fband, bigEl);
   function big(text, cls = '') { if (bigEl.textContent === text) return; bigEl.textContent = text; bigEl.className = cls; void bigEl.offsetWidth; bigEl.classList.add('on'); }
   function tick(f) { const a = audio(false); if (!a) return; try { const o = a.createOscillator(), g = a.createGain(), t0 = a.currentTime; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.1, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.15); o.connect(g); g.connect(a.destination); o.start(t0); o.stop(t0 + 0.2); } catch (_) { /* 무시 */ } }
 
@@ -421,31 +559,120 @@ export function makeSky(K) {
   queueMicrotask(() => { const c = $('ornCount'), h = c && c.parentNode; if (h) { h.style.alignItems = 'center'; h.style.gap = '8px'; c.style.marginLeft = 'auto'; fireBtn.style.margin = '-8px 0'; h.insertBefore(fireBtn, c); } else { const box = $('lightList'); if (box) box.append(fireBtn); } }); // 트리 판 제목 줄의 빈자리에 (전구 줄에 두면 판이 한 줄 높아져 트리를 가린다)
 
   /* ───────── 불꽃놀이 장면 ───────── */
-  // show = { until(실제 시각 ms), next(다음 불꽃, 초), mid(자정 장면인지) }
-  let show = null, lastFire = -1e15, ceilOff = false;
-  function startShow(sec, mid) {
-    const t = now();
+  // show = { until(실제 시각 ms), next(다음 불꽃, 초), mid(자정 장면인지), words(하늘에 쓸 글자 덩어리), wi, wordAt }
+  // plan = { at(실제 시각 ms), sec, text, mine(내가 예약했는지) }
+  let show = null, plan = null, lastFire = -1e15, ceilOff = false;
+  const hhmm = (ts) => { const d = new Date(ts); return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  function startShow(sec, mid, text) {
+    const t = now(), words = fireWords(text);
     if (show && !mid) show.until = Math.max(show.until, t + sec * 1000);
     else show = { until: t + sec * 1000, next: clock() + 0.2, mid };
+    if (words.length) { show.words = words; show.wi = 0; show.wordAt = clock() + 0.9; }
   }
-  function pressFire(mine) {
-    const t = now();
+  // o = { sec, at, text }. at 이 앞날이면 예약만 해 둔다. due: 예약해 둔 것이 때가 되어 터짐(30초 간격을 따지지 않는다)
+  function pressFire(mine, o = {}, due = false) {
+    const t = now(), sec = FIREWORK.secs.includes(o.sec) ? o.sec : XMAS.again, text = cleanFireText(o.text);
+    const at = o.at > t + 1500 && o.at <= t + FIREWORK.ahead * 1000 ? Math.floor(o.at) : 0;
     if (mine) {
       if (!K.isHost()) {
         if (!isXmas(t)) { K.toast('불꽃놀이는 크리스마스에만 할 수 있어요 (방장은 언제나)'); return false; }
         if (!K.canEdit()) { K.toast('불꽃놀이는 꾸미는 사람만 터뜨릴 수 있어요'); return false; }
       }
       const wait = Math.ceil(XMAS.gap - (t - lastFire) / 1000);
-      if (wait > 0) { K.toast(`불꽃놀이는 30초에 한 번이에요 (${wait}초 뒤)`); return false; }
+      if (!at && !due && wait > 0) { K.toast(`불꽃놀이는 30초에 한 번이에요 (${wait}초 뒤)`); return false; }
       audio(true);
-      K.fx({ k: 'show', v: 'fire' });
+      K.fx({ k: 'show', v: fireMsg(sec, at, text) });
     }
+    if (at) { // 예약: 그때까지 위에 띠로 알린다
+      plan = { at, sec, text, mine };
+      K.toast(`${hhmm(at)}에 불꽃놀이를 터뜨려요 🎆`);
+      paintPlan();
+      return true;
+    }
+    if (plan && plan.at - t < 30000) { plan = null; paintPlan(); } // 예약해 둔 그 불꽃놀이
     lastFire = t;
-    startShow(XMAS.again, false);
+    startShow(sec, false, text);
     K.toast(mine ? '불꽃놀이! 🎆' : '불꽃놀이가 시작돼요! 🎆');
     return true;
   }
-  fireBtn.addEventListener('click', () => pressFire(true));
+  function cancelPlan(mine) {
+    if (!plan) return false;
+    if (mine) {
+      if (!K.isHost() && !(isXmas(now()) && K.canEdit())) return false;
+      K.fx({ k: 'show', v: 'fire:0:0:' });
+    }
+    plan = null; paintPlan();
+    K.toast('불꽃놀이 예약을 취소했어요');
+    return true;
+  }
+  // 예약한 때가 되면: 예약한 사람이 소식을 보내고, 3초가 지나도 소식이 없으면(예약한 사람이 나갔으면) 저마다 터뜨린다
+  function duePlan() {
+    if (!plan) return;
+    const t = now(), p = plan;
+    if (t >= p.at && p.mine) { plan = null; paintPlan(); pressFire(true, { sec: p.sec, text: p.text }, true); }
+    else if (t >= p.at + 3000) { plan = null; paintPlan(); if ((t - lastFire) / 1000 >= XMAS.gap - 5) pressFire(false, { sec: p.sec, text: p.text }); }
+    else paintPlan();
+  }
+  function paintPlan() {
+    const on = !!plan && band.hidden;
+    if (fband.hidden === on) { fband.hidden = !on; document.body.classList.toggle('fire-band', on); }
+    if (plan) {
+      const s = Math.max(0, Math.ceil((plan.at - now()) / 1000));
+      const text = s >= 3600 ? `🎆 ${hhmm(plan.at)} 불꽃놀이` : `🎆 불꽃놀이까지 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+      if (fband.textContent !== text) fband.textContent = text;
+    }
+    if (!pop.hidden) paintPop();
+  }
+
+  /* ───────── 불꽃놀이 판: 글자, 길이, 언제 ───────── */
+  const pop = document.createElement('div'); pop.id = 'firePop'; pop.hidden = true;
+  pop.innerHTML = '<div class="sheet" role="dialog" aria-label="불꽃놀이">'
+    + '<h2>🎆 불꽃놀이 <small>30초에 한 번</small></h2>'
+    + '<input id="fireText" type="text" autocomplete="off" enterkeyhint="done" placeholder="하늘에 쓸 글자 (안 써도 돼요)" aria-label="하늘에 쓸 글자">'
+    + '<div class="frow"><span class="lab">길이</span><div class="wrap" id="fireSecs"></div></div>'
+    + '<div class="frow"><span class="lab">언제</span><div class="wrap"><button type="button" class="chip" id="fireNow" aria-pressed="true">지금</button>'
+    + '<label class="chip" id="fireAtL">시각 <input id="fireAt" type="time" aria-label="터뜨릴 시각"></label></div></div>'
+    + '<div class="frow" id="firePlan" hidden><span id="firePlanT"></span><button type="button" class="btn" id="fireCancel">예약 취소</button></div>'
+    + '<div class="frow"><button type="button" class="btn" id="fireClose">닫기</button><button type="button" class="btn main" id="fireGo">터뜨리기</button></div></div>';
+  style.textContent += '#firePop{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(40,20,10,.35)}'
+    + '#firePop .sheet{width:100%;max-width:340px;gap:10px}#firePop .frow{display:flex;gap:6px;align-items:center}'
+    + '#fireText{min-height:46px;padding:0 12px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font:inherit;font-size:16px;font-weight:700;color:inherit;min-width:0}'
+    + '#fireAtL{display:flex;align-items:center;justify-content:center;gap:6px;flex:2 0 auto}#fireAtL.on{background:var(--choc);border-color:var(--choc);color:#FFF4E0}'
+    + '#fireAt{min-height:34px;border:0;background:transparent;font:inherit;font-size:16px;font-weight:700;color:inherit;min-width:0}'
+    + '#firePlanT{flex:1;font-size:13px;font-weight:700}#firePop .frow>.btn{flex:1}#firePop .frow>#fireCancel{flex:none}';
+  document.body.append(pop);
+  const q = (id) => pop.querySelector('#' + id);
+  const choice = { sec: 15 };
+  for (const sec of FIREWORK.secs) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = sec + '초'; b.dataset.sec = sec;
+    b.addEventListener('click', () => { choice.sec = sec; paintPop(); });
+    q('fireSecs').append(b);
+  }
+  q('fireText').maxLength = FIREWORK.text * 2;
+  // 고른 시각: 오늘의 그 시각, 이미 지났으면 내일
+  function pickedAt() {
+    const m = /^(\d\d):(\d\d)/.exec(q('fireAt').value);
+    if (!m) return 0;
+    const t = now(), d = new Date(t); d.setHours(+m[1], +m[2], 0, 0);
+    return d.getTime() > t + 1500 ? d.getTime() : d.getTime() + 86400000;
+  }
+  function paintPop() {
+    for (const b of q('fireSecs').children) b.setAttribute('aria-pressed', String(+b.dataset.sec === choice.sec));
+    const at = pickedAt();
+    q('fireNow').setAttribute('aria-pressed', String(!at)); q('fireAtL').classList.toggle('on', !!at);
+    q('fireGo').textContent = at ? `${hhmm(at)}에 터뜨리기` : '터뜨리기';
+    q('firePlan').hidden = !plan;
+    if (plan) q('firePlanT').textContent = `${hhmm(plan.at)}에 터뜨리기로 했어요${plan.text ? ' · ' + plan.text : ''}`;
+  }
+  function openPop(on) { pop.hidden = !on; if (on) paintPop(); }
+  q('fireNow').addEventListener('click', () => { q('fireAt').value = ''; paintPop(); });
+  q('fireAt').addEventListener('input', paintPop);
+  q('fireClose').addEventListener('click', () => openPop(false));
+  q('fireCancel').addEventListener('click', () => cancelPlan(true));
+  pop.addEventListener('pointerdown', (e) => { if (e.target === pop) openPop(false); });
+  q('fireText').addEventListener('keydown', (e) => { if (e.key === 'Enter') q('fireText').blur(); });
+  q('fireGo').addEventListener('click', () => { if (pressFire(true, { sec: choice.sec, at: pickedAt(), text: q('fireText').value })) { q('fireAt').value = ''; openPop(false); } });
+  fireBtn.addEventListener('click', () => openPop(true));
 
   /* ───────── 1분마다: 하늘·빛·날씨 ───────── */
   const BRIGHT = K.bright, BASE = [...BRIGHT];
@@ -473,6 +700,9 @@ export function makeSky(K) {
       U.uStars.value = (1 - day) * (1 - dusk * 0.7) * clamp(clear, 0, 1);
       U.uMoon.value = smooth((0.5 - day) * 2) * clamp(1 - gray, 0.3, 1);
       U.uSun.value = day * (1 - dusk) * clamp(1 - gray * 2, 0, 1);
+      U.uDusk.value = dusk; U.uNight.value = smooth((0.6 - day) * 2.5);
+      U.uCover.value = weather === 2 ? 0.3 : weather === 1 ? 0.42 : 0.5; // 구름이 덮는 정도
+      U.uCloudC.value.set(0x2B3252).lerp(tmp.set(0xFFFFFF), day).lerp(tmp.set(0xE9A27C), dusk * 0.45).lerp(tmp.set(0xAEB6C2).multiplyScalar(mix(0.3, 1, day)), gray);
       paintBg(top, hor, U.uStars.value);
       // 마당: 밤에는 어둡게, 창 빛·가로등은 밝게
       const yk = mix(mix(0.42, 1, day), 0.78, dusk * (1 - day) * 0.6);
@@ -511,7 +741,7 @@ export function makeSky(K) {
     const pk = phase === 'band' ? 'b' + Math.ceil(left) : phase === 'count' ? 'c' + Math.ceil(left) : phase || '';
     if (pk === phaseKey) return;
     const was = phaseKey; phaseKey = pk;
-    band.hidden = phase !== 'band';
+    band.hidden = phase !== 'band'; if (plan) paintPlan();
     document.body.classList.toggle('xmas-band', phase === 'band');
     if (phase === 'band') { const s = Math.ceil(left), m = Math.floor(s / 60); band.textContent = `🎄 크리스마스까지 ${m}:${String(s % 60).padStart(2, '0')}`; }
     if (phase === 'count') { const n = Math.ceil(left); big(String(n), 'num'); tick(n <= 3 ? 880 : 620); }
@@ -530,7 +760,7 @@ export function makeSky(K) {
   function frame(dt) {
     const c = clock();
     U.uTime.value = c % 1000;
-    if (c - checkAt > 0.5) { checkAt = c; update(false); paintFireBtn(); }
+    if (c - checkAt > 0.5) { checkAt = c; update(false); paintFireBtn(); duePlan(); }
     applyLight();
     midnight();
     // 눈: 날씨가 바뀌면 몇 초에 걸쳐 늘고 준다
@@ -550,11 +780,12 @@ export function makeSky(K) {
     if (show) {
       if (t >= show.until) { show = null; }
       else if (c >= show.next) {
-        const fin = show.mid && show.until - t < 6000; // 마지막 6초는 한꺼번에
+        const fin = show.until - t < (show.mid ? 6000 : 3500); // 마지막은 연달아 (자정은 6초, 그 밖에는 3.5초)
         burst(fin || Math.random() < 0.15);
         if (fin || Math.random() < 0.3) burst(false);
-        show.next = c + (fin ? rnd(0.25, 0.45) : rnd(0.55, 1.1));
+        show.next = c + (fin ? rnd(0.25, 0.45) : show.words ? rnd(0.9, 1.5) : rnd(0.55, 1.1)); // 글자가 있으면 글자가 보이게 조금 드물게
       }
+      if (show && show.words && c >= show.wordAt && show.until - t > 1500) { wordBurst(show.words[show.wi++ % show.words.length]); show.wordAt = c + 3.6; }
       if (show && show.mid && show.hi && c - show.hi > 6 && bigEl.className.startsWith('word')) bigEl.textContent = '';
     }
     // 방을 물들이는 빛과 창 그림의 불꽃
@@ -583,25 +814,32 @@ export function makeSky(K) {
   function paintFireBtn() {
     const on = (isXmas(now()) && K.canEdit()) || K.isHost();
     if (fireRow.hidden === on) { fireRow.hidden = !on; K.resized(); }
+    if (!on && !pop.hidden) openPop(false);
   }
   update(true);
   applyLight();
 
+  // 친구가 터뜨린 불꽃놀이. 받을 만한 소식이면 true (방장이 다른 사람들에게 전해 준다)
+  function peerIn(m, id) {
+    const t = now(), d = new Date(t), o = parseFire(m.v, t);
+    if (!o || !K.mayLead(id)) return false;
+    // 방장이 받는 손님의 소식은 크리스마스 때만 (시계가 조금 다른 친구까지 24~26일). 손님은 방장이 걸러 보낸 것(방장 자신의 것 포함)을 그대로 받는다
+    if (K.isHost() && (d.getMonth() !== 11 || Math.abs(d.getDate() - 25) > 1)) return false;
+    if (o.sec === 0) return cancelPlan(false);
+    if (!o.at && (t - lastFire) / 1000 < XMAS.gap - 5) return false;
+    return pressFire(false, o);
+  }
   return {
     tick: frame,
-    // 친구가 터뜨린 불꽃놀이. 받을 만한 소식이면 true (방장이 다른 사람들에게 전해 준다)
-    peerFx(m, id) {
-      if (m.v !== 'fire' || !K.mayLead(id)) return false;
-      const t = now(), d = new Date(t);
-      // 방장이 받는 손님의 소식은 크리스마스 때만 (시계가 조금 다른 친구까지 24~26일). 손님은 방장이 걸러 보낸 것(방장 자신의 것 포함)을 그대로 받는다
-      if (K.isHost() && (d.getMonth() !== 11 || Math.abs(d.getDate() - 25) > 1)) return false;
-      if ((t - lastFire) / 1000 < XMAS.gap - 5) return false;
-      return pressFire(false);
-    },
+    peerFx: peerIn,
     // 자동 검사가 쓰는 창구
     test: {
       get state() { return { day: cur.day, dusk: cur.dusk, weather: cur.weather, snow: cur.snow, phase: skyAt(now()).phase, hemi: hemi.intensity, sun: sun.intensity, base: [...BRIGHT], stars: U.uStars.value, moon: U.uMoon.value, glass: glassMat.color.getHex(), pool: poolMat.opacity, top: U.uTop.value.getHex(), hor: U.uHor.value.getHex() }; },
-      get show() { return show ? { mid: show.mid, left: (show.until - now()) / 1000 } : null; },
+      get show() { return show ? { mid: show.mid, left: (show.until - now()) / 1000, words: show.words || [] } : null; },
+      get plan() { return plan ? { ...plan } : null; },
+      get fband() { return fband.hidden ? null : fband.textContent; },
+      get word() { let n = 0; const t = clock(); for (let k = TBASE; k < FN; k++) if (t >= fInfo[k * 4] && t <= fInfo[k * 4] + fInfo[k * 4 + 1]) n++; return n; },
+      wordBurst: (w) => wordBurst(w), peer: (v) => peerIn({ k: 'show', v }, 'h'), cancel: () => cancelPlan(true),
       get fire() { let n = 0; const t = clock(); for (let k = 0; k < FN; k++) if (t >= fInfo[k * 4] && t <= fInfo[k * 4] + fInfo[k * 4 + 1]) n++; return { visible: fire.visible, live: n, flashes: flashes.length, tint: hemi.color.getHex() }; },
       get band() { return band.hidden ? null : band.textContent; },
       get big() { return bigEl.textContent; },
@@ -609,7 +847,7 @@ export function makeSky(K) {
       get snowShown() { return snowPts.visible; },
       get ceil() { return room.floors[room.floors.length - 1].ceil.visible; },
       get button() { return !fireRow.hidden; },
-      burst: (b) => burst(!!b), press: () => pressFire(true), refresh: () => { update(true); paintFireBtn(); },
+      burst: (b) => burst(!!b), press: (o) => pressFire(true, o || {}), refresh: () => { update(true); paintFireBtn(); },
       panes: () => { let n = 0; room.floors.forEach((f) => f.g.traverse((m) => { if (m.material === pane) n++; })); return n; },
       yardMats: () => yardMats.length,
     },

@@ -696,6 +696,7 @@ const duo = makeDuo({
     if (m && m.k === 'bell') { if (duo.role !== 'host') ding(false); return false; } // 초인종 소식은 방장만 전한다
     if (m && m.k === 'gm') return games.peerFx(m, id); // 같이 놀기 (games.js)
     if (m && (m.k === 'team' || m.k === 'ball' || m.k === 'made')) return snow.peerFx(m, id); // 눈싸움 팀전·눈사람 (소식이 길어서 snow.js 가 따로 살핀다)
+    if (m && m.k === 'show' && typeof m.v === 'string' && m.v.startsWith('fire:') && m.v.length <= 64) return sky.peerFx(m, id); // 글자·길이·예약이 붙은 불꽃놀이 (값이 길어서 아래의 20자 검사보다 먼저)
     if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false;
     if (m.k === 'act' && games.quiet(id)) return true; // 술래에게는 숨은 사람의 행동이 안 보인다
     if (m.k === 'act') { const a = others.get(id); return !!(a && a.act(m.v)); } // 그 사람이 한 행동

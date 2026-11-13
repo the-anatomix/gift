@@ -70,12 +70,13 @@ const pov = (p, fp) => T(p, (fp) => { if ((window.__tree.pov === 'fp') !== fp) w
       const dec = []; for (let d = 1; d <= 31; d++) for (let h = 0; h < 24; h++) dec.push(m.weatherAt(at(12, d, h)));
       const eve = []; for (const d of [24, 25]) for (let h = 0; h < 24; h++) eve.push(m.weatherAt(at(12, d, h)));
       const jul = []; for (let d = 1; d <= 31; d++) for (let h = 0; h < 24; h++) jul.push(m.weatherAt(at(7, d, h)));
+      const fw = { words: m.fireWords('  메리   크리스마스 ').join('|'), long: m.fireWords('가나다라마바사아자차카타').join('|'), msg: m.fireMsg(15, 0, ''), msg2: m.fireMsg(30, 0, '안녕'), back: m.parseFire('fire:30:0:안 녕\u0007', 0), old: m.parseFire('fire', 0), bad: [m.parseFire('fire:20:0:', 0), m.parseFire('fire:15:99999999999999:', 0), m.parseFire('x', 0), m.parseFire(5, 0)] };
       const sameHour = [0, 13, 37, 59].every((mi) => m.weatherAt(at(12, 20, 15, mi)) === m.weatherAt(at(12, 20, 15)));
       return {
         noon: m.skyAt(at(12, 20, 12)), three: m.skyAt(at(12, 20, 3)), set: m.skyAt(at(12, 20, 17, 30)), rise: m.skyAt(at(12, 20, 7, 30)),
         d730: m.skyAt(at(12, 20, 8, 15)).day, d1650: m.skyAt(at(12, 20, 16, 45)).day, d1820: m.skyAt(at(12, 20, 18, 15)).day,
         decSnow: dec.filter((w) => w > 0).length / dec.length, decHeavy: dec.filter((w) => w === 2).length / dec.length,
-        eveAll: eve.every((w) => w > 0), julClear: jul.every((w) => w === 0), sameHour,
+        eveAll: eve.every((w) => w > 0), julClear: jul.every((w) => w === 0), sameHour, fw,
         x1: m.xmasPhase(new Date(2026, 11, 24, 23, 49, 59).getTime()).phase, x2: m.xmasPhase(new Date(2026, 11, 24, 23, 50, 1).getTime()).phase,
         x3: m.xmasPhase(new Date(2026, 11, 24, 23, 59, 51).getTime()).phase, x4: m.xmasPhase(new Date(2026, 11, 25, 0, 0, 0).getTime()).phase,
         x5: m.xmasPhase(new Date(2026, 11, 25, 0, 0, 41).getTime()).phase, xmas25: m.isXmas(new Date(2026, 11, 25, 15).getTime()), xmas26: m.isXmas(new Date(2026, 11, 26, 0, 1).getTime()),
@@ -87,6 +88,8 @@ const pov = (p, fp) => T(p, (fp) => { if ((window.__tree.pov === 'fp') !== fp) w
     check('12월은 절반쯤 눈 (조금+함박눈 35~65%, 함박눈 10~30%)', rules.decSnow > 0.35 && rules.decSnow < 0.65 && rules.decHeavy > 0.1 && rules.decHeavy < 0.3, [rules.decSnow, rules.decHeavy]);
     check('12월 24~25일은 늘 눈, 7월은 늘 맑음', rules.eveAll && rules.julClear);
     check('날씨는 날짜와 시로 정해짐 (같은 시 안에서는 같음)', rules.sameHour);
+    check('불꽃놀이 글자: 띄어쓰기로 나누고 긴 말은 다섯 자씩, 모두 열 자까지', rules.fw.words === '메리|크리스마스' && rules.fw.long === '가나다라마|바사아자차', rules.fw);
+    check('불꽃놀이 소식: 기본은 예전 그대로 \'fire\', 글자·길이는 붙여 보내고, 이상한 값은 버림', rules.fw.msg === 'fire' && rules.fw.msg2 === 'fire:30:0:안녕' && rules.fw.back && rules.fw.back.sec === 30 && rules.fw.back.text === '안 녕' && rules.fw.old.sec === 15 && rules.fw.bad.every((b) => b === null), rules.fw);
     check('자정 장면 순서: 23:50 띠 → 23:59:50 숫자 → 0시 불꽃 → 40초 뒤 끝', rules.x1 === null && rules.x2 === 'band' && rules.x3 === 'count' && rules.x4 === 'show' && rules.x5 === null, rules);
     check('크리스마스(25일) 알아보기', rules.xmas25 && !rules.xmas26);
 
@@ -199,11 +202,15 @@ const pov = (p, fp) => T(p, (fp) => { if ((window.__tree.pov === 'fp') !== fp) w
     await A.tap('#tabs button[data-m="tree"]'); await sleep(500);
     check('25일: 트리 판에 "🎆 불꽃놀이" 단추, 44px 이상·화면 안', (await A.isVisible('#fireShow')) && (await audit(A)).length === 0, await audit(A));
     await shot(A, 'phone-fire-button');
-    await A.tap('#fireShow');
-    check('누르면 내 화면에 불꽃놀이', await until(async () => !!(await T(A, () => window.__sky.show)), 2000));
+    await A.tap('#fireShow'); await sleep(250);
+    check('단추를 누르면 불꽃놀이 판(글자·길이·언제), 단추는 44px 이상·화면 안', (await A.isVisible('#firePop')) && (await A.isVisible('#fireText')) && (await audit(A)).length === 0, await audit(A));
+    await shot(A, 'phone-fire-pop');
+    await A.tap('#fireGo');
+    check('터뜨리면 판이 닫히고 내 화면에 불꽃놀이', await until(async () => !!(await T(A, () => window.__sky.show)), 2000));
     check('친구 화면에도 불꽃놀이', await until(async () => !!(await T(B, () => window.__sky.show)) && (await T(B, () => window.__sky.fire)).live > 0, 5000));
     await sleep(800);
-    await A.tap('#fireShow'); await sleep(300);
+    await A.tap('#fireShow'); await sleep(250); await A.tap('#fireGo'); await sleep(300);
+    await A.tap('#fireClose');
     check('30초 안에 다시 누르면 안내만 (소식을 다시 보내지 않음)', /30초에 한 번/.test(await A.textContent('#toast')), await A.textContent('#toast'));
     await A.tap('#tabs button[data-m="tree"]');
     await setNow(A, 2026, 12, 26, 9, 0); await setNow(B, 2026, 12, 26, 9, 0); await sleep(700);
@@ -216,9 +223,45 @@ const pov = (p, fp) => T(p, (fp) => { if ((window.__tree.pov === 'fp') !== fp) w
     check('26일에도 방장에게는 불꽃놀이 단추가 있음', await A.isVisible('#fireShow'));
     await until(async () => !(await T(B, () => window.__sky.show)), 20000);
     await setNow(A, 2026, 12, 26, 9, 1); // 30초 간격이 지나도록 시계를 민다
-    await A.tap('#fireShow');
+    await A.tap('#fireShow'); await sleep(250);
+    await A.fill('#fireText', '메리 크리스마스'); await A.tap('#fireSecs button[data-sec="30"]'); await A.tap('#fireGo');
     check('방장은 크리스마스가 아니어도 터뜨리고, 친구 화면에도 보임', await until(async () => !!(await T(A, () => window.__sky.show)) && !!(await T(B, () => window.__sky.show)), 5000));
     await A.tap('#tabs button[data-m="tree"]');
+
+    /* 글자 불꽃, 길이, 예약 */
+    const sb = await T(B, () => window.__sky.show);
+    check('길이 30초와 글자가 친구에게도 전해짐 (메리 / 크리스마스)', sb && sb.left > 22 && sb.left <= 30.5 && sb.words.join('|') === '메리|크리스마스', sb);
+    check('글자 모양 불꽃이 내 화면과 친구 화면에 터짐', await until(async () => (await T(A, () => window.__sky.word)) > 80 && (await T(B, () => window.__sky.word)) > 80, 6000), [await T(A, () => window.__sky.word), await T(B, () => window.__sky.word)]);
+    await sleep(900); await shot(A, 'phone-fire-word');
+    await pov(B, true); await place(B, 0, 0); await look(B, 0, 1);
+    check('1인칭에서도 글자 불꽃', await until(async () => (await T(B, async () => { await new Promise((r) => setTimeout(r, 300)); return window.__sky.word; })) > 80, 8000));
+    await sleep(900); await shot(B, 'phone-fire-word-fp'); await pov(B, false);
+    await until(async () => !(await T(A, () => window.__sky.show)) && !(await T(B, () => window.__sky.show)), 40000);
+    await setNow(A, 2026, 12, 26, 9, 5, 0); await setNow(B, 2026, 12, 26, 9, 5, 0);
+    await A.tap('#tabs button[data-m="tree"]'); await sleep(300); await A.tap('#fireShow'); await sleep(250);
+    await A.fill('#fireText', '생일 축하해'); await A.fill('#fireAt', '09:06'); await sleep(150);
+    check('시각을 고르면 단추가 "9:06에 터뜨리기"', /9:06에 터뜨리기/.test(await A.textContent('#fireGo')), await A.textContent('#fireGo'));
+    await A.tap('#fireGo'); await sleep(600);
+    const pa = await T(A, () => window.__sky.plan), pb = await until(() => T(B, () => window.__sky.plan), 4000);
+    check('예약: 바로 터지지 않고 나와 친구에게 예약이 잡힘', pa && pb && pa.mine && !pb.mine && pb.text === '생일 축하해' && pa.at === pb.at && !(await T(A, () => window.__sky.show)), [pa, pb]);
+    check('예약: 화면 위에 "불꽃놀이까지 0:5x" 띠 (나와 친구)', /불꽃놀이까지 0:\d\d/.test(await T(A, () => window.__sky.fband) || '') && /불꽃놀이까지 0:\d\d/.test(await T(B, () => window.__sky.fband) || ''), [await T(A, () => window.__sky.fband), await T(B, () => window.__sky.fband)]);
+    await shot(A, 'phone-fire-plan');
+    await A.tap('#fireShow'); await sleep(250);
+    check('예약해 두면 판에 "예약 취소"', await A.isVisible('#fireCancel') && (await audit(A)).length === 0, await audit(A));
+    await A.tap('#fireCancel'); await sleep(500);
+    check('예약 취소가 친구에게도 전해짐', !(await T(A, () => window.__sky.plan)) && !(await T(B, () => window.__sky.plan)) && !(await T(B, () => window.__sky.fband)));
+    await A.fill('#fireAt', '09:06'); await A.tap('#fireGo'); await sleep(500);
+    await A.tap('#tabs button[data-m="tree"]');
+    await setNow(A, 2026, 12, 26, 9, 5, 58); await setNow(B, 2026, 12, 26, 9, 5, 58);
+    check('예약한 시각이 되면 나와 친구 화면에 불꽃놀이, 띠는 사라짐', await until(async () => !!(await T(A, () => window.__sky.show)) && !!(await T(B, () => window.__sky.show)) && !(await T(A, () => window.__sky.fband)) && !(await T(B, () => window.__sky.plan)), 9000), [await T(A, () => window.__sky.show), await T(B, () => window.__sky.show)]);
+    const wb = await T(B, () => window.__sky.show);
+    check('예약한 글자도 그대로 (생일 / 축하해)', wb && wb.words.join('|') === '생일|축하해', wb);
+    // 예약한 사람이 없어도(소식이 안 와도) 3초 뒤에는 저마다 터뜨린다
+    await until(async () => !(await T(B, () => window.__sky.show)), 25000);
+    await setNow(B, 2026, 12, 26, 9, 30, 0);
+    await T(B, () => window.__sky.peer(`fire:15:${Math.floor(window.__now()) + 4000}:안녕`));
+    check('예약 소식만 받고 터뜨리는 소식이 안 와도 때가 되면 터짐', (await T(B, () => !!window.__sky.plan)) && await until(async () => !!(await T(B, () => window.__sky.show)), 12000));
+    check('이상한 소식은 받지 않음 (길이·시각·모양)', await T(B, () => ['fire:99:0:x', 'fire:15:1:x', `fire:15:${Math.floor(window.__now()) + 3 * 86400000}:x`, 'fire:15', 'fire:a:0:x'].every((v) => window.__sky.peer(v) === false)));
     await B.close();
 
     /* 0시 넘어 들어온 사람도 남은 불꽃놀이를 봄 */
