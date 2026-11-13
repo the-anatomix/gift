@@ -228,8 +228,9 @@ export function makePlay(K) {
     start(c) {
       // 화면이 가로로 꽉 차 보이는 거리에 선다
       const fov = portrait() ? 58 : 38, hf = Math.atan(Math.tan(fov * Math.PI / 360) * K.aspect());
-      const d = clamp((TV.w / 2 / 0.82) / Math.tan(hf), 1.5, 4.2);
-      K.setPose({ pos: world(c.g, 0, TV.y + 0.05, d), at: world(c.g, 0, TV.y, 0), fov, inside: true });
+      const V = c.g.userData.scr || TV; // 영화관 스크린(cinema.js)은 더 크고 높다
+      const d = clamp((V.w / 2 / 0.82) / Math.tan(hf), 1.5, V.far || 4.2);
+      K.setPose({ pos: world(c.g, 0, V.y + 0.05, d), at: world(c.g, 0, V.y, 0), fov, inside: true });
       applySound(); tryPlay(); if (rv) rv.play().catch(() => {});
       tv.paint(c);
     },
