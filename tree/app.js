@@ -24,7 +24,9 @@ import { makeGames } from './games.js';
 import { makeNames } from './names.js';
 import { makeRank } from './rank.js';
 import { makeSky } from './sky.js';
-import { makeMaster, can, LOCK, FIRE, SUIT } from './master.js';
+import { makeMaster, can, LOCK, FIRE, SUIT, SLED } from './master.js';
+import { makeSleigh } from './sleigh.js';
+import { makeBeam } from './beam.js';
 import './hint.js';
 import { makeAdvent } from './advent.js';
 import { makeGift } from './gift.js';
@@ -275,6 +277,7 @@ let mode = null;                 // null(걷기) | 'furn'(가구) | 'tree'(트�
 // ext: 방 전체가 차지하는 범위(카메라 가로·세로축), sFit: 방 전체가 들어오는 축척(px 당 길이)
 // zMul: 사람이 조절한 배율, tMul: 트리 꾸밀 때의 배율
 const view = { ext: { u0: -1, u1: 1, v0: -1, v1: 1 }, sFit: 0.02, top: 0, bottom: 0, zDef: 1, zMul: 1, tMul: 1, z: 1, cu: 0, cv: 0, snap: true };
+let flyApi = null; // fly.js 의 창구 (아래에서 만든 뒤에 넣는다. 그 전에도 화면을 재야 해서)
 const vR = new THREE.Vector3(), vU = new THREE.Vector3(), vF = new THREE.Vector3(), vP = new THREE.Vector3();
 
 function aimCamera(a) {
@@ -324,6 +327,11 @@ function zoomGoal() {
   let z = clamp(view.zDef * view.zMul, 1, Z_MAX);
   if (mode === 'look') z = Math.max(z, Math.min(Z_MAX, 105 * view.sFit)); // 고르는 동안은 아바타가 크게 보이게
   if (mode === 'emo') z = Math.max(z, Math.min(Z_MAX, 84 * view.sFit));   // 표정과 행동이 보이게
+  if (view.air && flyApi && flyApi.wide > 0 && mode === null) { // 집 밖 하늘이나 높은 곳: 집·마당과 내가 한 화면에 들어오게 물러난다 (fly.js)
+    const a = view.air, w = window.innerWidth, h = window.innerHeight;
+    const zs = view.sFit / Math.max((a.u1 - a.u0) / Math.max(60, w - 12), (a.v1 - a.v0) / Math.max(60, h - view.top - view.bottom));
+    z += (Math.min(z, Math.max(0.3, zs)) - z) * flyApi.wide;
+  }
   return z;
 }
 function setZoomMul(m) { view.zMul = clamp(m, 1 / view.zDef, Z_MAX / view.zDef); }
@@ -336,7 +344,8 @@ function zoomBy(f) {
 
 // 방이 화면보다 크면 아바타를 따라가고, 화면에 다 들어오면 가운데에 둔다. 트리를 꾸밀 때는 트리를 가운데에 둔다.
 function updateView(dt) {
-  const w = window.innerWidth, h = window.innerHeight, e = view.ext, side = 6, tree = mode === 'tree';
+  const w = window.innerWidth, h = window.innerHeight, side = 6, tree = mode === 'tree';
+  let e = view.ext;
   const zg = zoomGoal();
   view.z = view.snap ? zg : view.z + (zg - view.z) * Math.min(1, dt * 8);
   if (Math.abs(zg - view.z) < 1e-3) view.z = zg;
@@ -345,6 +354,11 @@ function updateView(dt) {
   if (tree) vP.set(0, 1.42, 0); else vP.set(me.root.position.x, me.root.position.y + 0.75, me.root.position.z);
   vP.sub(camera.position);
   let cu = vP.dot(vR), cv = vP.dot(vU) + s * (view.top - view.bottom) / 2;
+  if (!tree && flyApi && flyApi.sky) { // 하늘을 나는 중 (fly.js): 집 밖으로 나가도 따라가도록, 보이는 범위에 내가 있는 곳을 더한다
+    const au = vP.dot(vR), av = vP.dot(vU);
+    view.air = { u0: Math.min(view.ext.u0, au - 2.6), u1: Math.max(view.ext.u1, au + 2.6), v0: Math.min(view.ext.v0, av - 1.8), v1: Math.max(view.ext.v1, av + 2.4) };
+  } else view.air = null;
+  if (view.air) e = view.air;
   if (!tree) {
     const lo = e.u0 + s * (w / 2 - side), hi = e.u1 - s * (w / 2 - side);
     cu = lo > hi ? (e.u0 + e.u1) / 2 : clamp(cu, lo, hi);
@@ -437,11 +451,12 @@ function lookAtTree() { fy = Math.atan2(me.x, me.z); fpitch = 0.06; }
 // 내가 있는 층만 보인다: 그 층의 바닥과 벽, 그 층에 놓인 가구, 그 층에 있는 사람. myLv = 내가 있는 층(0 = 1층)
 let myLv = 0;
 const floorOf = (a) => (a.fly ? a.level : clamp(Math.round(a.root.position.y / FLOOR_H), 0, LEVELS - 1)); // 나는 사람은 발밑의 층으로 친다 (fly.js) // 사다리를 반쯤 오르면 위층으로 친다
+const seenOn = (a) => !!(a.fly && a.fly.air) || floorOf(a) === myLv; // 같은 층에 있는 사람만 보인다. 하늘을 나는 사람은 어느 층에서나 보인다
 function paintLevels() {
   room.showFloor(myLv);
   for (const [id, g] of itemObj) { const it = S.items.get(id); g.visible = !it || levelOfCell(it.i) === myLv; }
   if (ghost) ghost.g.visible = true;
-  for (const a of others.values()) a.root.visible = floorOf(a) === myLv;
+  for (const a of others.values()) a.root.visible = seenOn(a);
   glow.visible = myLv === 0;
   snowG.visible = myLv === 0;
   dirty = true;
@@ -680,7 +695,8 @@ function paintRole() {
   if (!canEdit && (mode === 'furn' || mode === 'tree' || mode === 'paint')) setMode(null);
 }
 const FX = { dart: 'number', fire: 'number', music: 'string', act: 'string', lie: 'string', show: 'string' };
-FX.fly = 'string'; // 방장의 비행 슈트 (fly.js)
+FX.fly = 'string'; // 비행 슈트·썰매로 나는 높이와 하늘의 자리 (fly.js)
+FX.beam = 'string'; // 비행 슈트의 손바닥 빛줄기 (beam.js)
 FX.snow = FX.hit = 'string'; // 마당 눈싸움 (snow.js)
 FX.prop = FX.climb = FX.heavy = FX.help = 'string'; // 받쳐 주기·별 달기·큰 가구 둘이 들기 (coop.js)
 const duo = makeDuo({
@@ -733,7 +749,8 @@ const duo = makeDuo({
     if (m && m.k === 'show' && typeof m.v === 'string' && m.v.startsWith('fire:') && m.v.length <= 64) return sky.peerFx(m, id); // 글자·길이·예약이 붙은 불꽃놀이 (값이 길어서 아래의 20자 검사보다 먼저)
     if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false;
     if (m.k === 'act' && games.quiet(id)) return true; // 술래에게는 숨은 사람의 행동이 안 보인다
-    if (m.k === 'fly') return fly.peerFx(m, id); // 방장이 날고 있는 높이 (fly.js)
+    if (m.k === 'fly') return fly.peerFx(m, id); // 날고 있는 높이와 하늘의 자리 (fly.js)
+    if (m.k === 'beam') return beam.peerFx(m, id); // 손바닥 빛줄기 (beam.js)
     if (m.k === 'act') { const a = others.get(id); if (a && ACT_SFX[m.v]) sfx(ACT_SFX[m.v], a); return !!(a && a.act(m.v)); } // 그 사람이 한 행동
     if (m.k === 'lie') { // 그 사람이 침대에 누웠거나('침대:자리') 일어났다('')
       const a = others.get(id);
@@ -1087,11 +1104,21 @@ const rank = makeRank({ op: (o) => dispatch(o), list: (k) => rankList(S, k), bes
 // 의상과 방장의 비행 슈트 (costume.js, fly.js). 방장 = 방을 만든 사람(혼자 노는 내 방 포함)
 const isHost = () => can(SUIT); // 비행 슈트·날기: 마스터키를 켠 사람과 마스터가 허락한 사람만 (master.js). 방장인지는 따지지 않는다
 const fly = makeFly({
-  me, others: () => others, grid, fixed: fixedCell, isHost, look: () => look, setLook: (p) => setLook(p),
+  me, others: () => others, grid, fixed: fixedCell, isHost, canSled: () => can(SLED), look: () => look, setLook: (p) => setLook(p),
   online: () => duo.mode === 'on', fx: (m) => duo.fx(m), toast: (m) => toast(m), dirty: () => { dirty = true; },
   // 날 수 없는 때: 걷기 화면이 아닐 때, 같이 놀기·눈싸움·눈 뭉치 굴리기 중, 케이크를 들었을 때, 누웠을 때, 사다리를 타는 중
-  busy: () => !(mode === null || mode === 'chat' || mode === 'emo') || !!ghost || !!pose || !!me.rest || !!me.hop || me.hold || me.push
-    || games.on || snow.on || !!(window.__snow && window.__snow.team && window.__snow.team.on),
+  busy: () => flyBusy(),
+});
+flyApi = fly;
+// 루돌프 썰매의 모양·방울·꼬리 (sleigh.js), 비행 슈트의 손바닥 빛줄기 (beam.js)
+const sleigh = makeSleigh({ scene, me, others: () => others, dirty: () => { dirty = true; } });
+const flyBusy = () => !(mode === null || mode === 'chat' || mode === 'emo') || !!ghost || !!pose || !!me.rest || !!me.hop || me.hold || me.push
+  || games.on || snow.on || !!(window.__snow && window.__snow.team && window.__snow.team.on);
+const beam = makeBeam({
+  scene, me, others: () => others, grid, fixed: fixedCell, sky: () => fly.sky,
+  show: () => look.outfit === HOST_OUTFIT && isHost() && !fly.ride && !flyBusy(),
+  dir: () => (usingEye() ? { yaw: Math.atan2(-Math.sin(fy), -Math.cos(fy)), pitch: clamp(fpitch, -1.2, 1.2) } : { yaw: Math.atan2(Math.sin(me.face), Math.cos(me.face)), pitch: 0 }),
+  online: () => duo.mode === 'on', fx: (m) => duo.fx(m), dirty: () => { dirty = true; },
 });
 // 창밖 낮과 밤, 눈 날씨, 크리스마스 자정 카운트다운과 불꽃놀이 (sky.js). 조명 바탕값 BRIGHT 를 하늘이 정하고, 점등식은 그 위에 곱한다
 const sky = makeSky({
@@ -1447,6 +1474,10 @@ function lift(e, ok) {
   if (mode === 'tree') { treeTap(e.clientX, e.clientY); return; }
   if (mode === 'furn') { const id = pickItem(e.clientX, e.clientY); if (id && coop.heavyPick(id)) return; } // 큰 가구는 친구가 있으면 둘이 든다 (coop.js)
   if (mode === 'furn') { const id = pickItem(e.clientX, e.clientY); if (id) { ghostPick(id); return; } }
+  if (fly.sky && !usingEye()) { // 하늘을 나는 중: 누른 곳으로, 지금 높이 그대로 날아간다 (fly.js)
+    aimRay(e.clientX, e.clientY); upPlane.constant = -me.root.position.y;
+    if (ray.ray.intersectPlane(upPlane, hit) && fly.airTo(hit.x, hit.z)) return;
+  }
   const p = floorAt(e.clientX, e.clientY);
   if (p) goTo(p.x, p.z);
 }
@@ -1725,12 +1756,13 @@ function frame(now) {
 
   // 걷기 (나는 중이면 fly.js 가 높이와 자리를 옮긴다)
   fly.tick(dt);
+  sleigh.tick(dt); beam.tick(dt);
   const byKey = keyWalk(dt);
   const moved = byKey ? (me.animate(dt, true), true) : me.step(dt);
   if (moved || me.blend > 0.01 || me.doing) dirty = true;
   for (const a of others.values()) if (a.step(dt) || a.blend > 0.01 || a.doing) dirty = true;
   { const lv = floorOf(me); if (lv !== myLv) { myLv = lv; if (ghost) ghostCancel(); measure(false); paintLevels(); toast(`${lv + 1}층이에요`); } } // 사다리를 반쯤 올랐을 때 위층으로 바뀐다
-  for (const a of others.values()) { const v = floorOf(a) === myLv; if (a.root.visible !== v) { a.root.visible = v; dirty = true; } } // 같은 층에 있는 사람만 보인다
+  for (const a of others.values()) { const v = seenOn(a); if (a.root.visible !== v) { a.root.visible = v; dirty = true; } } // 같은 층에 있는 사람만 보인다
   if (clock - actAt > 0.15) { actAt = clock; paintAct(); }
   // 내 자리를 친구에게 알린다 (1초에 열 번까지, 움직였을 때만)
   if (duo.mode === 'on' && clock - sentAt > 0.1 && (Math.abs(me.x - sentX) > 0.004 || Math.abs(me.z - sentZ) > 0.004)) {
