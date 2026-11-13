@@ -1120,7 +1120,7 @@ const advent = makeAdvent({
 });
 // 숨은 마스터키 (master.js): 제목을 일곱 번 누른다
 const master = makeMaster({
-  toast: (m) => toast(m), sky: { time: () => sky.time, setTime: (v) => sky.setTime(v) }, changed: () => { advent.repaint(); dirty = true; },
+  toast: (m) => toast(m), sky: { time: () => sky.time, setTime: (v) => sky.setTime(v) }, lamp: { on: (lv) => lights.isOn(lv), toggle: (lv) => lights.toggle(lv) }, changed: () => { advent.repaint(); dirty = true; },
   scene, ray(px, py) { aimRay(px, py); return ray.ray; }, shown: () => myLv === 0,
   fx: (m) => duo.fx(m), myId: () => duo.me, others: () => [...others.keys()], nameOf: (id) => nameOf(id), setMode: (m) => setMode(m), mode: () => mode,
   resized: () => { if (mode === 'master') measure(false); },
