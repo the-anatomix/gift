@@ -37,6 +37,7 @@ export function makePlay(K) {
   // 이 방 최고 기록 한 줄 (" · 이 방 최고 기록 120점 (이름)"), 끝난 판의 점수를 이 방 기록에 대 본다 (book.js)
   const roomBest = (k) => { const t = K.bestLine ? K.bestLine(k) : ''; return t ? ' · ' + t : ''; };
   const record = (k, v) => { if (K.record) K.record(k, v); };
+  const rankBtn = (k) => (K.rank ? [{ label: '🏆 순위', id: 'playRank', fn: () => K.rank(k) }] : []); // 이름별 순위 판 (rank.js)
 
   /* ───────── 다트 ───────── */
   // 손가락(마우스)으로 겨냥한 자리에 조준점이 따라오고, 손이 떨리듯 조금씩 흔들린다. 손을 떼면(누르면) 그때의 조준점으로 날아간다.
@@ -71,10 +72,10 @@ export function makePlay(K) {
     paint(c) {
       if (c.phase === 'done') {
         const best = Math.max(c.score, +K.store.get(BEST_KEY) || 0);
-        panel(`다트 끝! 합계 ${c.score}점`, `내 최고 점수 ${best}점${roomBest('dart')}`, [{ label: '다시 하기', main: true, id: 'playGo', fn: () => dart.reset(c) }, quit]);
+        panel(`다트 끝! 합계 ${c.score}점`, `내 최고 점수 ${best}점${roomBest('dart')}`, [{ label: '다시 하기', main: true, id: 'playGo', fn: () => dart.reset(c) }, ...rankBtn('dart'), quit]);
       } else {
         panel(`다트 · 남은 화살 ${c.left}개 · ${c.score}점`, (coarse() ? '판을 누른 채 겨냥하고, 손을 떼면 날아가요. 조준점이 흔들리니 때를 잘 맞춰요.' : '마우스로 겨냥하고 누르면 날아가요. 조준점이 흔들리니 때를 잘 맞춰요.') + (c.left === 3 ? roomBest('dart') : ''),
-          [{ label: '던지기', main: true, id: 'playGo', fn: () => dart.shoot(c) }, quit]);
+          [{ label: '던지기', main: true, id: 'playGo', fn: () => dart.shoot(c) }, ...rankBtn('dart'), quit]);
       }
     },
     // 지금 조준점 자리 (다트판 가운데가 0, 0): 겨냥한 자리 + 손 떨림. 화살을 던질수록 조금 더 떨린다
@@ -229,8 +230,9 @@ export function makePlay(K) {
     start(c) {
       // 화면이 가로로 꽉 차 보이는 거리에 선다
       const fov = portrait() ? 58 : 38, hf = Math.atan(Math.tan(fov * Math.PI / 360) * K.aspect());
-      const d = clamp((TV.w / 2 / 0.82) / Math.tan(hf), 1.5, 4.2);
-      K.setPose({ pos: world(c.g, 0, TV.y + 0.05, d), at: world(c.g, 0, TV.y, 0), fov, inside: true });
+      const V = c.g.userData.scr || TV; // 영화관 스크린(cinema.js)은 더 크고 높다
+      const d = clamp((V.w / 2 / 0.82) / Math.tan(hf), 1.5, V.far || 4.2);
+      K.setPose({ pos: world(c.g, 0, V.y + 0.05, d), at: world(c.g, 0, V.y, 0), fov, inside: true });
       applySound(); tryPlay(); if (rv) rv.play().catch(() => {});
       tv.paint(c);
     },
@@ -276,12 +278,12 @@ export function makePlay(K) {
     reset(c) { c.heat = 0; c.phase = 'idle'; c.t = 0; fire.color(c); fire.paint(c); },
     color(c) { grade(STOPS, c.heat, c.mat.color); },
     paint(c) {
-      if (c.phase === 'idle') panel('마시멜로 굽기', '불에 대고 있다가 노릇노릇해졌을 때 꺼내요. 색을 잘 보세요.' + roomBest('fire'), [{ label: '굽기 시작', main: true, id: 'playGo', fn: () => { c.phase = 'roast'; sfx('sizzle'); fire.paint(c); } }, quit]);
+      if (c.phase === 'idle') panel('마시멜로 굽기', '불에 대고 있다가 노릇노릇해졌을 때 꺼내요. 색을 잘 보세요.' + roomBest('fire'), [{ label: '굽기 시작', main: true, id: 'playGo', fn: () => { c.phase = 'roast'; sfx('sizzle'); fire.paint(c); } }, ...rankBtn('fire'), quit]);
       else if (c.phase === 'roast') panel('굽는 중…', '너무 오래 두면 타요.', [{ label: '꺼내기', main: true, id: 'playGo', fn: () => fire.out(c) }]);
       else {
         panel(`${c.say} (${c.pts}점)`, '한 번 더 구워 볼까요?' + roomBest('fire'), [
           { label: '😋 먹기', id: 'playEat', fn: () => { K.munch(c.pts >= 80 ? '달콤해요! 마시멜로를 먹었어요' : '마시멜로를 먹었어요'); fire.reset(c); } },
-          { label: '다시 굽기', main: true, id: 'playGo', fn: () => fire.reset(c) }, quit]);
+          { label: '다시 굽기', main: true, id: 'playGo', fn: () => fire.reset(c) }, ...rankBtn('fire'), quit]);
       }
     },
     out(c) {

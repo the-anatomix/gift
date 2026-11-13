@@ -2,6 +2,8 @@
 // 고를 수 있는 것: 성별(여자·남자), 옷과 색·소품(costume.js), 표정. 그리고 잠깐 하는 행동(손 흔들기, 춤 …).
 import { THREE, M, put, ball, cap, cyl } from './kit.js';
 import { OUTFITS, cleanExtra, suitOf, dressUp } from './costume.js';
+import { okWords } from './state.js';
+import { NOTE } from './catalog.js';
 import { toWorld, levelOf, LADDERS, FLOOR_H, X0, Z0, CELL } from './path.js';
 
 export const GENDERS = [{ id: 'f', name: '여자' }, { id: 'm', name: '남자' }];
@@ -26,6 +28,7 @@ export function cleanLook(l) {
     outfit: OUTFITS.some((o) => o.id === v.outfit) ? v.outfit : DEFAULT_LOOK.outfit,
     face: FACES.some((x) => x.id === v.face) ? v.face : DEFAULT_LOOK.face,
     ...cleanExtra(v), // 색과 소품 (tint, hat, neck, eye, back)
+    ...(okWords(v.name, NOTE.name) ? { name: v.name } : {}), // 닉네임 (names.js. 없으면 항목도 없다)
   };
 }
 
@@ -238,7 +241,9 @@ export function makeAvatar(look) {
 
     // 생김새를 바꾼다(몸을 새로 만든다). 자리와 방향은 그대로.
     setLook(l) {
+      const was = A.look, name = (o) => { const { name: _n, ...rest } = o; return JSON.stringify(rest); };
       A.look = cleanLook(l);
+      if (parts && was && was.name !== A.look.name && name(was) === name(A.look)) return; // 닉네임만 바뀌었으면 몸은 그대로
       if (parts) {
         root.remove(parts.body);
         parts.body.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
@@ -343,6 +348,7 @@ export function makeAvatar(look) {
         lying = -Math.PI / 2;
         P.lx = [0, 0]; P.ax = [0, 0]; P.az = [-0.16, 0.16]; P.by = 0; P.bx = 0; P.bz = 0; P.hx = 0; P.hz = 0; P.as = 1; spin = 0;
       }
+      if (A.rest && A.rest.sit) { lying = 0; P.lx = [-1.5, -1.5]; P.ax = [-0.55, -0.55]; P.az = [-0.12, 0.12]; } // 좌석에 앉았다 (cinema.js): 몸은 세우고 다리만 앞으로
       for (const k of [0, 1]) { legs[k].rotation.x = P.lx[k]; arms[k].rotation.x = P.ax[k]; arms[k].rotation.z = P.az[k]; arms[k].scale.y = P.as; }
       // 숙일 때는 엉덩이가 제자리에 있게 몸을 조금 뒤로 뺀다
       body.position.set(0, P.by + (lying ? Math.sin(A.t * 0.6) * 0.004 : 0), -Math.sin(P.bx) * 0.27 * SIZE);
@@ -350,7 +356,7 @@ export function makeAvatar(look) {
       head.rotation.set(P.hx, 0, P.hz);
       // 눈 깜빡임
       A.blink += dt; if (A.blink > 4.2) A.blink = Math.random() * 1.2;
-      for (const m of eyes) m.scale.y = m.userData.sy * (A.blink < 0.12 || A.rest ? 0.15 : 1);
+      for (const m of eyes) m.scale.y = m.userData.sy * (A.blink < 0.12 || (A.rest && !A.rest.sit) ? 0.15 : 1);
       // 가는 쪽으로 부드럽게 돌아선다
       let d = A.face - root.rotation.y;
       d = Math.atan2(Math.sin(d), Math.cos(d));

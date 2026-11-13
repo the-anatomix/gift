@@ -13,6 +13,12 @@
 //   손님 → 주인  { t: 'sync' }                                          방이 달라진 것 같으니 통째로 다시 달라
 //   서로         { t: 'look', look } { t: 'pos', x, z } { t: 'fx', k, v } { t: 'say', text }   주인이 전해 줄 때는 누구 것인지 id 를 붙인다
 //   서로         { t: 'ping', h }                                       h = 방의 지문
+// 공동 관리자 (admin.js): 방장이 지정한 기기는 초인종 없이 들어오고, 문 앞 사람을 들이거나 돌려보내고 방 안 사람을 내보낼 수 있다
+//   손님 → 주인  knock 에 tk(그 기기의 이 방 전용 비밀표)와 auto(초인종을 누르지 않고 스스로 보낸 것)가 붙는다. 주인은 tk 의 지문이 방의 공동 관리자 표에 있으면 바로 들인다
+//   주인 → 손님  { t: 'noadm' }                                         스스로 보낸 knock 인데 공동 관리자가 아니다: 초인종을 눌러야 한다
+//   주인 → 손님  { t: 'adms', ids, door, key }                          지금 방 안의 공동 관리자들(ids). 공동 관리자에게는 문 앞 사람들(door)과 방 열쇠(key)도 준다
+//   손님 → 주인  { t: 'boss', a: 'admit' | 'deny' | 'kick', id }        공동 관리자가 한 일. 주인은 보낸 사람이 공동 관리자일 때만 따른다
+//   공동 관리자 지정·해제({ t: 'op', op: { t: 'adm' } })는 손님이 보내면 받지 않는다(방장만 한다)
 // 꾸밀 수 있는 사람인지는 방 열쇠(key)로 가린다. "같이 꾸미기" 링크에만 열쇠가 들어 있다.
 // 어느 쪽 방을 쓸지는 state.js 의 guestWins 가 정한다(처음 온 사람은 주인 방을 받고, 헤어져 혼자 꾸민 쪽이 있으면 그쪽).
 // 둘이 같은 순간에 같은 자리를 바꾸면 주인 쪽 결과로 맞춘다. 지문이 거듭 다르면 손님이 통째로 다시 받는다.
@@ -35,6 +41,7 @@ const OPT = { cap: CAP };
 export const DOOR = Q.get('door') !== '0'; // 초인종을 누르고 허락받아야 들어오는지 (검사용 ?door=0 은 바로 들어온다)
 export const ROOM_RE = /^[a-z0-9]{6,20}$/;
 const VIEW_OPS = new Set(['cakeBlow', 'cakeEat', 'note', 'best']); // 구경하는 사람도 할 수 있는 변화
+VIEW_OPS.add('score'); // 이름별 순위 (rank.js)
 VIEW_OPS.add('star'); // 꼭대기 별 달기도 구경하는 사람이 할 수 있다 (coop.js)
 VIEW_OPS.add('gift'); VIEW_OPS.add('giftOpen'); // 트리 밑 선물 두기·열기 (gift.js)
 VIEW_OPS.add('snowman'); // 마당에서 같이 만든 눈사람 놓기 (state.js 가 마당 칸·개수를 따로 막는다)
@@ -46,6 +53,8 @@ export function makeDuo(K) {
   let mode = 'solo', room = null, role = null, link = null, key = '', want = 'edit';
   let canEdit = true, myId = 'h', count = 1; // 내가 꾸밀 수 있는지, 내 이름, 방에 있는 사람 수
   let why = '', rang = false;                // 들어갈 수 없는 까닭, 초인종을 눌렀는지
+  let admIds = new Set(), doorList = []; // 손님: 주인이 알려 준 공동 관리자들과 (내가 공동 관리자일 때) 문 앞 사람들
+  const adm = (p) => !!p && !!p.tag && !!K.isAdm && K.isAdm(p.tag); // 주인: 그 손님이 공동 관리자인지 (tk 를 받아 확인한 표로만 가린다)
   let gen = 0, tries = 0, last = 0, connectT = 0, retryT = 0, retries = 0, misses = 0;
   const peers = new Map(); // 주인만: pid → { edit, hello, last, slot }
   const set = (m) => { mode = m; K.status(); };
@@ -61,7 +70,7 @@ export function makeDuo(K) {
     tries = again ? tries + 1 : 1;
     clearTimeout(connectT); clearTimeout(retryT);
     if (link) link.close();
-    link = null; room = id; role = null; peers.clear();
+    link = null; room = id; role = null; peers.clear(); admIds = new Set(); doorList = [];
     if (opt.key !== undefined) key = opt.key;
     if (opt.want) want = opt.want;
     set('connecting');
@@ -90,10 +99,11 @@ export function makeDuo(K) {
         rang = false;
         set('door'); // 문 앞에 섰다. 초인종을 눌러 허락을 받아야 들어간다
         if (!DOOR) knock();
+        else if (K.hasPass && K.hasPass()) knock(true); // 공동 관리자는 초인종 없이 바로 들어간다
       },
       join(pid) { if (my === gen) peers.set(pid, { edit: false, hello: false, last: performance.now(), slot: freeSlot() }); },
       leave(pid) { if (my === gen) left(pid); },
-      msg(m, pid) { if (my !== gen) return; if (role === 'host') fromGuest(m, pid); else fromHost(m); },
+      msg(m, pid) { if (my !== gen) return; if (role === 'host') { fromGuest(m, pid); tell(); } else fromHost(m); },
       close() { if (my === gen && mode !== 'full' && mode !== 'solo' && mode !== 'away' && mode !== 'denied') lost(); },
       full() { if (my !== gen) return; clearTimeout(connectT); gen++; try { h.close(); } catch (_) { /* 무시 */ } if (link === h) link = null; set('full'); },
     }, OPT);
@@ -102,10 +112,10 @@ export function makeDuo(K) {
   }
 
   // 손님: 초인종을 누른다
-  function knock() {
+  function knock(auto = false) {
     if (mode !== 'door' || !link) return;
     rang = true;
-    link.send({ t: 'knock', dev: K.dev(), look: K.snapshot().look, want });
+    link.send({ t: 'knock', dev: K.dev(), look: K.snapshot().look, want, ...(K.card ? { tk: K.card() } : {}), ...(auto ? { auto: true } : {}) });
     K.status();
   }
   // 손님: 들어갈 수 없다는 답을 받았다
@@ -123,7 +133,7 @@ export function makeDuo(K) {
     if (!p || p.ok) return;
     p.ok = true; p.asked = false;
     link.send({ t: 'admit' }, pid);
-    K.status();
+    tell(); K.status();
   }
   function turnAway(pid, w = 'no') {
     const p = peers.get(pid);
@@ -131,7 +141,30 @@ export function makeDuo(K) {
     link.send({ t: 'deny', why: w }, pid);
     setTimeout(() => { if (link && role === 'host' && peers.get(pid) === p) { link.drop(pid); left(pid); } }, 400); // 답이 건너간 뒤에 끊는다
     p.asked = false; p.out = true;
-    K.status();
+    tell(); K.status();
+  }
+  // 주인: 공동 관리자가 바뀌었거나 문 앞 사람이 바뀌었으면 알린다. 공동 관리자는 열쇠 없이도 꾸밀 수 있다(해제되면 열쇠로 들어온 사람만 그대로)
+  function tell() {
+    if (role !== 'host' || !link) return;
+    const ids = [...peers].filter(([, p]) => p.hello && adm(p)).map(([id]) => id);
+    const door = [...peers].filter(([, p]) => p.asked && !p.ok).map(([id, p]) => ({ id, want: p.want }));
+    for (const [pid, p] of peers) {
+      if (!p.hello) continue;
+      const a = adm(p), e = a || (!!p.byKey && p.edit);
+      if (e !== p.edit) { p.edit = e; link.send(stateMsg(pid), pid); K.status(); }
+      const msg = JSON.stringify(a ? { ids, door, key } : { ids });
+      if (msg === p.told || (p.told === undefined && msg === '{"ids":[]}')) continue;
+      p.told = msg;
+      link.send({ t: 'adms', ...JSON.parse(msg) }, pid);
+    }
+  }
+  // 주인: 방 안의 사람을 내보내고, 같은 기기로는 다시 못 들어오게 한다 (공동 관리자였으면 해제한다)
+  function kick(pid) {
+    const p = peers.get(pid);
+    if (!p || role !== 'host') return;
+    if (p.dev) K.ban(p.dev);
+    if (adm(p) && K.admSet) K.admSet(p.tag, false);
+    turnAway(pid, 'kick');
   }
 
   // 주인: 손님 한 명이 나감
@@ -139,11 +172,12 @@ export function makeDuo(K) {
     const p = peers.get(pid);
     if (!p) return;
     peers.delete(pid);
-    if (!p.hello) { K.status(); return; }
+    if (!p.hello) { tell(); K.status(); return; }
     K.peerGone(pid);
     relay({ t: 'gone', id: pid });
     count = peers.size + 1;
     K.toast(p.edit ? '친구가 나갔어요. 방은 그대로예요' : '구경하던 친구가 나갔어요');
+    tell();
     set(peers.size ? 'on' : 'waiting');
   }
 
@@ -177,6 +211,9 @@ export function makeDuo(K) {
       p.dev = typeof m.dev === 'string' && /^[a-z0-9]{6,24}$/.test(m.dev) ? m.dev : '';
       p.want = m.want === 'view' ? 'view' : 'edit';
       if (p.dev && K.banned(p.dev)) { turnAway(pid, 'ban'); return; }
+      p.tag = K.tagOf ? K.tagOf(m.tk) : ''; // 받은 비밀표의 지문 (손님이 말한 표는 믿지 않고 직접 만든다)
+      if (adm(p)) { admit(pid); K.toast('공동 관리자가 들어와요 🔑'); return; } // 공동 관리자: 초인종도 방장의 허락도 없이 바로
+      if (m.auto === true) { link.send({ t: 'noadm' }, pid); return; }           // 공동 관리자가 아닌데 스스로 온 것: 초인종을 누르게 한다
       const again = p.asked;
       p.asked = true;
       K.bell(again); // 딩동
@@ -187,7 +224,8 @@ export function makeDuo(K) {
     }
     if (m.t === 'hello') {
       if (p.hello || !p.ok) return; // 허락받은 사람만, 들어올 때 한 번만 받는다 (역할이 중간에 바뀌지 않게)
-      p.edit = m.want === 'edit' && (m.key || '') === key && editors() < ECAP; // 열쇠가 맞고 자리가 남아 있을 때만 꾸밀 수 있다
+      p.byKey = m.want === 'edit' && (m.key || '') === key;
+      p.edit = adm(p) || (p.byKey && editors() < ECAP); // 열쇠가 맞고 자리가 남아 있을 때만 꾸밀 수 있다 (공동 관리자는 언제나)
       const first = true;
       p.hello = true;
       const adopted = p.edit && isObj(m.state) && K.preferPeer(m.state, m.mine === true);
@@ -206,6 +244,7 @@ export function makeDuo(K) {
     switch (m.t) {
       case 'op':
         if (!isObj(m.op)) return;
+        if (m.op.t === 'adm') { link.send(stateMsg(pid), pid); return; } // 공동 관리자 지정·해제는 방장만 한다
         if (m.op.t === 'note' && performance.now() - (p.noted || -1e9) < NOTE.gap - 500) { link.send(stateMsg(pid), pid); return; } // 방명록은 한 사람이 NOTE.gap 에 한 번 (오는 길에 늦어지는 것을 조금 봐준다)
         if (m.op.t === 'gift') { if (performance.now() - (p.gifted || -1e9) < GIFT.gap - 500) { link.send(stateMsg(pid), pid); return; } p.gifted = performance.now(); } // 선물도 한 사람이 GIFT.gap 에 한 번
         if ((!p.edit && !VIEW_OPS.has(m.op.t)) || (m.op.by !== undefined && m.op.by !== pid) || !K.peerOp(m.op)) link.send(stateMsg(pid), pid); // by 가 붙은 변화(케이크 들기)는 자기 이름으로만 할 수 있다 // 구경하는 사람이 보냈거나(촛불 불기와 케이크 먹기는 된다) 내 방에 들어맞지 않는 변화: 주인 방으로 되돌린다
@@ -223,6 +262,14 @@ export function makeDuo(K) {
         break;
       }
       case 'ping': if (typeof m.h === 'string' && m.h === K.hash() && p.edit) K.synced(); break;
+      case 'boss': { // 공동 관리자가 한 일: 들이기·돌려보내기·내보내기 (방장과 다른 공동 관리자는 내보내지 못한다)
+        const q = typeof m.id === 'string' ? peers.get(m.id) : null;
+        if (!adm(p) || !q || q === p) return;
+        if (m.a === 'admit') admit(m.id);
+        else if (m.a === 'deny') { if (q.asked && !q.ok) turnAway(m.id, 'no'); }
+        else if (m.a === 'kick') { if (q.hello && !adm(q)) kick(m.id); }
+        break;
+      }
     }
   }
 
@@ -254,6 +301,16 @@ export function makeDuo(K) {
       case 'say': K.peerSay(typeof m.id === 'string' ? m.id : 'h', m.text); break;
       case 'admit': if (mode === 'door') K.admitted(); break; // 문이 열린다. 다 들어가면 app.js 가 enter() 를 부른다
       case 'deny': denied(m.why); break;
+      case 'noadm': if (mode === 'door') { rang = false; if (K.passLost) K.passLost(); K.status(); } break; // 공동 관리자가 아니게 됐다: 초인종을 눌러야 한다
+      case 'adms': {
+        if (!Array.isArray(m.ids)) return;
+        admIds = new Set(m.ids.filter((x) => typeof x === 'string').slice(0, 16));
+        doorList = (Array.isArray(m.door) ? m.door : []).filter(isObj).slice(0, 8).map((k) => ({ id: String(k.id), want: k.want === 'view' ? 'view' : 'edit' }));
+        // 공동 관리자가 받은 방 열쇠: 다음부터는 꾸미는 사람으로 들어오고, 방장이 없으면 방을 대신 맡을 수 있다
+        if (typeof m.key === 'string' && /^[a-z0-9]{4,12}$/.test(m.key) && m.key !== key && K.gotKey) { key = m.key; want = 'edit'; K.gotKey(key); }
+        K.status();
+        break;
+      }
       case 'ping':
         if (typeof m.h !== 'string' || mode !== 'on') return;
         if (m.h === K.hash()) { misses = 0; if (canEdit) K.synced(); }
@@ -266,6 +323,7 @@ export function makeDuo(K) {
     // 문 앞에서 기다리는 사람과 그 사람을 기다리게 한 주인도 서로 살아 있다고 알린다 (안 그러면 기다리다 끊긴 줄 안다)
     if (!link || !(mode === 'on' || mode === 'door' || (role === 'host' && peers.size))) return;
     link.send(mode === 'door' ? { t: 'ping' } : { t: 'ping', h: K.hash() });
+    tell();
     if (document.hidden) return;
     const now = performance.now();
     if (role === 'host') { for (const [pid, p] of [...peers]) if (now - p.last > T.silent) { link.drop(pid); left(pid); } }
@@ -288,12 +346,21 @@ export function makeDuo(K) {
     peer() { return link && mode === 'on' ? link.peer() : null; },
     pj() { return link ? link.pj() : ''; },
     // 주인: 문 앞에서 기다리는 사람들 / 방 안에 있는 사람들
-    get knocks() { return role === 'host' ? [...peers].filter(([, p]) => p.asked && !p.ok).map(([id, p]) => ({ id, want: p.want })) : []; },
+    // (공동 관리자인 손님에게는 주인이 알려 준 문 앞 사람들이 나온다)
+    get knocks() { return role === 'host' ? [...peers].filter(([, p]) => p.asked && !p.ok).map(([id, p]) => ({ id, want: p.want })) : mode === 'on' ? doorList : []; },
     get people() { return role === 'host' ? [...peers].filter(([, p]) => p.hello).map(([id, p]) => ({ id, edit: p.edit })) : []; },
-    knock, admit,
-    deny(pid) { turnAway(pid, 'no'); },
-    // 주인: 방 안의 사람을 내보내고, 같은 기기로는 다시 못 들어오게 한다
-    kick(pid) { const p = peers.get(pid); if (!p || role !== 'host') return; if (p.dev) K.ban(p.dev); turnAway(pid, 'kick'); },
+    // 지금 방 안에 있는 공동 관리자들(id). 주인: 그 사람들의 표(admTags), 표를 받아 둔 사람들(tagged: 지정할 수 있는 사람)
+    get admins() { return role === 'host' ? [...peers].filter(([, p]) => p.hello && adm(p)).map(([id]) => id) : mode === 'on' ? [...admIds] : []; },
+    get admTags() { return role === 'host' ? [...peers.values()].filter((p) => p.hello && adm(p)).map((p) => p.tag) : []; },
+    get tagged() { return role === 'host' ? [...peers].filter(([, p]) => p.hello && p.tag).map(([id]) => id) : []; },
+    // 주인(방장): 방 안의 사람을 공동 관리자로 지정하거나 해제한다. 예전 화면을 쓰는 사람(표가 없다)은 지정할 수 없다
+    grant(pid, on) { const p = peers.get(pid); if (role !== 'host' || !p || !p.hello || !p.tag || !K.admSet) return false; K.admSet(p.tag, !!on); tell(); K.status(); return true; },
+    told() { tell(); }, // 주인: 공동 관리자 표가 바뀌었으니 다시 알린다
+    knock: () => knock(),
+    // 문 앞의 손님을 들인다 / 돌려보낸다 / 방 안의 사람을 내보낸다. 공동 관리자인 손님은 주인에게 부탁한다
+    admit(pid) { if (role === 'host') admit(pid); else if (link && mode === 'on') link.send({ t: 'boss', a: 'admit', id: pid }); },
+    deny(pid) { if (role === 'host') turnAway(pid, 'no'); else if (link && mode === 'on') link.send({ t: 'boss', a: 'deny', id: pid }); },
+    kick(pid) { if (role === 'host') kick(pid); else if (link && mode === 'on') link.send({ t: 'boss', a: 'kick', id: pid }); },
     // 손님: 허락받고 문을 지나 들어간다
     enter() { if (mode !== 'door' || !link) return; set('on'); link.send({ t: 'hello', ...K.snapshot(), want, key }); },
     start,
@@ -304,7 +371,7 @@ export function makeDuo(K) {
     leave() {
       gen++; clearTimeout(connectT); clearTimeout(retryT);
       if (link) link.close();
-      link = null; room = null; role = null; peers.clear(); count = 1; canEdit = true; myId = 'h';
+      link = null; room = null; role = null; peers.clear(); count = 1; canEdit = true; myId = 'h'; admIds = new Set(); doorList = [];
       K.peersGone();
       set('solo');
     },

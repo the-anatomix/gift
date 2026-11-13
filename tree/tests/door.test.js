@@ -39,7 +39,7 @@ const audit = (p) => p.evaluate(() => {
   try {
     const vp = { viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true };
     const ctx = await browser.newContext(vp);
-    const url = (ns, h) => `${BASE}?net=bc&ns=${ns}&st=3000&rt=500${h || ''}`;
+    const url = (ns, h) => `${BASE}?net=bc&ns=${ns}&st=6000&rt=500${h || ''}`;
     const A = await open(ctx, url('da'));
     await T(A, () => { const W = window.__tree; W.dispatch({ t: 'put', id: 'a1', k: 'sofa', i: 1, j: 6, r: 1 }); W.dispatch({ t: 'orn', id: 'o1', k: 'red', x: 0.3, y: 1.2, z: 0.4 }); });
     await T(A, () => window.__duo.invite());

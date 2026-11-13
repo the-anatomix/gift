@@ -43,7 +43,16 @@ export function makeMaster(K) {
     skyBox.appendChild(b);
   }
   skyRow.appendChild(skyBox); foot.appendChild(off);
-  panel.append(h, skyRow, people, foot);
+  // 방 불: 층마다 켜고 끈다 (lights.js). 걸어가서 스위치를 누르지 않아도 된다
+  const lampRow = el('div', 'row'), lampBox = el('div', 'row'); lampRow.id = 'mkLamp';
+  lampRow.appendChild(el('span', 'lab', '방 불')); lampBox.style.flex = '1'; lampBox.setAttribute('role', 'group'); lampBox.setAttribute('aria-label', '방 불');
+  for (let lv = 0; lv < 3; lv++) {
+    const b = el('button', 'chip', `💡 ${lv + 1}층`); b.type = 'button'; b.dataset.lv = lv; b.style.flex = '1';
+    b.addEventListener('click', () => { K.lamp.toggle(lv); paint(); });
+    lampBox.appendChild(b);
+  }
+  lampRow.appendChild(lampBox);
+  panel.append(h, skyRow, lampRow, people, foot);
   $('tabs').parentNode.insertBefore(panel, $('tabs'));
   const BITS = [[LOCK, '🔓', '달력 잠금 없이 쓰기'], [FIRE, '🎆', '불꽃놀이'], [SKY, '🌙', '하늘 바꾸기'], [GIFT, '🎁', '선물 미리 열기']];
   let listKey = '';
@@ -52,6 +61,8 @@ export function makeMaster(K) {
     if (tab.hidden === show) { tab.hidden = !show; $('tabs').style.gridTemplateColumns = `repeat(${[...$('tabs').children].filter((b) => !b.hidden).length}, 1fr)`; // 탭이 하나 늘어도 한 줄
       if (!show && K.mode() === 'master') K.setMode(null); K.resized(); }
     for (const b of skyBox.children) b.setAttribute('aria-pressed', String(b.dataset.v === K.sky.time()));
+    for (const b of lampBox.children) b.setAttribute('aria-pressed', String(K.lamp.on(+b.dataset.lv)));
+    lampRow.hidden = !m;
     people.hidden = !m; foot.hidden = !m;
     if (!m) return;
     const ids = K.others(), key = ids.map((id) => id + ':' + (given.get(id) || 0)).join(',');

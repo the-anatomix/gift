@@ -574,10 +574,7 @@ export function makeSky(K) {
     const t = now(), sec = FIREWORK.secs.includes(o.sec) ? o.sec : XMAS.again, text = cleanFireText(o.text);
     const at = o.at > t + 1500 && o.at <= t + FIREWORK.ahead * 1000 ? Math.floor(o.at) : 0;
     if (mine) {
-      if (!K.isHost()) {
-        if (!isXmas(t)) { K.toast('불꽃놀이는 크리스마스에만 할 수 있어요 (방장은 언제나)'); return false; }
-        if (!K.canEdit()) { K.toast('불꽃놀이는 꾸미는 사람만 터뜨릴 수 있어요'); return false; }
-      }
+      if (!K.canFire()) { K.toast('불꽃놀이를 터뜨릴 수 없어요'); return false; } // 마스터키를 켠 사람과 마스터가 열어 준 사람만 (master.js)
       const wait = Math.ceil(XMAS.gap - (t - lastFire) / 1000);
       if (!at && !due && wait > 0) { K.toast(`불꽃놀이는 30초에 한 번이에요 (${wait}초 뒤)`); return false; }
       audio(true);
@@ -837,7 +834,6 @@ export function makeSky(K) {
     const t = now(), d = new Date(t), o = parseFire(m.v, t);
     if (!o || !K.mayLead(id)) return false;
     // 방장이 받는 손님의 소식은 크리스마스 때만 (시계가 조금 다른 친구까지 24~26일). 손님은 방장이 걸러 보낸 것(방장 자신의 것 포함)을 그대로 받는다
-    if (K.isHost() && (d.getMonth() !== 11 || Math.abs(d.getDate() - 25) > 1)) return false;
     if (o.sec === 0) return cancelPlan(false);
     if (!o.at && (t - lastFire) / 1000 < XMAS.gap - 5) return false;
     return pressFire(false, o);

@@ -8,8 +8,8 @@ import { buildRoom, WALL_H, TREE, FRONT, fixedCell, noBuild, surfaceR } from './
 import { makeWardrobe, HOST_OUTFIT } from './costume.js';
 import { makeFly } from './fly.js';
 import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, FACES, ACTS, BODY_R, SPEED } from './avatar.js';
-import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER, STARTER_EAST, STARTER_UP, CAKE } from './catalog.js';
-import { makeState, apply, setLockFree, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake, benchOf, cakesList, cakeAtBench, cakeOnTable, sendHome, notesList } from './state.js';
+import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER, STARTER_EAST, STARTER_UP, CAKE, NOTE } from './catalog.js';
+import { makeState, apply, setLockFree, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake, benchOf, cakesList, cakeAtBench, cakeOnTable, sendHome, notesList, cleanWords, rankList } from './state.js';
 import { buildItem } from './furniture.js';
 import { buildOrnament, buildLights } from './decor.js';
 import { makeDuo, ROOM_RE, CAP, ECAP, DOOR } from './duo.js';
@@ -21,11 +21,17 @@ import { makeParty } from './party.js';
 import { makeSnow } from './snow.js';
 import { makeCoop } from './coop.js';
 import { makeGames } from './games.js';
+import { makeNames } from './names.js';
+import { makeRank } from './rank.js';
 import { makeSky } from './sky.js';
 import { makeMaster, can, LOCK, FIRE } from './master.js';
 import { makeAdvent } from './advent.js';
 import { makeGift } from './gift.js';
 import { makeFoodPlay } from './food.js';
+import { makeLights } from './lights.js';
+import { makeCinema } from './cinema.js';
+import { makeAdmin } from './admin.js';
+import { ADMINS } from './catalog.js';
 import { makeCheers } from './cheers.js';
 import { sfx, sfxOp, sfxWalk, mountSfxUI } from './sfx.js';
 import { makeCakeView, dressCake, flicker, pickTop, disposeCakeView } from './cake.js';
@@ -106,7 +112,7 @@ else {
 }
 const slot = () => (cur ? ROOM_KEY + '-' + cur.id : ROOM_KEY);
 const savedLook = store.get(LOOK_KEY);
-let look = savedLook ? cleanLook(savedLook) : DEFAULT_LOOK;
+let look = cleanLook({ ...(savedLook ? cleanLook(savedLook) : DEFAULT_LOOK), name: cleanWords(store.get(key('name')), NOTE.name) || undefined }); // 닉네임은 방명록 이름과 같은 곳에 기억한다 (names.js)
 
 const grid = new Grid();
 const room = buildRoom(scene);
@@ -165,7 +171,7 @@ function dispatch(op, from = 'me') {
   if (from === 'me' && !canEdit && op && op.t === 'star' && op.on === true) from = 'view'; // 꼭대기 별 달기는 구경하는 사람도 된다 (coop.js)
   if (from === 'me' && !canEdit && op && (op.t === 'gift' || op.t === 'giftOpen')) from = 'mine'; // 트리 밑 선물은 구경하는 사람도 두고 연다 (gift.js)
   if (from === 'me' && !canEdit && op && op.t === 'snowman') { canEdit = true; try { return dispatch(op, from); } finally { canEdit = false; } } // 마당에서 같이 만든 눈사람은 구경하는 사람도 놓는다 (snowman.js)
-  if (from === 'me' && !canEdit && !(op && (op.t === 'cakeBlow' || op.t === 'cakeEat' || op.t === 'note' || op.t === 'best'))) { toast('구경하는 중에는 꾸밀 수 없어요'); return false; } // 촛불 불기, 케이크 먹기, 방명록 남기기, 이 방 최고 기록은 구경하는 사람도 된다
+  if (from === 'me' && !canEdit && !(op && (op.t === 'cakeBlow' || op.t === 'cakeEat' || op.t === 'note' || op.t === 'best' || op.t === 'score'))) { toast('구경하는 중에는 꾸밀 수 없어요'); return false; } // 촛불 불기, 케이크 먹기, 방명록 남기기, 이 방 최고 기록은 구경하는 사람도 된다
   const wasLit = op && typeof op.t === 'string' && op.t.startsWith('cake') && S.cakes.get(op.id) ? S.cakes.get(op.id).lit : 0;
   // 내가 들고 있는 가구를 친구가 옮기거나 치웠으면 손에서 내려놓는다
   const taken = from === 'peer' && ghost && ghost.id && op && ghost.id === op.id && (op.t === 'del' || op.t === 'move');
@@ -203,9 +209,11 @@ function dispatch(op, from = 'me') {
   if (op.t === 'move' || op.t === 'del') restCheck(op.id); // 누워 있던 침대가 옮겨지거나 치워졌으면 일어난다
   dirty = true;
   if (op.t === 'adv') advent.onOp(op, from); else if (op.t.startsWith('gift')) gift.onOp(op, from); // 어드벤트 달력, 트리 밑 선물
+  if (op.t === 'lamp') lights.onOp(op, from); else if (op.t === 'adm' && from !== 'load') admin.onChange(op, from); // 방 불, 공동 관리자
   if (from === 'load') return true;
   sfxOp(op, from, (o) => itemObj.get(o.id)); // 효과음 (sfx.js)
   if (op.t === 'note' || op.t === 'noteDel' || op.t === 'best') book.onOp(op, from); // 방명록과 이 방 최고 기록
+  if (op.t === 'best' || op.t === 'score') rank.onOp(op, from); // 이름별 순위 (rank.js)
   coop.onOp(op, from); // 꼭대기 별, 둘이 든 큰 가구 (coop.js)
   if (mode === 'play' && play.id === op.id && (op.t === 'del' || op.t === 'move')) setMode(null); // 놀던 가구를 친구가 옮기거나 치움
   // 꾸미던 케이크를 누가 들고 갔거나, 케이크가 놓인 탁자를 옮기거나 치움
@@ -242,6 +250,7 @@ function loadRoom(data, fromPeer = false) {
   S.sync = fromPeer ? S.at : syncOf(data);
   if (!fromPeer) for (const [id, c] of [...S.cakes]) if (c.by) sendHome(S, id); // 저장해 둔 방을 열 때는 아무도 케이크를 들고 있지 않다
   syncCakes();
+  lights.paint(); // 방 불 스위치 (lights.js)
   rebuildGrid();
   paintPanels();
   dirty = true;
@@ -619,7 +628,7 @@ function roomHash() {
   const d = serialize(S), byId = (a, b) => (a[0] < b[0] ? -1 : 1);
   // 케이크 장식은 올린 순서가 사람마다 다를 수 있어 자리 순으로 맞춰서 견준다
   const cakes = d.cakes.map((r) => [r[0], r[1], r[2], r[3].map((t) => t.join(',')).sort(), r[4] || '', r[5] || '', ...r.slice(6)]).sort(byId);
-  const txt = JSON.stringify([d.items.sort(byId), d.orns.sort(byId), d.lights, d.wall, d.floor, cakes, d.notes.sort(byId), Object.keys(d.best).sort().map((k) => [k, ...d.best[k]])]);
+  const txt = JSON.stringify([d.items.sort(byId), d.orns.sort(byId), d.lights, d.wall, d.floor, cakes, d.notes.sort(byId), Object.keys(d.best).sort().map((k) => [k, ...d.best[k]]), ...(d.lamps || d.adm ? [d.lamps || 0, d.adm || 0] : [])]); // 방 불·공동 관리자는 있을 때만 (예전 지문과 같게)
   let h = 5381;
   for (let k = 0; k < txt.length; k++) h = ((h << 5) + h + txt.charCodeAt(k)) | 0;
   return (h >>> 0).toString(36) + '.' + d.items.length + '.' + d.orns.length;
@@ -679,7 +688,13 @@ const duo = makeDuo({
   hash: roomHash,
   // 손님이 가져온 방을 쓸지 (주인이 묻는다)
   preferPeer: (state, mine) => guestWins({ at: stampOf(state), sync: syncOf(state), mine }, { at: S.at, sync: S.sync, mine: !!(cur && cur.mine) }),
-  adopt(state) { loadRoom(state, true); saveSoon(); },
+  adopt(state) {
+    const keep = duo.role === 'host' && cur && cur.mine ? [...S.adm] : null; // 방장의 공동 관리자 표는 손님이 가져온 방으로 바뀌지 않는다
+    loadRoom(state, true);
+    if (keep) S.adm = new Set(keep);
+    admin.onChange(null, 'peer');
+    saveSoon();
+  },
   synced() { if (S.sync !== S.at) { S.sync = S.at; saveSoon(); } }, // 지금 서로의 방이 같다
   setRole(edit, slot) { canEdit = edit; mySlot = slot; paintRole(); },
   peerCount: () => others.size,
@@ -735,6 +750,15 @@ const duo = makeDuo({
     if (m.k === 'prop' || m.k === 'climb' || m.k === 'heavy' || m.k === 'help') return coop.peerFx(m, id); // 협동 놀이
     play.peerFx(m);
     return true;
+  },
+  // 공동 관리자 (admin.js): 내 비밀표, 받은 비밀표의 지문, 그 표가 방의 공동 관리자인지, 지정·해제, 초인종 없이 들어가도 되는지
+  card: () => admin.tk(), tagOf: (tk) => admin.tagOf(tk), isAdm: (tag) => S.adm.has(tag), admSet: (tag, on) => dispatch({ t: 'adm', tag, on }),
+  hasPass: () => admin.hasPass(), passLost: () => admin.passLost(),
+  gotKey(k) { // 공동 관리자가 되어 방 열쇠를 받았다: 다음부터 꾸미는 사람으로 들어오고 방을 기기에 남긴다
+    if (!cur || cur.mine) return;
+    cur.key = k; cur.view = false; store.set(CUR_KEY, cur);
+    history.replaceState(null, '', location.pathname + location.search + '#r=' + cur.id + '-' + k);
+    saveSoon();
   },
   // 초인종과 입장
   dev: () => dev,
@@ -839,7 +863,7 @@ function paintPeople() {
   const row = (text, btns) => {
     const r = document.createElement('div'), h = document.createElement('div');
     r.className = 'row'; h.className = 'hint'; h.textContent = text; r.appendChild(h);
-    for (const [label, fn, main, id] of btns) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (main ? ' main' : ''); b.textContent = label; b.dataset.pid = id; b.addEventListener('click', fn); r.appendChild(b); }
+    for (const [label, fn, main, id] of btns) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (main ? ' main' : ''); b.textContent = label; b.dataset.pid = id; if (label.startsWith('🔑')) b.dataset.adm = '1'; b.addEventListener('click', fn); r.appendChild(b); }
     return r;
   };
   for (const k of duo.knocks) box.appendChild(row(`🔔 ${k.want === 'view' ? '구경하러 온' : '같이 꾸미러 온'} 친구가 문 앞에 있어요`, [['들어오게 하기', () => duo.admit(k.id), true, k.id], ['돌려보내기', () => duo.deny(k.id), false, k.id]]));
@@ -847,14 +871,18 @@ function paintPeople() {
   box.hidden = !duo.knocks.length;
   if (was !== box.hidden) measure(false); // 아래 판 높이가 바뀌었다
   const role = new Map(duo.people.map((p) => [p.id, p.edit])), talking = new Set(media.voices);
+  // 공동 관리자 (admin.js): 🔑 표시, 방장의 지정·해제 단추. 공동 관리자도 내보낼 수 있다(방장과 다른 공동 관리자는 빼고)
+  const adms = new Set(duo.admins), owner = admin.isOwner(), boss = admin.isMe();
   for (const id of others.keys()) {
     const btns = [];
     if (talking.has(id)) btns.push([media.isMuted(id) ? '🔊 소리 켜기' : '🔇 소리 끄기', () => { media.mute(id, !media.isMuted(id)); paintPeople(); }, false, id]);
-    if (duo.role === 'host') btns.push(['내보내기', () => duo.kick(id), false, id]);
-    list.appendChild(row(`${nameOf(id)}${talking.has(id) ? ' 🎤' : ''}${role.has(id) ? (role.get(id) ? ' · 같이 꾸미는 중' : ' · 구경 중') : ''}`, btns));
+    if (duo.role === 'host' || (boss && id !== 'h' && !adms.has(id))) btns.push(['내보내기', () => duo.kick(id), false, id]);
+    if (owner) btns.push([adms.has(id) ? '🔑 해제' : '🔑 지정', () => admin.grant(id, !adms.has(id)), false, id]);
+    list.appendChild(row(`${nameOf(id)}${adms.has(id) ? ' 🔑' : ''}${talking.has(id) ? ' 🎤' : ''}${role.has(id) ? (role.get(id) ? ' · 같이 꾸미는 중' : ' · 구경 중') : ''}`, btns));
   }
-  list.hidden = !others.size;
-  $('duoPeopleRow').hidden = !others.size;
+  if (owner && admin.absent().length) list.appendChild(row(`🔑 지금 없는 공동 관리자 ${admin.absent().length}명`, [['모두 해제', () => admin.clearAbsent(), false, 'absent']]));
+  list.hidden = !list.childElementCount;
+  $('duoPeopleRow').hidden = !list.childElementCount;
   if (mode === 'duo') measure(false);
 }
 
@@ -906,6 +934,7 @@ function paintDuo() {
     main = canEdit ? `${duo.count}명이 같이 있어요 👫` : `구경하는 중이에요 (${duo.count}명이 있어요)`;
     sub = canEdit ? '서로 놓은 것이 바로 보여요.' : '돌아다니고 놀 수 있어요. 방을 꾸미는 것은 꾸미는 사람만 할 수 있어요.';
     chip = canEdit ? `같이 노는 중 · ${duo.count}명` : `구경 중 · ${duo.count}명`;
+    if (admin.isMe()) { sub = '🔑 공동 관리자예요. 초인종 없이 들어오고, 문을 열어 주거나 내보낼 수 있어요.'; chip += ' 🔑'; }
   }
   $('duoMain').textContent = main; $('duoSub').textContent = sub;
   const share = m === 'solo' || m === 'waiting' || m === 'on';
@@ -960,7 +989,7 @@ function freeBench() {
 const play = makePlay({
   key, store, toast: (m) => toast(m),
   itemObj: (id) => itemObj.get(id),
-  hasKind: (k) => hasKind(k),
+  hasKind: (k) => hasKind(k) || (k === 'tv' && hasKind('screen')), // 영화관 스크린도 TV 화면을 비춘다 (cinema.js)
   aspect: () => eye.aspect,
   // 화면의 한 점이 가구 앞 세워진 면(가구 기준 at 을 지나고 앞을 보는 면)의 어디인지 → 가구 기준 { x, y }
   pointOn(g, px, py, at) {
@@ -1004,18 +1033,20 @@ const play = makePlay({
   fx: (m) => duo.fx(m),
   resized: () => { if (mode === 'play') measure(false); },
   close: () => setMode(null),
-  bestLine: (k) => book.bestLine(k), record: (k, v) => book.record(k, v), // 이 방 최고 기록 (book.js)
+  bestLine: (k) => book.bestLine(k), record: (k, v) => rank.record(k, v), rank: (k) => rank.open(k), // 이 방 최고 기록 (book.js), 이름별 순위 (rank.js)
 });
 // 방명록과 이 방 최고 기록 (방명록 가구는 play 의 놀이 하나로 더해진다)
 const book = makeBook({
   key, store, toast: (m) => toast(m), op: (o) => dispatch(o), canEdit: () => canEdit, newId,
-  defName: () => nameOf(duo.me), notes: () => notesList(S), best: () => S.best, play, close: () => setMode(null),
+  defName: () => nameOf(duo.me), nick: () => names.nick, setName: (n) => names.set(n), notes: () => notesList(S), best: () => S.best, play, close: () => setMode(null),
 });
 /* ───────── 점등식과 단체 사진 (party.js) ───────── */
 const hemi = scene.children.find((o) => o.isHemisphereLight), BRIGHT = [hemi.intensity, sun.intensity];
 // 방 밝기(room)와 트리 둘레 빛(tree)을 원래의 몇 배로 한다. setBright(1, 1) 이면 정확히 원래대로.
 // 빛의 세기만 바뀌어서 그림자는 다시 그리지 않아도 된다(dirty 를 켜지 않는다).
-function setBright(room, tree) { hemi.intensity = BRIGHT[0] * room; sun.intensity = BRIGHT[1] * room; glow.intensity = (bulbs.on ? 2.6 : 1.6) * tree; }
+// 방 불(lights.js)이 꺼져 있으면 그 위에 LAMP 를 한 번 더 곱한다. 켜져 있으면 LAMP 는 정확히 1 이다.
+const LAMP = [1, 1], BR = [1, 1];
+function setBright(room, tree) { BR[0] = room; BR[1] = tree; hemi.intensity = BRIGHT[0] * room * LAMP[0]; sun.intensity = BRIGHT[1] * room * LAMP[1]; glow.intensity = (bulbs.on ? 2.6 : 1.6) * tree; }
 const party = makeParty({
   canvas, toast: (m) => toast(m), fx: (m) => duo.fx(m), canEdit: () => canEdit,
   mayLead: (id) => duo.role !== 'host' || duo.people.some((p) => p.id === id && p.edit), // 방장은 꾸미는 사람의 점등식만 받아 전한다
@@ -1046,6 +1077,13 @@ const games = makeGames({
   caster(px, py) { aimRay(px, py); return ray; },
   fx: (m) => duo.fx(m), toast: (m) => toast(m), dirty: () => { dirty = true; },
 });
+// 닉네임과 머리 위 이름표 (names.js), 이름별 순위 (rank.js)
+const names = makeNames({
+  key, store, me, others: () => others, myId: () => duo.me, online: () => duo.mode === 'on', look: () => look, setLook: (p) => setLook(p),
+  defName: (id) => baseName(id), eye: () => usingEye(), project: (v) => v.project(cam()), quiet: (id) => games.quiet(id), tagged: (id) => games.tagged(id),
+  talking: (who) => { const b = bubbles.get(who); return !!b && clock <= b.until; }, off: () => mode === 'door',
+});
+const rank = makeRank({ op: (o) => dispatch(o), list: (k) => rankList(S, k), best: () => S.best, myName: () => names.myName(), toast: (m) => toast(m) });
 // 의상과 방장의 비행 슈트 (costume.js, fly.js). 방장 = 방을 만든 사람(혼자 노는 내 방 포함)
 const isHost = () => duo.role === 'host' || (!duo.role && (!cur || cur.mine));
 const fly = makeFly({
@@ -1061,8 +1099,23 @@ const sky = makeSky({
   cam: () => cam(), eye: () => usingEye(), level: () => myLv, height: () => canvas.height,
   canFire: () => can(FIRE),
   busy: () => party.on === 'light', canEdit: () => canEdit, isHost: () => duo.role === 'host' || (!duo.role && (!cur || cur.mine)), fx: (m) => duo.fx(m), toast: (m) => toast(m),
+  admin: () => admin.isMe(), isAdmin: (id) => duo.admins.includes(id),
   mayLead: (id) => duo.role !== 'host' || duo.people.some((p) => p.id === id && p.edit), // isHost: 방장(혼자 노는 내 방 포함)은 아무 날에나 불꽃놀이
   resized: () => { if (mode === 'tree') measure(false); },
+});
+// 공동 관리자 (admin.js), 방 불 (lights.js), 3층 영화관 (cinema.js)
+const admin = makeAdmin({
+  store, key, room: () => (cur ? cur.id : null), mine: () => !!(cur && cur.mine), S: () => S, duo: () => duo,
+  op: (o) => dispatch(o), toast: (m) => toast(m), paint: () => paintDuo(), max: ADMINS,
+});
+const lights = makeLights({
+  room, S: () => S, level: () => myLv, me, op: (o) => dispatch(o), canEdit: () => canEdit, toast: (m) => toast(m),
+  relight(h, s2) { LAMP[0] = h; LAMP[1] = s2; setBright(BR[0], BR[1]); }, // 하늘 바탕값 × 점등식 배수 × 방 불 배수
+});
+const cinema = makeCinema({
+  S: () => S, kindOf, levelOfCell, op: (o) => dispatch(o), newId, canManage: () => admin.canManage(), canEdit: () => canEdit,
+  approach: (id, then) => approach(id, then), eat: () => doAct('eat'), mode: () => mode, measure: () => measure(false), toast: (m) => toast(m),
+  itemObj: (id) => itemObj.get(id), wallShown: (lv, side) => room.floors[lv].walls[side].upper.visible, dirty: () => { dirty = true; },
 });
 // 어드벤트 달력 (advent.js): 달력 가구는 play 의 놀이 하나로 더해진다
 const advent = makeAdvent({
@@ -1072,14 +1125,14 @@ const advent = makeAdvent({
 });
 // 숨은 마스터키 (master.js): 제목을 일곱 번 누른다
 const master = makeMaster({
-  toast: (m) => toast(m), sky: { time: () => sky.time, setTime: (v) => sky.setTime(v) }, changed: () => { advent.repaint(); dirty = true; },
+  toast: (m) => toast(m), sky: { time: () => sky.time, setTime: (v) => sky.setTime(v) }, lamp: { on: (lv) => lights.isOn(lv), toggle: (lv) => lights.toggle(lv) }, changed: () => { advent.repaint(); dirty = true; },
   scene, ray(px, py) { aimRay(px, py); return ray.ray; }, shown: () => myLv === 0,
   fx: (m) => duo.fx(m), myId: () => duo.me, others: () => [...others.keys()], nameOf: (id) => nameOf(id), setMode: (m) => setMode(m), mode: () => mode,
   resized: () => { if (mode === 'master') measure(false); },
 });
 // 트리 밑 선물 (gift.js): 판은 setMode('gift') 로 연다
 const gift = makeGift({
-  key, store, toast: (m) => toast(m), op: (o) => dispatch(o), canEdit: () => canEdit, newId, defName: () => nameOf(duo.me),
+  key, store, toast: (m) => toast(m), op: (o) => dispatch(o), canEdit: () => canEdit, newId, defName: () => nameOf(duo.me), setName: (n) => names.set(n),
   S: () => S, g0: room.g0, me, mode: () => mode, setMode: (m) => setMode(m), act: (id) => doAct(id), dirty: () => { dirty = true; },
   ray(px, py) { aimRay(px, py); return ray.ray; },
   resized: () => { if (mode === 'gift') measure(false); },
@@ -1204,34 +1257,41 @@ function cakeTap(id) {
 // 누운 자리: 침대(가구 id)의 왼쪽(side 0)이나 오른쪽(1) 베개. pos = 발끝, head = 머리(1인칭 눈이 놓이는 곳), 모두 세상 좌표
 function lieSpot(id, side) {
   const it = S.items.get(id), g = itemObj.get(id);
-  if (!it || !g || !kindOf(it.k).lie) return null;
+  if (!it || !g || !(kindOf(it.k).lie || kindOf(it.k).sit)) return null;
   g.updateMatrixWorld();
+  if (kindOf(it.k).sit) { // 영화관 좌석 (cinema.js): 왼쪽(0)·오른쪽(1) 자리에 앉는다. pos = 발끝, head = 눈
+    const sx = side ? 0.47 : -0.47, y = kindOf(it.k).rise + SIT_Y, q = g.localToWorld(new THREE.Vector3(sx, y, 0.0)), e = g.localToWorld(new THREE.Vector3(sx, y + 0.86, 0.1));
+    return { id, side, sit: true, pos: [q.x, q.y, q.z], head: [e.x, e.y, e.z], ry: g.rotation.y };
+  }
   const x = side ? 0.35 : -0.35, p = g.localToWorld(new THREE.Vector3(x, 0.4, 0.455)), h = g.localToWorld(new THREE.Vector3(x, 0.52, -0.6));
   return { id, side, pos: [p.x, p.y, p.z], head: [h.x, h.y, h.z], ry: g.rotation.y };
 }
+const SIT_Y = 0.02;  // 앉았을 때 발끝의 높이 (좌석 단 위에서)
 let tellLie = false; // 새로 온 사람에게 내가 누워 있다는 것을 다시 알려야 하는지
 function paintLie() {
   const el = $('lieP'), was = el.hidden;
   el.hidden = !(me.rest && mode === null);
+  el.querySelector('.hint').firstChild.textContent = me.rest && me.rest.sit ? '💺 자리에 앉아 있어요' : '🛏️ 침대에 누워 있어요';
   if (was !== el.hidden) measure(false);
 }
 // 침대를 눌렀을 때: 발치로 걸어가서 빈 베개 쪽에 눕는다
 function lieDown(id) {
   const it = S.items.get(id);
-  if (!it || !kindOf(it.k).lie) return false;
+  const sit = !!(it && kindOf(it.k).sit); // 영화관 좌석이면 눕지 않고 앉는다
+  if (!it || !(kindOf(it.k).lie || sit)) return false;
   if (me.rest && me.rest.id === id) return true;
-  if (carried()) { toast('케이크를 들고는 누울 수 없어요'); return true; }
+  if (carried()) { toast(sit ? '케이크를 들고는 앉을 수 없어요' : '케이크를 들고는 누울 수 없어요'); return true; }
   approach(id, () => {
     if (mode !== null || carried()) return;
     const taken = [...others.values()].filter((a) => a.rest && a.rest.id === id).map((a) => a.rest.side);
     const side = [0, 1].find((k) => !taken.includes(k));
     const r = side === undefined ? null : lieSpot(id, side);
-    if (!r) { if (S.items.has(id)) toast('침대에 누울 자리가 없어요'); return; }
+    if (!r) { if (S.items.has(id)) toast(sit ? '앉을 자리가 없어요' : '침대에 누울 자리가 없어요'); return; }
     me.lie(r);
-    if (fp) { fy = r.ry; fpitch = 0.45; } // 1인칭: 발치 쪽 천장을 올려다본다
+    if (fp) { fy = r.ry; fpitch = sit ? 0.04 : 0.45; } // 1인칭: 발치 쪽 천장을 올려다본다 (앉았으면 앞의 스크린을 본다)
     duo.fx({ k: 'lie', v: id + ':' + side });
     paintLie(); dirty = true;
-    toast('침대에 누웠어요 😴 걸으면 일어나요'); sfx('bed');
+    toast(sit ? '자리에 앉았어요 💺 걸으면 일어나요' : '침대에 누웠어요 😴 걸으면 일어나요'); sfx('bed');
   });
   return true;
 }
@@ -1273,7 +1333,7 @@ function dress(id) {
   return true;
 }
 // 가구를 눌렀을 때(또는 그 앞에서 스페이스바): 케이크 내려놓기·먹기, 놀이, 눕기, 간식, 옷 갈아입기
-const useItem = (id) => cakeTap(id) || startPlay(id) || lieDown(id) || snack(id) || dress(id);
+const useItem = (id) => cakeTap(id) || startPlay(id) || lieDown(id) || snack(id) || dress(id) || cinema.use(id);
 // 그 가구로 지금 할 수 있는 일의 이름 (없으면 null)
 function actionOf(it) {
   const f = kindOf(it.k), mine = carried();
@@ -1281,8 +1341,10 @@ function actionOf(it) {
   if (mine && it.id === benchOf(mine, S.cakes.get(mine))) return cakeAtBench(S, it.id) ? null : '🎂 작업대에 두기';
   if (f.holds) return cakeOn(it.id) ? '🍰 케이크 먹기·꾸미기' : null;
   if (it.k === 'cake') return cakeAtBench(S, it.id) ? '🎂 케이크 꾸미기·먹기' : null;
+  { const c = cinema.label(it); if (c) return c; } // 영화 보기, 팝콘 먹기 (cinema.js)
   if (f.play) return f.play === 'bake' && !canEdit ? null : PLAY_LABEL[f.play] || null;
   if (f.lie) return '🛏️ 눕기';
+  if (f.sit) return '💺 앉기';
   if (f.snack) return food.labelOf(it.k);
   if (f.dress) return '👕 옷 갈아입기';
   return null;
@@ -1296,7 +1358,7 @@ function climb(L, up) {
 function nearAction() {
   if (mode !== null || ghost || me.hop || fly.on) return null; // 나는 중에는 쉰다 (fly.js)
   { const g = games.action(); if (g) return g; } // 같이 놀기 중에 할 수 있는 일 (찾았다·옷장·슬쩍)
-  if (me.rest) return { label: '🛏️ 일어나기', run: getUp };
+  if (me.rest) return { label: me.rest.sit ? '💺 일어나기' : '🛏️ 일어나기', run: getUp };
   { const c = cheers.action(); if (c) return c; } // 마실 것을 든 친구가 가까이 있으면 건배 (cheers.js)
   { const f = food.action(); if (f) return f; } // 손에 든 것 먹기·마시기 (food.js)
   // 트리 앞에서는: 진행 중인 놀이(위) > 별 달기 협동 > 트리 밑 선물. 혼자라서 별을 못 다는 때(weak)는 선물이 먼저이고, 선물은 도구 단추 🎁 로도 연다
@@ -1307,6 +1369,7 @@ function nearAction() {
     if (by(L.a)) return { label: `🪜 ${L.lv + 2}층으로 올라가기`, run: () => climb(L, true) };
     if (by(L.b)) return { label: `🪜 ${L.lv + 1}층으로 내려가기`, run: () => climb(L, false) };
   }
+  { const sw = lights.near(); if (sw) return sw; } // 벽 스위치 앞: 불 켜고 끄기 (lights.js)
   { const g = gift.near() || starHint; if (g) return g; } // 트리 앞: 트리 밑 선물 (gift.js), 아니면 혼자서는 별에 손이 닿지 않는다는 안내
   let best = null, bestS = Infinity;
   const fx = Math.sin(me.face), fz = Math.cos(me.face);
@@ -1462,7 +1525,9 @@ function cleanSay(text) {
   if (typeof text !== 'string') return '';
   return text.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, SAY_MAX);
 }
-const nameOf = (who) => (who === 'me' ? '나' : who === 'h' ? '방장' : '친구' + (parseInt(who.slice(1), 36) || ''));
+const baseName = (who) => (who === 'h' ? '방장' : '친구' + (parseInt(String(who).slice(1), 36) || ''));
+// 사람의 이름: 닉네임(names.js. 생김새에 실려 온다), 없으면 "방장"·"친구2"
+const nameOf = (who) => (who === 'me' ? '나' : (who === duo.me ? look.name : others.has(who) ? others.get(who).look.name : '') || baseName(who));
 // 누가 말했다: 말풍선을 띄우고 지난 말에 적는다
 function said(who, text) {
   if (who !== 'me' && games.muffle(who)) return; // 술래에게는 숨은 사람의 말이 "어디선가 소리"로만
@@ -1471,7 +1536,7 @@ function said(who, text) {
   b.el.textContent = text; b.until = clock + SAY_SHOW; sfx('pop', who === 'me' ? null : others.get(who));
   const log = $('chatLog'), ln = document.createElement('div'), nm = document.createElement('b');
   if (log.firstElementChild && log.firstElementChild.classList.contains('none')) log.textContent = '';
-  ln.className = 'ln' + (who === 'me' ? ' me' : ''); nm.textContent = nameOf(who);
+  ln.className = 'ln' + (who === 'me' ? ' me' : ''); nm.textContent = nameOf(who) + (who !== 'me' && duo.admins.includes(who) ? ' 🔑' : '');
   ln.append(nm, ' ' + text);
   log.appendChild(ln);
   while (log.childElementCount > 40) log.firstElementChild.remove();
@@ -1572,7 +1637,7 @@ const wardrobe = makeWardrobe({ $, picks, look: () => look, setLook: (p) => setL
 picks($('faceList'), FACES, 'pick', (v) => setLook({ face: v }));
 picks($('actList'), ACTS, 'pick', (v) => doAct(v));
 $('emo').addEventListener('click', () => setMode('emo'));
-picks($('furnList'), FURNITURE, 'pick', (v) => ghostNew(v));
+picks($('furnList'), FURNITURE.filter((f) => !f.set), 'pick', (v) => ghostNew(v)); // 영화관 가구(set)는 목록에 넣지 않는다: 폰에서 목록이 판을 넘치지 않게 (cinema.js)
 picks($('ornList'), [...ORNAMENTS, { id: 'cut', name: '떼기', icon: '✂️' }], 'pick', (v) => { tool = v; paintPanels(); if (v === 'cut') toast('뗄 장식을 눌러요'); });
 picks($('lightList'), LIGHT_SETS, 'chip', (v) => dispatch({ t: 'lights', set: v, blink: S.lights.blink }));
 picks($('blinkList'), BLINKS, 'chip', (v) => dispatch({ t: 'lights', set: S.lights.set, blink: v }));
@@ -1694,8 +1759,10 @@ function frame(now) {
   snow.tick(dt);
   coop.tick(dt);
   games.tick();
+  names.tick();
   sky.tick(dt);
   advent.tick(dt); gift.tick(dt); food.tick(dt); cheers.tick(dt); sfxWalk(dt, me, others.values());
+  lights.tick(dt); cinema.tick();
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
   renderer.render(scene, cam());
@@ -1758,8 +1825,16 @@ Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { ge
 window.__sky = sky.test;
 window.__master = { get on() { return master.on; }, get given() { return master.test.given; }, key: master.test.key };
 window.__food = food.test; window.__cheers = cheers.test;
+window.__lights = Object.assign(lights.test, { toggle: (lv) => lights.toggle(lv), near: () => { const a = lights.near(); return a ? a.label : null; }, lamp: () => [...LAMP] });
+window.__cinema = { convert: () => cinema.convert(), get has() { return cinema.has; }, artShown: (id) => cinema.artShown(id), get sitting() { return !!(me.rest && me.rest.sit); } };
+window.__admin = {
+  get isMe() { return admin.isMe(); }, get isOwner() { return admin.isOwner(); }, get canManage() { return admin.canManage(); }, get hasPass() { return admin.hasPass(); },
+  get tag() { return admin.tag; }, get tk() { return admin.tk(); }, get list() { return [...S.adm]; }, get here() { return duo.admins; }, get absent() { return admin.absent(); },
+  grant: (id, on) => admin.grant(id, on !== false), clearAbsent: () => admin.clearAbsent(), tagOf: (tk) => admin.tagOf(tk),
+};
 window.__party = Object.assign(party.test, { bright: () => ({ hemi: hemi.intensity, sun: sun.intensity, glow: glow.intensity }) });
 window.__tree = {
+  nameOf: (id) => nameOf(id),
   NX, NZ, GX, GZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, LEVELS, FLOOR_H, FLOOR_DX, LADDERS, FRONT, toWorld, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
   ghostNew, ghostPick, ghostMoveTo, ghostTurn, ghostDone, ghostCancel, ghostRemove, surfaceR, serialize: () => serialize(S),
   setZoomMul(m) { setZoomMul(m); },

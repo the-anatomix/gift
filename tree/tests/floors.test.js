@@ -168,17 +168,17 @@ const peerLv = (p) => T(p, () => window.__duo.others.map((o) => o.level));
     await N.reload(); await ready(N);
     const s1 = await T(N, () => window.__tree.serialize());
     const ups = s1.items.filter((it) => /^up\d+$/.test(it[0]));
-    check('예전 방을 열면 꾸민 것은 그대로이고 마당·2층·3층 기본 가구와 방명록·어드벤트 달력(15개)이 더해짐', ups.length === 15 && s1.items.length === 17 && s1.items.some((it) => it[0] === 'old1') && !s1.items.some((it) => /^(base|east)/.test(it[0])) && ups.some((it) => it[3] >= 19) && ups.some((it) => it[2] >= 32 && it[2] < 62) && ups.some((it) => it[2] >= 64), s1.items.map((it) => it[0]));
+    check('예전 방을 열면 꾸민 것은 그대로이고 마당·2층·3층(영화관) 기본 가구와 방명록·달력(28개)이 더해짐', ups.length === 28 && s1.items.length === 30 && s1.items.some((it) => it[0] === 'old1') && !s1.items.some((it) => /^(base|east)/.test(it[0])) && ups.some((it) => it[3] >= 19) && ups.some((it) => it[2] >= 32 && it[2] < 62) && ups.some((it) => it[2] >= 64), s1.items.map((it) => it[0]));
     await T(N, () => window.__tree.dispatch({ t: 'del', id: 'up0' })); await sleep(700);
     const disk = await T(N, () => JSON.parse(localStorage.getItem('nolja-tree-room.fu')));
     check('저장값에 up: 1 표시가 붙음', disk && disk.up === 1, disk && disk.up);
     await N.reload(); await ready(N);
     const s2 = await T(N, () => window.__tree.serialize());
-    check('다시 열어도 기본 가구가 또 더해지지 않음 (치운 것도 다시 생기지 않음)', s2.items.length === 16 && !s2.items.some((it) => it[0] === 'up0'), s2.items.map((it) => it[0]));
+    check('다시 열어도 기본 가구가 또 더해지지 않음 (치운 것도 다시 생기지 않음)', s2.items.length === 29 && !s2.items.some((it) => it[0] === 'up0'), s2.items.map((it) => it[0]));
     // 새 방
     const N2 = await open(ctx3, `${BASE}?ns=fn`, false);
     const s3 = await T(N2, () => window.__tree.serialize());
-    check('새 방에는 1층 기본 가구 13개 + 마당·위층 기본 가구와 방명록·어드벤트 달력 15개', s3.items.length === 28 && s3.items.filter((it) => /^up\d+$/.test(it[0])).length === 15, s3.items.length);
+    check('새 방에는 1층 기본 가구 13개 + 마당·위층(3층 영화관 18개) 기본 가구와 방명록·달력 28개', s3.items.length === 41 && s3.items.filter((it) => /^up\d+$/.test(it[0])).length === 28, s3.items.length);
     await ctx3.close();
 
     /* 둘이: 다른 층에 있는 사람 */
