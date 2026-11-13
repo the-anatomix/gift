@@ -65,7 +65,7 @@ export function makeBook(K) {
   nameIn.addEventListener('change', () => { // 이름은 이 기기에 기억한다 (지우면 기억도 지운다)
     const n = cleanWords(nameIn.value, NOTE.name);
     nameIn.value = n;
-    if (n) K.store.set(NAME_KEY, n); else K.store.del(NAME_KEY);
+    if (K.setName) K.setName(n); else if (n) K.store.set(NAME_KEY, n); else K.store.del(NAME_KEY); // 닉네임과 같은 이름이다 (names.js)
   });
 
   // 방명록과 기록에 쓰는 내 이름: 이름 칸에 적은 것, 없으면 기존 이름("방장", "친구2")
@@ -95,6 +95,7 @@ export function makeBook(K) {
     }
   }
   function paint() {
+    if (K.nick && document.activeElement !== nameIn) nameIn.value = K.nick(); // 캐릭터 고르기 판에서 바꾼 닉네임
     nameIn.placeholder = cleanWords(K.defName(), NOTE.name) || '이름';
     box.hidden = false;
     paintList();
@@ -110,7 +111,7 @@ export function makeBook(K) {
     const wait = lastAt + NOTE.gap - performance.now();
     if (wait > 0) { K.toast(`${Math.ceil(wait / 1000)}초 뒤에 다시 남길 수 있어요`); return false; }
     const name = myName();
-    if (cleanWords(nameIn.value, NOTE.name)) K.store.set(NAME_KEY, name);
+    if (cleanWords(nameIn.value, NOTE.name)) { if (K.setName) K.setName(name); else K.store.set(NAME_KEY, name); }
     if (!K.op({ t: 'note', id: K.newId(), name, text, at: Date.now() })) { K.toast('남기지 못했어요'); return false; }
     lastAt = performance.now();
     textIn.value = '';

@@ -2,6 +2,8 @@
 // 고를 수 있는 것: 성별(여자·남자), 옷과 색·소품(costume.js), 표정. 그리고 잠깐 하는 행동(손 흔들기, 춤 …).
 import { THREE, M, put, ball, cap, cyl } from './kit.js';
 import { OUTFITS, cleanExtra, suitOf, dressUp } from './costume.js';
+import { okWords } from './state.js';
+import { NOTE } from './catalog.js';
 import { toWorld, levelOf, LADDERS, FLOOR_H, X0, Z0, CELL } from './path.js';
 
 export const GENDERS = [{ id: 'f', name: '여자' }, { id: 'm', name: '남자' }];
@@ -26,6 +28,7 @@ export function cleanLook(l) {
     outfit: OUTFITS.some((o) => o.id === v.outfit) ? v.outfit : DEFAULT_LOOK.outfit,
     face: FACES.some((x) => x.id === v.face) ? v.face : DEFAULT_LOOK.face,
     ...cleanExtra(v), // 색과 소품 (tint, hat, neck, eye, back)
+    ...(okWords(v.name, NOTE.name) ? { name: v.name } : {}), // 닉네임 (names.js. 없으면 항목도 없다)
   };
 }
 
@@ -238,7 +241,9 @@ export function makeAvatar(look) {
 
     // 생김새를 바꾼다(몸을 새로 만든다). 자리와 방향은 그대로.
     setLook(l) {
+      const was = A.look, name = (o) => { const { name: _n, ...rest } = o; return JSON.stringify(rest); };
       A.look = cleanLook(l);
+      if (parts && was && was.name !== A.look.name && name(was) === name(A.look)) return; // 닉네임만 바뀌었으면 몸은 그대로
       if (parts) {
         root.remove(parts.body);
         parts.body.traverse((o) => { if (o.geometry) o.geometry.dispose(); });

@@ -8,8 +8,8 @@ import { buildRoom, WALL_H, TREE, FRONT, fixedCell, noBuild, surfaceR } from './
 import { makeWardrobe, HOST_OUTFIT } from './costume.js';
 import { makeFly } from './fly.js';
 import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, FACES, ACTS, BODY_R, SPEED } from './avatar.js';
-import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER, STARTER_EAST, STARTER_UP, CAKE } from './catalog.js';
-import { makeState, apply, setLockFree, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake, benchOf, cakesList, cakeAtBench, cakeOnTable, sendHome, notesList } from './state.js';
+import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER, STARTER_EAST, STARTER_UP, CAKE, NOTE } from './catalog.js';
+import { makeState, apply, setLockFree, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake, benchOf, cakesList, cakeAtBench, cakeOnTable, sendHome, notesList, cleanWords, rankList } from './state.js';
 import { buildItem } from './furniture.js';
 import { buildOrnament, buildLights } from './decor.js';
 import { makeDuo, ROOM_RE, CAP, ECAP, DOOR } from './duo.js';
@@ -21,6 +21,8 @@ import { makeParty } from './party.js';
 import { makeSnow } from './snow.js';
 import { makeCoop } from './coop.js';
 import { makeGames } from './games.js';
+import { makeNames } from './names.js';
+import { makeRank } from './rank.js';
 import { makeSky } from './sky.js';
 import { makeMaster, can, LOCK, FIRE } from './master.js';
 import { makeAdvent } from './advent.js';
@@ -108,7 +110,7 @@ else {
 }
 const slot = () => (cur ? ROOM_KEY + '-' + cur.id : ROOM_KEY);
 const savedLook = store.get(LOOK_KEY);
-let look = savedLook ? cleanLook(savedLook) : DEFAULT_LOOK;
+let look = cleanLook({ ...(savedLook ? cleanLook(savedLook) : DEFAULT_LOOK), name: cleanWords(store.get(key('name')), NOTE.name) || undefined }); // 닉네임은 방명록 이름과 같은 곳에 기억한다 (names.js)
 
 const grid = new Grid();
 const room = buildRoom(scene);
@@ -167,7 +169,7 @@ function dispatch(op, from = 'me') {
   if (from === 'me' && !canEdit && op && op.t === 'star' && op.on === true) from = 'view'; // 꼭대기 별 달기는 구경하는 사람도 된다 (coop.js)
   if (from === 'me' && !canEdit && op && (op.t === 'gift' || op.t === 'giftOpen')) from = 'mine'; // 트리 밑 선물은 구경하는 사람도 두고 연다 (gift.js)
   if (from === 'me' && !canEdit && op && op.t === 'snowman') { canEdit = true; try { return dispatch(op, from); } finally { canEdit = false; } } // 마당에서 같이 만든 눈사람은 구경하는 사람도 놓는다 (snowman.js)
-  if (from === 'me' && !canEdit && !(op && (op.t === 'cakeBlow' || op.t === 'cakeEat' || op.t === 'note' || op.t === 'best'))) { toast('구경하는 중에는 꾸밀 수 없어요'); return false; } // 촛불 불기, 케이크 먹기, 방명록 남기기, 이 방 최고 기록은 구경하는 사람도 된다
+  if (from === 'me' && !canEdit && !(op && (op.t === 'cakeBlow' || op.t === 'cakeEat' || op.t === 'note' || op.t === 'best' || op.t === 'score'))) { toast('구경하는 중에는 꾸밀 수 없어요'); return false; } // 촛불 불기, 케이크 먹기, 방명록 남기기, 이 방 최고 기록은 구경하는 사람도 된다
   const wasLit = op && typeof op.t === 'string' && op.t.startsWith('cake') && S.cakes.get(op.id) ? S.cakes.get(op.id).lit : 0;
   // 내가 들고 있는 가구를 친구가 옮기거나 치웠으면 손에서 내려놓는다
   const taken = from === 'peer' && ghost && ghost.id && op && ghost.id === op.id && (op.t === 'del' || op.t === 'move');
@@ -208,6 +210,7 @@ function dispatch(op, from = 'me') {
   if (op.t === 'lamp') lights.onOp(op, from); else if (op.t === 'adm' && from !== 'load') admin.onChange(op, from); // 방 불, 공동 관리자
   if (from === 'load') return true;
   if (op.t === 'note' || op.t === 'noteDel' || op.t === 'best') book.onOp(op, from); // 방명록과 이 방 최고 기록
+  if (op.t === 'best' || op.t === 'score') rank.onOp(op, from); // 이름별 순위 (rank.js)
   coop.onOp(op, from); // 꼭대기 별, 둘이 든 큰 가구 (coop.js)
   if (mode === 'play' && play.id === op.id && (op.t === 'del' || op.t === 'move')) setMode(null); // 놀던 가구를 친구가 옮기거나 치움
   // 꾸미던 케이크를 누가 들고 갔거나, 케이크가 놓인 탁자를 옮기거나 치움
@@ -1025,12 +1028,12 @@ const play = makePlay({
   fx: (m) => duo.fx(m),
   resized: () => { if (mode === 'play') measure(false); },
   close: () => setMode(null),
-  bestLine: (k) => book.bestLine(k), record: (k, v) => book.record(k, v), // 이 방 최고 기록 (book.js)
+  bestLine: (k) => book.bestLine(k), record: (k, v) => rank.record(k, v), rank: (k) => rank.open(k), // 이 방 최고 기록 (book.js), 이름별 순위 (rank.js)
 });
 // 방명록과 이 방 최고 기록 (방명록 가구는 play 의 놀이 하나로 더해진다)
 const book = makeBook({
   key, store, toast: (m) => toast(m), op: (o) => dispatch(o), canEdit: () => canEdit, newId,
-  defName: () => nameOf(duo.me), notes: () => notesList(S), best: () => S.best, play, close: () => setMode(null),
+  defName: () => nameOf(duo.me), nick: () => names.nick, setName: (n) => names.set(n), notes: () => notesList(S), best: () => S.best, play, close: () => setMode(null),
 });
 /* ───────── 점등식과 단체 사진 (party.js) ───────── */
 const hemi = scene.children.find((o) => o.isHemisphereLight), BRIGHT = [hemi.intensity, sun.intensity];
@@ -1069,6 +1072,13 @@ const games = makeGames({
   caster(px, py) { aimRay(px, py); return ray; },
   fx: (m) => duo.fx(m), toast: (m) => toast(m), dirty: () => { dirty = true; },
 });
+// 닉네임과 머리 위 이름표 (names.js), 이름별 순위 (rank.js)
+const names = makeNames({
+  key, store, me, others: () => others, myId: () => duo.me, online: () => duo.mode === 'on', look: () => look, setLook: (p) => setLook(p),
+  defName: (id) => baseName(id), eye: () => usingEye(), project: (v) => v.project(cam()), quiet: (id) => games.quiet(id), tagged: (id) => games.tagged(id),
+  talking: (who) => { const b = bubbles.get(who); return !!b && clock <= b.until; }, off: () => mode === 'door',
+});
+const rank = makeRank({ op: (o) => dispatch(o), list: (k) => rankList(S, k), best: () => S.best, myName: () => names.myName(), toast: (m) => toast(m) });
 // 의상과 방장의 비행 슈트 (costume.js, fly.js). 방장 = 방을 만든 사람(혼자 노는 내 방 포함)
 const isHost = () => duo.role === 'host' || (!duo.role && (!cur || cur.mine));
 const fly = makeFly({
@@ -1117,7 +1127,7 @@ const master = makeMaster({
 });
 // 트리 밑 선물 (gift.js): 판은 setMode('gift') 로 연다
 const gift = makeGift({
-  key, store, toast: (m) => toast(m), op: (o) => dispatch(o), canEdit: () => canEdit, newId, defName: () => nameOf(duo.me),
+  key, store, toast: (m) => toast(m), op: (o) => dispatch(o), canEdit: () => canEdit, newId, defName: () => nameOf(duo.me), setName: (n) => names.set(n),
   S: () => S, g0: room.g0, me, mode: () => mode, setMode: (m) => setMode(m), act: (id) => doAct(id), dirty: () => { dirty = true; },
   ray(px, py) { aimRay(px, py); return ray.ray; },
   resized: () => { if (mode === 'gift') measure(false); },
@@ -1505,7 +1515,9 @@ function cleanSay(text) {
   if (typeof text !== 'string') return '';
   return text.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, SAY_MAX);
 }
-const nameOf = (who) => (who === 'me' ? '나' : who === 'h' ? '방장' : '친구' + (parseInt(who.slice(1), 36) || ''));
+const baseName = (who) => (who === 'h' ? '방장' : '친구' + (parseInt(String(who).slice(1), 36) || ''));
+// 사람의 이름: 닉네임(names.js. 생김새에 실려 온다), 없으면 "방장"·"친구2"
+const nameOf = (who) => (who === 'me' ? '나' : (who === duo.me ? look.name : others.has(who) ? others.get(who).look.name : '') || baseName(who));
 // 누가 말했다: 말풍선을 띄우고 지난 말에 적는다
 function said(who, text) {
   if (who !== 'me' && games.muffle(who)) return; // 술래에게는 숨은 사람의 말이 "어디선가 소리"로만
@@ -1736,6 +1748,7 @@ function frame(now) {
   snow.tick(dt);
   coop.tick(dt);
   games.tick();
+  names.tick();
   sky.tick(dt);
   advent.tick(dt); gift.tick(dt); food.tick(dt);
   lights.tick(dt); cinema.tick();
@@ -1810,6 +1823,7 @@ window.__admin = {
 };
 window.__party = Object.assign(party.test, { bright: () => ({ hemi: hemi.intensity, sun: sun.intensity, glow: glow.intensity }) });
 window.__tree = {
+  nameOf: (id) => nameOf(id),
   NX, NZ, GX, GZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, LEVELS, FLOOR_H, FLOOR_DX, LADDERS, FRONT, toWorld, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
   ghostNew, ghostPick, ghostMoveTo, ghostTurn, ghostDone, ghostCancel, ghostRemove, surfaceR, serialize: () => serialize(S),
   setZoomMul(m) { setZoomMul(m); },

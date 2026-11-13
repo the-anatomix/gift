@@ -21,7 +21,8 @@
 // 방명록과 이 방 최고 기록 (구경하는 사람도 남길 수 있다. 지우기는 꾸밀 수 있는 사람만)
 //   { t: 'note', id, name, text, at }  한마디 남기기 (at = 남긴 때 ms). NOTE.max 개가 넘치면 가장 오래된 것부터 빠진다
 //   { t: 'noteDel', id }               방명록 글 지우기
-//   { t: 'best', k, v, name }          이 방 최고 기록 (k = 'dart' | 'fire'). 지금 기록보다 높을 때만 받는다
+//   { t: 'best', k, v, name }          이 방 최고 기록 (k = 'dart' | 'fire'). 지금 기록보다 높을 때만 받는다. 이름별 순위에도 오른다
+//   { t: 'score', k, v, name }         이름별 순위 (rank.js). 그 이름의 지금 점수보다 높을 때만 받는다. 놀이마다 RANK.keep 명까지(넘치면 낮은 점수부터 빠진다)
 // 꼭대기 별 (coop.js. 한 명이 받치고 한 명이 올라가 단다. 구경하는 사람도 달 수 있다)
 //   { t: 'star', on: true, by, name, help }  별을 단다 (by = 올라간 사람 id(방장이 보낸 사람과 맞춰 본다), name = 단 사람, help = 받친 사람 이름)
 //   { t: 'star', on: false }                 별을 뗀다. S.star = { name, help } 또는 null(저장값에 없으면 안 달린 것)
@@ -42,6 +43,7 @@ import { GX, GZ } from './path.js';
 import { zoneOf } from './path.js';
 import { SNOWMEN } from './catalog.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, CREAMS, TOPPINGS, CAKE, NOTE, BEST } from './catalog.js';
+import { RANK } from './catalog.js';
 import { GIFT, WRAPS } from './catalog.js';
 import { ADMINS } from './catalog.js';
 
@@ -126,15 +128,26 @@ export function cleanWords(v, max) {
   if (typeof v !== 'string') return '';
   return [...v.replace(new RegExp(BAD_CH.source, 'g'), ' ').replace(/\s+/g, ' ').trim()].slice(0, max).join('').trim();
 }
+// 이름별 순위: 높은 점수부터 (같은 점수면 이름 순) [{ name, v }]
+export const rankList = (S, k) => [...(S.rank && S.rank[k] ? S.rank[k] : [])].map(([name, v]) => ({ name, v })).sort((a, b) => b.v - a.v || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+// 그 이름의 점수를 순위에 올린다 (같은 이름은 가장 높은 점수만). 순위가 바뀌었으면 true
+function rankUp(S, k, name, v) {
+  if (!S.rank) S.rank = {};
+  const m = S.rank[k] || (S.rank[k] = new Map());
+  if (m.has(name) ? m.get(name) >= v : m.size >= RANK.keep && v <= rankList(S, k)[m.size - 1].v) return false;
+  m.set(name, v);
+  while (m.size > RANK.keep) m.delete(rankList(S, k).pop().name); // 가장 낮은 점수부터 빠진다
+  return true;
+}
 // 방명록 글을 최근 것부터 (같은 때면 id 순)
 export const notesList = (S) => [...S.notes.values()].sort((a, b) => b.at - a.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
 export function makeState() {
   // at = 마지막으로 꾸민 때(ms, 한 번도 안 꾸몄으면 0).
   // sync = 친구의 방과 똑같다고 마지막으로 확인했을 때의 at (한 번도 맞춘 적 없으면 0). at > sync 면 헤어진 뒤 혼자 꾸민 것이다.
-  // notes = 방명록 (id → { id, name, text, at }), best = 이 방 최고 기록 (놀이 → { v, name })
+  // notes = 방명록 (id → { id, name, text, at }), best = 이 방 최고 기록 (놀이 → { v, name }), rank = 이름별 순위 (놀이 → Map(이름 → 점수))
   // adv = 어드벤트 달력에서 연 칸 (d → { name, at }), gifts = 트리 밑 선물 (id → { id, to, from, text, wrap, at, cake, open })
-  return { items: new Map(), orns: new Map(), cakes: new Map(), notes: new Map(), best: {}, lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id, at: 0, sync: 0, adv: new Map(), gifts: new Map(), lamps: [1, 1, 1], adm: new Set() };
+  return { items: new Map(), orns: new Map(), cakes: new Map(), notes: new Map(), best: {}, rank: {}, lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id, at: 0, sync: 0, adv: new Map(), gifts: new Map(), lamps: [1, 1, 1], adm: new Set() };
 }
 
 // 그 자리에 놓을 수 있는지. fixed(i, j) = 트리처럼 처음부터 막힌 칸. ignoreId = 옮기는 중인 자기 자신.
@@ -324,7 +337,12 @@ export function apply(S, op, fixed) {
       const now = S.best[op.k];
       if (now && op.v <= now.v) return false; // 지금 기록보다 높아야 한다
       S.best[op.k] = { v: op.v, name: op.name };
+      rankUp(S, op.k, op.name, op.v); // 순위표가 없던 때의 방도 최고 기록은 순위에 오른다
       return true;
+    }
+    case 'score': { // 이름별 순위 (같은 이름은 가장 높은 점수만)
+      if (!Object.hasOwn(BEST, op.k) || !isInt(op.v) || op.v < 1 || op.v > BEST[op.k].top || !okWords(op.name, NOTE.name)) return false;
+      return rankUp(S, op.k, op.name, op.v);
     }
     case 'star': { // 꼭대기 별 (S.star 가 없던 때의 방은 안 달린 것)
       if (op.on === false) { const had = !!S.star; S.star = null; return had; }
@@ -381,6 +399,11 @@ export function apply(S, op, fixed) {
 }
 
 // 저장용 모양. 다시 열 때는 ops() 로 풀어서 apply 에 하나씩 넣는다.
+function rankRows(S) {
+  const out = {};
+  for (const k of Object.keys(BEST)) { const l = rankList(S, k); if (l.length) out[k] = l.map((r) => [r.name, r.v]); }
+  return Object.keys(out).length ? out : null;
+}
 export function serialize(S) {
   return {
     v: 2, at: S.at, sync: S.sync, // v 1 = 거실만 있던 때의 방, v 2 = 주방과 방이 붙은 집 (칸 번호는 같다)
@@ -396,6 +419,7 @@ export function serialize(S) {
     lights: [S.lights.set, S.lights.blink], wall: S.wall, floor: S.floor,
     notes: [...S.notes.values()].map((o) => [o.id, o.name, o.text, o.at]), // 방명록 [id, 이름, 글, 남긴 때]
     best: Object.fromEntries(Object.entries(S.best).map(([k, b]) => [k, [b.v, b.name]])), // 이 방 최고 기록 { 놀이: [점수, 이름] }
+    ...(rankRows(S) ? { rank: rankRows(S) } : {}), // 이름별 순위 { 놀이: [[이름, 점수], …] } (높은 점수부터. 아무도 없으면 없다)
     ...(S.star ? { star: [S.star.name, S.star.help] } : {}), // 꼭대기 별 [단 사람, 받친 사람] (안 달렸으면 없다)
     adv: [...S.adv].sort((a, b) => a[0] - b[0]).map(([d, o]) => [d, o.name, o.at]), // 어드벤트 달력에서 연 칸 [날, 연 사람, 연 때]. 이 항목이 없으면 달력이 없던 때의 방
     gifts: giftsList(S).map((g) => [g.id, g.to, g.from, g.text, g.wrap, g.at, g.cake ? 1 : 0, g.open ? 1 : 0]), // 트리 밑 선물 [id, 받는 사람, 보낸 사람, 편지, 포장, 둔 때, 케이크, 열림]
@@ -443,6 +467,8 @@ export function ops(data) {
   out.push({ t: 'wall', v: data.wall }, { t: 'floor', v: data.floor });
   for (const [id, name, text, at] of rows(data.notes)) out.push({ t: 'note', id, name, text, at }); // 방명록이 없던 때의 방은 빈 방명록
   if (data.best && typeof data.best === 'object' && !Array.isArray(data.best)) for (const k of Object.keys(BEST)) if (Array.isArray(data.best[k])) out.push({ t: 'best', k, v: data.best[k][0], name: data.best[k][1] });
+  // 순위표가 없던 때의 방은 최고 기록만 순위에 오른 채로 연다 ('best' 가 순위에도 올린다)
+  if (data.rank && typeof data.rank === 'object' && !Array.isArray(data.rank)) for (const k of Object.keys(BEST)) for (const [name, v] of rows(data.rank[k]).slice(0, RANK.keep)) out.push({ t: 'score', k, v, name });
   out.push(Array.isArray(data.star) ? { t: 'star', on: true, name: data.star[0], help: data.star[1] } : { t: 'star', on: false }); // 꼭대기 별이 없던 때의 방은 안 달린 채로 연다
   for (const [id, to, from, text, wrap, at, cake, open] of rows(data.gifts)) out.push({ t: 'gift', id, to, from, text, wrap, at, cake: cake === 1 || cake === true, open: open === 1 || open === true }); // 선물이 없던 때의 방은 빈 트리 밑
   if (Array.isArray(data.lamps)) data.lamps.slice(0, 3).forEach((v, lv) => { if (!v) out.push({ t: 'lamp', lv, on: false }); }); // 불이 없던 때의 방은 모두 켜진 채로
