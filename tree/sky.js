@@ -8,7 +8,7 @@
 //     눈은 집 밖에만 내린다: 마당 위(THREE.Points 하나, 위층에 있으면 그 층 높이의 남쪽 바깥), 그리고 모든 창 안의 그림.
 //   자정: 12월 24일 23:50 부터 위에 "크리스마스까지 9:59" 띠, 23:59:50 부터 큰 숫자 10초, 25일 0시 정각에 "메리 크리스마스! 🎄" 와 불꽃놀이 40초.
 //     각자 자기 기기 시계로 움직인다(통신 없음). 0시가 되면 window 에 'tree:xmas' 사건을 보낸다(선물 교환이 같은 순간에 상자를 열 수 있게).
-//     25일 하루 동안은 꾸밀 수 있는 사람이, 방장은 아무 날에나 트리 판의 "🎆 불꽃놀이" 로 터뜨린다(놀이 소식 { k: 'show', v: 'fire' }, 30초에 한 번).
+//     25일 하루 동안은 꾸밀 수 있는 사람이, 방장은 아무 날에나 마스터 판의 "🎆 불꽃놀이" 로 터뜨린다 (master.js)(놀이 소식 { k: 'show', v: 'fire' }, 30초에 한 번).
 //   불꽃: THREE.Points 하나(360개). 내려다볼 때는 화면 위쪽 하늘에, 1인칭에서는 남쪽 하늘과 바라보는 쪽 하늘에 터진다.
 //     3층에서 1인칭이면 불꽃놀이 동안 천장을 걷어 옥상 전망대처럼 하늘이 보인다. 창 그림에도 불꽃이 터지고, 터질 때 방 안이 그 색으로 살짝 물든다.
 // 시간은 꼭 now() 로 읽는다(검사에서 window.__now 로 날짜·시각을 바꾼다). 시각은 그 기기의 현지 시간.
@@ -551,12 +551,7 @@ export function makeSky(K) {
   function big(text, cls = '') { if (bigEl.textContent === text) return; bigEl.textContent = text; bigEl.className = cls; void bigEl.offsetWidth; bigEl.classList.add('on'); }
   function tick(f) { const a = audio(false); if (!a) return; try { const o = a.createOscillator(), g = a.createGain(), t0 = a.currentTime; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.1, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.15); o.connect(g); g.connect(a.destination); o.start(t0); o.stop(t0 + 0.2); } catch (_) { /* 무시 */ } }
 
-  // 트리 판의 "🎆 불꽃놀이" (크리스마스 하루는 꾸밀 수 있는 사람, 방장은 아무 날에나)
-  const fireBtn = document.createElement('button');
-  fireBtn.type = 'button'; fireBtn.id = 'fireShow'; fireBtn.className = 'btn main'; fireBtn.style.padding = '0 10px'; fireBtn.textContent = '🎆 불꽃놀이';
-  // 판이 길어지면 트리가 작아지므로 새 줄을 만들지 않고, 전구 줄(두 줄로 접히는 자리)의 빈자리에 붙인다
-  const fireRow = fireBtn; fireBtn.hidden = true;
-  queueMicrotask(() => { const c = $('ornCount'), h = c && c.parentNode; if (h) { h.style.alignItems = 'center'; h.style.gap = '8px'; c.style.marginLeft = 'auto'; fireBtn.style.margin = '-8px 0'; h.insertBefore(fireBtn, c); } else { const box = $('lightList'); if (box) box.append(fireBtn); } }); // 트리 판 제목 줄의 빈자리에 (전구 줄에 두면 판이 한 줄 높아져 트리를 가린다)
+  // "🎆 불꽃놀이" 단추는 마스터 판에 있다 (master.js 의 #fireShow). 여기서는 판(openFire)만 연다
 
   /* ───────── 불꽃놀이 장면 ───────── */
   // show = { until(실제 시각 ms), next(다음 불꽃, 초), mid(자정 장면인지), words(하늘에 쓸 글자 덩어리), wi, wordAt }
@@ -669,7 +664,6 @@ export function makeSky(K) {
   pop.addEventListener('pointerdown', (e) => { if (e.target === pop) openPop(false); });
   q('fireText').addEventListener('keydown', (e) => { if (e.key === 'Enter') q('fireText').blur(); });
   q('fireGo').addEventListener('click', () => { if (pressFire(true, { sec: choice.sec, at: pickedAt(), text: q('fireText').value })) { q('fireAt').value = ''; openPop(false); } });
-  fireBtn.addEventListener('click', () => openPop(true));
 
   /* ───────── 1분마다: 하늘·빛·날씨 ───────── */
   const BRIGHT = K.bright, BASE = [...BRIGHT];
@@ -822,7 +816,6 @@ export function makeSky(K) {
   function lastBurstEnd() { let e = 0; for (let n = 0; n < FN; n++) e = Math.max(e, fInfo[n * 4] + fInfo[n * 4 + 1]); return e; }
   function paintFireBtn() {
     const on = K.canFire(); // 불꽃놀이는 마스터키를 켠 사람(과 마스터가 열어 준 사람)만 터뜨린다 (아무 날에나)
-    if (fireRow.hidden === on) { fireRow.hidden = !on; K.resized(); }
     if (!on && !pop.hidden) openPop(false);
   }
   update(true);
@@ -843,6 +836,7 @@ export function makeSky(K) {
     peerFx: peerIn,
     get time() { return timeMode; }, setTime: (v) => setTime(v, true),
     // 자동 검사가 쓰는 창구
+    openFire: () => { if (K.canFire()) openPop(true); else K.toast('불꽃놀이를 터뜨릴 수 없어요'); },
     test: {
       get state() { return { day: cur.day, dusk: cur.dusk, weather: cur.weather, snow: cur.snow, phase: skyAt(forcedTs(now())).phase, hemi: hemi.intensity, sun: sun.intensity, base: [...BRIGHT], stars: U.uStars.value, moon: U.uMoon.value, glass: glassMat.color.getHex(), pool: poolMat.opacity, top: U.uTop.value.getHex(), hor: U.uHor.value.getHex() }; },
       get show() { return show ? { mid: show.mid, left: (show.until - now()) / 1000, words: show.words || [] } : null; },
@@ -856,7 +850,7 @@ export function makeSky(K) {
       get dome() { return dome.visible; },
       get snowShown() { return snowPts.visible; },
       get ceil() { return room.floors[room.floors.length - 1].ceil.visible; },
-      get button() { return !fireRow.hidden; },
+      get button() { return K.canFire(); },
       burst: (b) => burst(!!b), press: (o) => pressFire(true, o || {}), refresh: () => { update(true); paintFireBtn(); },
       panes: () => { let n = 0; room.floors.forEach((f) => f.g.traverse((m) => { if (m.material === pane) n++; })); return n; },
       yardMats: () => yardMats.length,

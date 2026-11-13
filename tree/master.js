@@ -52,17 +52,23 @@ export function makeMaster(K) {
     lampBox.appendChild(b);
   }
   lampRow.appendChild(lampBox);
-  panel.append(h, skyRow, lampRow, people, foot);
+  // 불꽃놀이: 글자·길이·예약을 고르는 판을 연다 (sky.js). FIRE 권한이 있는 사람에게만 보인다
+  const fireRow = el('div', 'row'), fireBtn = el('button', 'btn main', '🎆 불꽃놀이'); fireRow.id = 'mkFire';
+  fireBtn.type = 'button'; fireBtn.id = 'fireShow'; fireBtn.style.flex = '1';
+  fireBtn.addEventListener('click', () => K.fire());
+  fireRow.appendChild(fireBtn);
+  panel.append(h, skyRow, lampRow, fireRow, people, foot);
   $('tabs').parentNode.insertBefore(panel, $('tabs'));
   const BITS = [[LOCK, '🔓', '달력 잠금 없이 쓰기'], [FIRE, '🎆', '불꽃놀이'], [SKY, '🌙', '하늘 바꾸기'], [GIFT, '🎁', '선물 미리 열기']];
   let listKey = '';
   function paint() {
-    const m = isMaster(), show = m || can(SKY);
+    const m = isMaster(), show = m || can(SKY) || can(FIRE);
     if (tab.hidden === show) { tab.hidden = !show; $('tabs').style.gridTemplateColumns = `repeat(${[...$('tabs').children].filter((b) => !b.hidden).length}, 1fr)`; // 탭이 하나 늘어도 한 줄
       if (!show && K.mode() === 'master') K.setMode(null); K.resized(); }
     for (const b of skyBox.children) b.setAttribute('aria-pressed', String(b.dataset.v === K.sky.time()));
     for (const b of lampBox.children) b.setAttribute('aria-pressed', String(K.lamp.on(+b.dataset.lv)));
-    lampRow.hidden = !m;
+    lampRow.hidden = !m; skyRow.hidden = !(m || can(SKY));
+    if (fireRow.hidden === can(FIRE)) { fireRow.hidden = !can(FIRE); K.resized(); }
     people.hidden = !m; foot.hidden = !m;
     if (!m) return;
     const ids = K.others(), key = ids.map((id) => id + ':' + (given.get(id) || 0)).join(',');

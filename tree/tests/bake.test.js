@@ -33,6 +33,8 @@ const cakes = (p) => T(p, () => window.__tree.cakes().sort((a, b) => (a.id < b.i
 const phase = (p) => T(p, () => window.__play.state && window.__play.state.phase);
 const toastHas = (p, t) => until(async () => (await p.textContent('#toast')).includes(t), 3000);
 const go = async (p) => { await p.tap('#playGo'); await sleep(150); };
+// 반죽을 젓고(여섯 번) → 틀에 붓고 → 오븐에 넣어 굽기가 시작될 때까지
+const toBake = async (p) => { const t = Date.now(); while ((await phase(p)) !== 'bake' && Date.now() - t < 40000) { if (await p.isVisible('#playGo')) await p.tap('#playGo').catch(() => {}); await sleep(200); } return (await phase(p)) === 'bake'; };
 const hash = (p) => T(p, () => window.__duo.hash());
 const deg = (a, r = 0.2) => [r * Math.sin(a * Math.PI / 180), r * Math.cos(a * Math.PI / 180)]; // 케이크 위의 자리 (위에서 볼 때 각도)
 
@@ -57,24 +59,43 @@ const deg = (a, r = 0.2) => [r * Math.sin(a * Math.PI / 180), r * Math.cos(a * M
     check('케이크를 탁자로 옮기면 작업대가 빔', (await T(A, () => window.__tree.cakeAt('ck').on)) === 'tb' && (await T(A, () => window.__tree.freeBench())) === 'ck');
     check('빈 작업대를 누르면 열리지 않고 케이크가 어디 있는지 알려 줌', await T(A, () => window.__tree.cakeTap('ck')) && await toastHas(A, '탁자 위에') && !(await T(A, () => window.__play.on)));
     await T(A, () => window.__play.open('ov')); await sleep(400);
-    check('오븐이 열림: "케이크 굽기", 큰 단추 "굽기 시작"', (await T(A, () => window.__play.state.kind)) === 'bake' && (await phase(A)) === 'idle' && (await A.textContent('#playMain')).includes('케이크 굽기') && (await A.textContent('#playGo')) === '굽기 시작');
+    check('오븐이 열림: "케이크 굽기", 큰 단추 "🥣 반죽 젓기", 위에서 그릇을 봄', (await T(A, () => window.__play.state.kind)) === 'bake' && (await phase(A)) === 'idle' && (await A.textContent('#playMain')).includes('케이크 굽기') && (await A.textContent('#playGo')).includes('반죽 젓기') && !(await T(A, () => window.__play.state.low)) && !(await A.isVisible('#bakeBar')));
     check('오븐 판의 단추가 화면 안·44px 이상', (await audit(A)).length === 0, await audit(A));
     await A.screenshot({ path: path.join(__dirname, 'out', 'bake-idle.png') });
     await A.keyboard.press('Space'); await sleep(150);
-    check('스페이스바(또는 굽기 시작)로 굽기 시작, 큰 단추가 "꺼내기"로', (await phase(A)) === 'bake' && (await A.textContent('#playGo')) === '꺼내기');
+    const m1 = await T(A, () => window.__play.state.mix);
+    check('스페이스바(또는 젓기 단추)로 반죽이 조금 저어짐', m1 > 0.1 && m1 < 0.3 && (await phase(A)) === 'idle', m1);
+    await A.mouse.move(120, 300); for (let k = 0; k < 12; k++) { await A.mouse.move(120 + (k % 2) * 140, 300 + (k % 3) * 30); await sleep(40); }
+    const m2 = await T(A, () => window.__play.state.mix);
+    check('그릇 위를 문질러도 저어짐', m2 > m1 + 0.2, [m1, m2]);
+    await A.screenshot({ path: path.join(__dirname, 'out', 'bake-mix.png') });
+    for (let k = 0; k < 6 && (await phase(A)) === 'idle'; k++) await go(A);
+    check('다 저으면 틀에 붓고 "오븐에 넣기" 단추', await until(async () => (await phase(A)) === 'ready' && (await A.textContent('#playGo')) === '오븐에 넣기', 15000), await phase(A));
+    await A.screenshot({ path: path.join(__dirname, 'out', 'bake-ready.png') });
+    await go(A);
+    check('오븐에 넣으면 숙여서 오븐 속을 보고 게이지가 나옴', (await T(A, () => window.__play.state.low)) === true && (await A.isVisible('#bakeBar')) && (await audit(A)).length === 0, await audit(A));
+    check('문을 닫으면 굽기 시작, 큰 단추가 "꺼내기"로', await until(async () => (await phase(A)) === 'bake' && (await A.textContent('#playGo')) === '꺼내기', 20000), await phase(A));
+    await A.screenshot({ path: path.join(__dirname, 'out', 'bake-oven.png') });
     const h0 = await T(A, () => window.__play.state.heat); await sleep(700);
     check('굽는 동안 조금씩 익음', (await T(A, () => window.__play.state.heat)) > h0);
     await T(A, () => window.__play.setHeat(0.3)); await go(A);
     check('덜 익었을 때 꺼내면 알려 주고 계속 구움', (await phase(A)) === 'bake' && await toastHas(A, '덜 익었어요') && (await cakes(A)).length === 1);
     await T(A, () => window.__play.setHeat(1.0)); await go(A);
     check('너무 익었을 때 꺼내면 탐: "다시 굽기"', (await phase(A)) === 'burnt' && (await A.textContent('#playGo')) === '다시 굽기' && (await cakes(A)).length === 1);
-    await go(A); await go(A);
+    await go(A); await toBake(A);
     await T(A, () => window.__play.setHeat(1.14));
     check('그대로 두어도 너무 오래 구우면 저절로 탐', await until(async () => (await phase(A)) === 'burnt', 3000) && (await cakes(A)).length === 1);
-    await go(A); await go(A);
-    await T(A, () => window.__play.setHeat(0.7)); await go(A);
+    await go(A); await toBake(A);
+    await T(A, () => { window.__play.setHeat(0.7); document.getElementById('playGo').click(); }); await sleep(150); // 정한 온도에서 바로 꺼낸다
     const cs = await cakes(A), nid = (cs.find((c) => c.home === 'ck') || {}).id;
     check('알맞게 익었을 때 꺼내면 빈 작업대에 새 케이크가 나옴 (케이크 둘)', (await phase(A)) === 'done' && cs.length === 2 && !!nid && nid !== 'ck' && await toastHas(A, '잘 구워졌어요'), cs);
+    const fillW = await T(A, () => parseFloat(document.getElementById('bakeFill').style.width));
+    check('게이지 막대가 익은 만큼 차 있고(가운데 선 근처), 가운데 선에 맞추면 "완벽"', fillW > 55 && fillW < 68 && (await T(A, () => window.__play.state.perfect)) === true && (await A.textContent('#playMain')).includes('완벽'), fillW);
+    check('꺼낸 뒤 "🧤 들고 가기"와 "작업대에 두기", 화면 안·44px 이상', (await A.isVisible('#playCarryOut')) && (await A.isVisible('#playQuit')) && (await audit(A)).length === 0, await audit(A));
+    await sleep(1200); await A.screenshot({ path: path.join(__dirname, 'out', 'bake-done.png') });
+    await A.tap('#playCarryOut'); await sleep(300);
+    check('"들고 가기"를 누르면 판이 닫히고 그 케이크를 들고 있음', !(await T(A, () => window.__play.on)) && (await T(A, (id) => window.__tree.cakeAt(id).where, nid)) !== 'island' && (await A.isVisible('#carryP')));
+    await T(A, () => window.__tree.putDown(null)); await sleep(200);
     check('새 케이크는 작업대 위, 처음 케이크는 탁자 위 그대로, 빈 작업대 없음', (await T(A, (id) => window.__tree.cakeAt(id).where, nid)) === 'island' && (await T(A, () => window.__tree.cakeAt('ck').where)) === 'item:tb' && (await T(A, () => window.__tree.freeBench())) === null);
     check('새 케이크는 크림·장식 없이 8조각', ((c) => c.cream === 0 && c.tops.length === 0 && c.left === 8 && !c.gone)(cs.find((c) => c.id === nid)));
     await T(A, () => window.__play.close());
@@ -112,7 +133,7 @@ const deg = (a, r = 0.2) => [r * Math.sin(a * Math.PI / 180), r * Math.cos(a * M
     check('처음 케이크를 다 먹으면 목록에서 빠지고, 저장에는 "다 먹음" 자리 표시가 남음 (탁자 소품도 돌아옴)', tomb.list.length === 0 && tomb.row && tomb.row[8] === 1 && tomb.at === null && (await T(A, () => window.__tree.cakeTap('tb'))) === false, tomb);
     check('다 먹은 처음 케이크는 작업대에 다시 생기지 않음', (await T(A, () => window.__tree.freeBench())) === 'ck' && (await T(A, () => window.__tree.cakeTap('ck'))) && await toastHas(A, '오븐에서'));
     await T(A, () => window.__play.open('ov')); await sleep(200);
-    await go(A); await T(A, () => window.__play.setHeat(0.6)); await go(A);
+    await toBake(A); await T(A, () => window.__play.setHeat(0.6)); await go(A);
     const rv = await cakes(A);
     check('다시 구우면 처음 케이크(작업대 id)가 되살아나 작업대에 나옴', rv.length === 1 && rv[0].id === 'ck' && rv[0].left === 8 && !rv[0].home && (await T(A, () => window.__tree.cakeAt('ck').where)) === 'island', rv);
     await T(A, () => window.__play.close());
@@ -121,7 +142,7 @@ const deg = (a, r = 0.2) => [r * Math.sin(a * Math.PI / 180), r * Math.cos(a * M
     await T(A, () => { const W = window.__tree; W.dispatch({ t: 'put', id: 'ck2', k: 'cake', i: 21, j: 6, r: 0 }); W.dispatch({ t: 'cakeTake', id: 'ck', by: window.__duo.me }); W.putDown('tb2'); });
     await T(A, () => window.__play.open('ov')); await sleep(200);
     check('작업대가 둘이면 비어 있는 쪽에 구움', (await T(A, () => window.__tree.freeBench())) !== null);
-    await go(A); await T(A, () => window.__play.setHeat(0.6)); await go(A); await T(A, () => window.__play.close());
+    await toBake(A); await T(A, () => window.__play.setHeat(0.6)); await go(A); await T(A, () => window.__play.close());
     let cl = await cakes(A);
     const n2 = cl.find((c) => c.home);
     check('구운 케이크가 빈 작업대에 나옴 (케이크 셋: 탁자 위, 처음 케이크가 있는 작업대, 구운 것)', cl.length === 3 && !!n2, cl);
@@ -160,7 +181,7 @@ const deg = (a, r = 0.2) => [r * Math.sin(a * Math.PI / 180), r * Math.cos(a * M
     check('구경하는 사람은 cakeBake 를 할 수 없음', vb === false && (await cakes(A)).length === 2);
     await T(C, () => window.__play.open('ov')); await sleep(200);
     const vOpen = await T(C, () => window.__play.on);
-    if (vOpen) { await go(C); await T(C, () => window.__play.setHeat(0.7)); await go(C); }
+    if (vOpen) { await toBake(C); await T(C, () => window.__play.setHeat(0.7)); await go(C); }
     await sleep(500);
     check('구경하는 사람이 오븐에서 구워도 케이크가 생기지 않음', (await cakes(A)).length === 2 && (await cakes(C)).length === 2 && await allSame(), { a: await cakes(A), vOpen });
     check('구경하는 사람에게는 오븐을 열지 않거나, 구경 중이라 구울 수 없다고 알려 줌', !vOpen || (await C.textContent('#toast')).includes('구경'), { vOpen, toast: await C.textContent('#toast'), phase: await phase(C) });

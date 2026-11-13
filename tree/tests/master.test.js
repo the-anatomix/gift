@@ -58,6 +58,8 @@ const server = http.createServer((q, s) => { let f = path.join(ROOT, decodeURICo
     check('마스터 판과 탭의 단추는 44px 이상, 화면 안', bad.length === 0, bad);
     await A.screenshot({ path: path.join(__dirname, 'out', 'master-panel.png') });
     /* 하늘 */
+    check('마스터 판에 "🎆 불꽃놀이" 단추(트리 판에는 없음), 누르면 불꽃놀이 판', (await A.isVisible('#mkFire #fireShow')) && !(await T(A, () => !!document.querySelector('#treeP #fireShow'))) && (await A.tap('#fireShow'), await sleep(250), await A.isVisible('#firePop')));
+    await A.tap('#fireClose'); await sleep(150);
     await A.tap('#mkSky [data-v="night"]');
     check('밤으로 바꾸면 내 하늘과 친구 하늘이 밤', await until(async () => (await phase(A)) === 'night' && (await phase(B)) === 'night', 8000), [await phase(A), await phase(B)]);
     await A.tap('#mkSky [data-v="day"]');
@@ -78,9 +80,9 @@ const server = http.createServer((q, s) => { let f = path.join(ROOT, decodeURICo
     check('🔓 를 켜 주면 친구의 잠금이 사라짐', await until(async () => (await locks(B)) === 0, 5000), await locks(B));
     check('이제 친구도 잠긴 장식을 달 수 있음', await T(B, (k) => window.__tree.dispatch({ t: 'orn', id: 'mo2', k, x: 0.3, y: 1.0, z: 0.3 }), lockedOrn));
     await A.tap('#mkPeople .who [data-bit="2"]'); await A.tap('#mkPeople .who [data-bit="4"]'); await A.tap('#mkPeople .who [data-bit="8"]');
-    check('🎆 🌙 🎁 도 켜 주면 친구에게 불꽃놀이 단추, 마스터 탭(하늘만), 선물 미리 열기', await until(async () => (await T(B, () => window.__sky.button)) && (await B.isVisible('#tabs button[data-m="master"]')) && (await T(B, () => window.__gift.canOpen(window.__tree.S.gifts.get('g1')))), 5000));
+    check('🎆 🌙 🎁 도 켜 주면 친구에게 불꽃놀이 단추, 마스터 탭(하늘과 불꽃놀이), 선물 미리 열기', await until(async () => (await T(B, () => window.__sky.button)) && (await B.isVisible('#tabs button[data-m="master"]')) && (await T(B, () => window.__gift.canOpen(window.__tree.S.gifts.get('g1')))), 5000));
     await B.tap('#tabs button[data-m="master"]'); await sleep(300);
-    check('친구의 마스터 판에는 하늘만 있고 권한 주기·끄기는 없음', (await B.isVisible('#mkSky')) && !(await B.isVisible('#masterOff')) && !(await B.isVisible('#mkPeople')));
+    check('친구의 마스터 판에는 하늘과 불꽃놀이만 있고 권한 주기·끄기는 없음', (await B.isVisible('#mkSky')) && (await B.isVisible('#fireShow')) && !(await B.isVisible('#masterOff')) && !(await B.isVisible('#mkPeople')));
     await B.tap('#mkSky [data-v="night"]');
     check('친구가 하늘을 밤으로 바꾸면 마스터 화면도 밤', await until(async () => (await phase(A)) === 'night', 8000), await phase(A));
     await B.reload(); await until(() => B.evaluate(() => !!(window.__tree && window.__tree.frames > 3)), 60000);

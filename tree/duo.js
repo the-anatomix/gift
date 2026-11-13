@@ -44,6 +44,7 @@ const VIEW_OPS = new Set(['cakeBlow', 'cakeEat', 'note', 'best']); // 구경하�
 VIEW_OPS.add('score'); // 이름별 순위 (rank.js)
 VIEW_OPS.add('star'); // 꼭대기 별 달기도 구경하는 사람이 할 수 있다 (coop.js)
 VIEW_OPS.add('gift'); VIEW_OPS.add('giftOpen'); // 트리 밑 선물 두기·열기 (gift.js)
+VIEW_OPS.add('pzEat'); // 구운 피자 한 조각 먹기 (pizza.js)
 VIEW_OPS.add('snowman'); // 마당에서 같이 만든 눈사람 놓기 (state.js 가 마당 칸·개수를 따로 막는다)
 const rnd = (n) => { const a = new Uint8Array(n); crypto.getRandomValues(a); return Array.from(a, (x) => 'abcdefghijkmnpqrstuvwxyz23456789'[x % 32]).join(''); };
 

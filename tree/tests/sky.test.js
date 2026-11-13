@@ -200,8 +200,8 @@ const pov = (p, fp) => T(p, (fp) => { if ((window.__tree.pov === 'fp') !== fp) w
     const B = await open(ctx, `${BASE}?net=bc&door=0&ns=sb#r=${room}`, [2026, 12, 25, 15, 0]);
     check('친구가 같은 방에 들어옴', await until(async () => (await T(A, () => window.__duo.count)) === 2 && (await T(B, () => window.__duo.mode)) === 'on', 15000));
     await setNow(A, 2026, 12, 25, 15, 0); await setNow(B, 2026, 12, 25, 15, 0);
-    await A.tap('#tabs button[data-m="tree"]'); await sleep(500);
-    check('25일: 트리 판에 "🎆 불꽃놀이" 단추, 44px 이상·화면 안', (await A.isVisible('#fireShow')) && (await audit(A)).length === 0, await audit(A));
+    await A.tap('#tabs button[data-m="master"]'); await sleep(500);
+    check('25일: 마스터 판에 "🎆 불꽃놀이" 단추, 44px 이상·화면 안', (await A.isVisible('#fireShow')) && (await audit(A)).length === 0, await audit(A));
     await shot(A, 'phone-fire-button');
     await A.tap('#fireShow'); await sleep(250);
     check('단추를 누르면 불꽃놀이 판(글자·길이·언제), 단추는 44px 이상·화면 안', (await A.isVisible('#firePop')) && (await A.isVisible('#fireText')) && (await audit(A)).length === 0, await audit(A));
@@ -213,21 +213,21 @@ const pov = (p, fp) => T(p, (fp) => { if ((window.__tree.pov === 'fp') !== fp) w
     await A.tap('#fireShow'); await sleep(250); await A.tap('#fireGo'); await sleep(300);
     await A.tap('#fireClose');
     check('30초 안에 다시 누르면 안내만 (소식을 다시 보내지 않음)', /30초에 한 번/.test(await A.textContent('#toast')), await A.textContent('#toast'));
-    await A.tap('#tabs button[data-m="tree"]');
+    await A.tap('#tabs button[data-m="master"]');
     await setNow(A, 2026, 12, 26, 9, 0); await setNow(B, 2026, 12, 26, 9, 0); await sleep(700);
     await B.tap('#tabs button[data-m="tree"]'); await sleep(400);
     check('26일: 꾸미는 친구(손님)에게는 불꽃놀이 단추가 없음', !(await B.isVisible('#fireShow')));
     await T(B, () => window.__sky.press()); await sleep(300);
     check('26일: 손님이 눌러도 안 됨 (안내만)', /터뜨릴 수 없어요/.test(await B.textContent('#toast')), await B.textContent('#toast'));
     await B.tap('#tabs button[data-m="tree"]');
-    await A.tap('#tabs button[data-m="tree"]'); await sleep(400);
+    await A.tap('#tabs button[data-m="master"]'); await sleep(400);
     check('26일에도 방장에게는 불꽃놀이 단추가 있음', await A.isVisible('#fireShow'));
     await until(async () => !(await T(B, () => window.__sky.show)), 20000);
     await setNow(A, 2026, 12, 26, 9, 1); // 30초 간격이 지나도록 시계를 민다
     await A.tap('#fireShow'); await sleep(250);
     await A.fill('#fireText', '메리 크리스마스'); await A.tap('#fireSecs button[data-sec="30"]'); await A.tap('#fireGo');
     check('방장은 크리스마스가 아니어도 터뜨리고, 친구 화면에도 보임', await until(async () => !!(await T(A, () => window.__sky.show)) && !!(await T(B, () => window.__sky.show)), 5000));
-    await A.tap('#tabs button[data-m="tree"]');
+    await A.tap('#tabs button[data-m="master"]');
 
     /* 글자 불꽃, 길이, 예약 */
     const sb = await T(B, () => window.__sky.show);
@@ -239,7 +239,7 @@ const pov = (p, fp) => T(p, (fp) => { if ((window.__tree.pov === 'fp') !== fp) w
     await sleep(900); await shot(B, 'phone-fire-word-fp'); await pov(B, false);
     await until(async () => !(await T(A, () => window.__sky.show)) && !(await T(B, () => window.__sky.show)), 40000);
     await setNow(A, 2026, 12, 26, 9, 5, 0); await setNow(B, 2026, 12, 26, 9, 5, 0);
-    await A.tap('#tabs button[data-m="tree"]'); await sleep(300); await A.tap('#fireShow'); await sleep(250);
+    await A.tap('#tabs button[data-m="master"]'); await sleep(300); await A.tap('#fireShow'); await sleep(250);
     await A.fill('#fireText', '생일 축하해'); await A.fill('#fireAt', '09:06'); await sleep(150);
     check('시각을 고르면 단추가 "9:06에 터뜨리기"', /9:06에 터뜨리기/.test(await A.textContent('#fireGo')), await A.textContent('#fireGo'));
     await A.tap('#fireGo'); await sleep(600);
@@ -252,7 +252,7 @@ const pov = (p, fp) => T(p, (fp) => { if ((window.__tree.pov === 'fp') !== fp) w
     await A.tap('#fireCancel'); await sleep(500);
     check('예약 취소가 친구에게도 전해짐', !(await T(A, () => window.__sky.plan)) && !(await T(B, () => window.__sky.plan)) && !(await T(B, () => window.__sky.fband)));
     await A.fill('#fireAt', '09:06'); await A.tap('#fireGo'); await sleep(500);
-    await A.tap('#tabs button[data-m="tree"]');
+    await A.tap('#tabs button[data-m="master"]');
     await setNow(A, 2026, 12, 26, 9, 5, 58); await setNow(B, 2026, 12, 26, 9, 5, 58);
     check('예약한 시각이 되면 나와 친구 화면에 불꽃놀이, 띠는 사라짐', await until(async () => !!(await T(A, () => window.__sky.show)) && !!(await T(B, () => window.__sky.show)) && !(await T(A, () => window.__sky.fband)) && !(await T(B, () => window.__sky.plan)), 9000), [await T(A, () => window.__sky.show), await T(B, () => window.__sky.show)]);
     const wb = await T(B, () => window.__sky.show);

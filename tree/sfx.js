@@ -95,6 +95,9 @@ const S = {
   sizzle: [(o) => { noise(o, 0, 0.7, 0.1, 'highpass', 4200, 0, 1, 0.05); for (let i = 0; i < 5; i++) noise(o, Math.random() * 0.6, 0.02, 0.12, 'highpass', 6000); }, 0.7, 0.4],
   cream: [(o) => { noise(o, 0, 0.24, 0.14, 'bandpass', 560, 240, 2.5, 0.04); tone(o, 0, 190, 0.2, 0.1, 'sine', 115, 0.04); }, 0.25, 0.1],
   top: [(o) => { tone(o, 0, 540, 0.08, 0.2, 'sine', 250); noise(o, 0, 0.03, 0.05, 'lowpass', 900); }, 0.09, 0.06],
+  dough: [(o) => { noise(o, 0, 0.16, 0.16, 'lowpass', 320, 140, 1, 0.03); tone(o, 0, 120, 0.14, 0.16, 'sine', 78, 0.02); }, 0.2, 0.12],
+  sauce: [(o) => { noise(o, 0, 0.22, 0.13, 'bandpass', 760, 320, 3, 0.05); tone(o, 0.02, 240, 0.12, 0.05, 'sine', 150, 0.03); }, 0.25, 0.12],
+  sprinkle: [(o) => { for (let i = 0; i < 5; i++) noise(o, i * 0.035, 0.03, 0.09, 'highpass', 3200 + (i % 3) * 600, 0, 1); }, 0.22, 0.12],
   wipe: [(o) => noise(o, 0, 0.3, 0.12, 'bandpass', 1500, 500, 1.5, 0.05), 0.3, 0.2],
   candle: [(o) => { noise(o, 0, 0.13, 0.14, 'highpass', 3200, 5200); noise(o, 0.12, 0.25, 0.05, 'bandpass', 700, 400, 1, 0.05); }, 0.4, 0.1],
   blow: [(o) => { noise(o, 0, 0.45, 0.2, 'bandpass', 1000, 480, 0.9, 0.09); }, 0.45, 0.2],
@@ -192,13 +195,14 @@ Object.defineProperties(sfx, { on: { get: () => conf.on }, vol: { get: () => con
 /* ───────── 방의 변화(dispatch 를 지난 op)에 맞는 소리. app.js 가 한 줄로 부른다 ───────── */
 const OPS = {
   put: 'place', move: 'place', del: 'remove', orn: 'orn', ornDel: 'ornOff', lights: 'lights', wall: 'paint', floor: 'paint',
+  pzTop: 'top', pzBake: 'ovenDing', pzClear: 'wipe',
   cakeCream: 'cream', cakeTop: 'top', cakeClear: 'wipe', cakeLit: 'candle', cakeBlow: 'blow', cakeTake: 'carry', cakeDrop: 'setDown', cakeBake: 'ovenDing', cakeEat: 'bite',
   note: 'note', adv: 'advent', gift: 'gift', giftOpen: 'giftOpen', snowman: 'snowman',
 };
 // from = 'me' 따위(내가 한 일) 또는 'peer'(친구가 한 일). where(op) → 그 일이 일어난 곳(물체나 { x, z }), 모르면 null
 export function sfxOp(op, from, where) {
   if (!op || from === 'load') return;
-  const name = op.t === 'star' ? (op.on ? 'star' : 'starOff') : OPS[op.t];
+  const name = op.t === 'star' ? (op.on ? 'star' : 'starOff') : op.t === 'pz' ? { dough: 'dough', sauce: 'sauce', cheese: 'sprinkle' }[op.a] : OPS[op.t];
   if (!name) return;
   if (from !== 'peer') { sfx(name); return; }
   sfx(name, (where && where(op)) || {});
