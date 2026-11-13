@@ -1,4 +1,4 @@
-// 마스터키 검사: 숨은 열쇠·제목 일곱 번 → 암호 → 마스터 탭, 잠금 없이 쓰기(다른 사람 달력은 그대로), 불꽃놀이 단추, 하늘 낮·밤(친구에게도), 선물 미리 열기, 사람별 권한 주기. 실행: cd tree/tests && node master.test.js
+// 마스터키 검사: 숨은 열쇠·제목 일곱 번 → 암호 → 마스터 탭, 잠금 없이 쓰기(다른 사람 달력은 그대로), 불꽃놀이 단추, 하늘 낮·밤(친구에게도), 선물 미리 열기, 사람별 권한 주기(비행 슈트 🚀 포함). 실행: cd tree/tests && node master.test.js
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8191, BASE = `http://localhost:${PORT}/tree/`;
@@ -79,6 +79,18 @@ const server = http.createServer((q, s) => { let f = path.join(ROOT, decodeURICo
     check('이제 친구도 잠긴 장식을 달 수 있음', await T(B, (k) => window.__tree.dispatch({ t: 'orn', id: 'mo2', k, x: 0.3, y: 1.0, z: 0.3 }), lockedOrn));
     await A.tap('#mkPeople .who [data-bit="2"]'); await A.tap('#mkPeople .who [data-bit="4"]'); await A.tap('#mkPeople .who [data-bit="8"]');
     check('🎆 🌙 🎁 도 켜 주면 친구에게 불꽃놀이 단추, 마스터 탭(하늘만), 선물 미리 열기', await until(async () => (await T(B, () => window.__sky.button)) && (await B.isVisible('#tabs button[data-m="master"]')) && (await T(B, () => window.__gift.canOpen(window.__tree.S.gifts.get('g1')))), 5000));
+    /* 비행 슈트 권한 */
+    const jetChip = (p) => T(p, () => { const c = document.querySelector('#pickOutfit .chip[data-v="jet"]'); return !!c && !c.hidden; });
+    await T(B, () => window.__tree.setLook({ outfit: 'jet' })); await sleep(200);
+    check('🚀 를 받기 전: 친구의 옷 목록에 비행 슈트가 없고 입을 수도 날 수도 없음', !(await jetChip(B)) && (await T(B, () => window.__tree.look.outfit)) !== 'jet' && !(await T(B, () => window.__fly.shown)) && (await jetChip(A)));
+    await A.tap('#mkPeople .who [data-bit="16"]');
+    check('🚀 를 켜 주면 친구의 옷 목록에 비행 슈트가 생김', await until(() => jetChip(B), 5000));
+    await T(B, () => window.__tree.setLook({ outfit: 'jet' }));
+    check('친구가 비행 슈트를 입으면 날기 단추가 뜨고 마스터 화면에도 그 옷으로 보임', await until(async () => (await T(B, () => window.__tree.look.outfit === 'jet' && window.__fly.shown)) && (await T(A, () => window.__duo.others[0].look.outfit)) === 'jet', 5000));
+    const bid = await T(B, () => window.__duo.me);
+    await T(B, () => window.__fly.start());
+    check('친구가 날면 마스터 화면에서도 떠 있음', await until(async () => (await T(B, () => window.__fly.on && window.__fly.alt > 0.5)) && await T(A, (id) => { const f = window.__fly.peer(id); return !!f && f.y > 0.4; }, bid), 8000), await T(A, (id) => window.__fly.peer(id), bid));
+    await T(B, () => window.__fly.land(true));
     await B.tap('#tabs button[data-m="master"]'); await sleep(300);
     check('친구의 마스터 판에는 하늘만 있고 권한 주기·끄기는 없음', (await B.isVisible('#mkSky')) && !(await B.isVisible('#masterOff')) && !(await B.isVisible('#mkPeople')));
     await B.tap('#mkSky [data-v="night"]');
@@ -88,6 +100,11 @@ const server = http.createServer((q, s) => { let f = path.join(ROOT, decodeURICo
     await until(async () => (await T(A, () => window.__duo.count)) === 2, 20000);
     await A.tap('#tabs button[data-m="master"]'); await sleep(200); if (!(await A.isVisible('#masterP'))) await A.tap('#tabs button[data-m="master"]');
     check('마스터 판을 다시 열면 친구가 가진 권한이 켜진 채로 보임', await until(() => T(A, () => [...document.querySelectorAll('#mkPeople .who .chip')].length === 5 && [...document.querySelectorAll('#mkPeople .who .chip')].every((b) => b.getAttribute('aria-pressed') === 'true')), 6000), await T(A, () => window.__master.given));
+    check('다시 들어와도 비행 슈트를 입은 채이고 날기 단추가 있음', await until(() => T(B, () => window.__tree.look.outfit === 'jet' && window.__fly.shown), 5000), await T(B, () => window.__tree.look.outfit));
+    await A.tap('#mkPeople .who [data-bit="16"]');
+    check('🚀 를 끄면 친구는 평상복으로 바뀌고 날기 단추와 옷 목록의 비행 슈트가 사라짐', await until(async () => (await T(B, () => window.__tree.look.outfit === 'basic' && !window.__fly.shown)) && !(await jetChip(B)), 5000), await T(B, () => window.__tree.look.outfit));
+    await A.tap('#mkPeople .who [data-bit="16"]');
+    check('🚀 를 다시 켜 주면 (같은 화면에서) 비행 슈트를 돌려 입음', await until(() => T(B, () => window.__tree.look.outfit === 'jet' && window.__fly.shown), 5000), await T(B, () => window.__tree.look.outfit));
     await A.tap('#mkPeople .who [data-bit="1"]');
     check('🔓 를 끄면 친구에게 잠금이 돌아옴', await until(async () => (await locks(B)) > 0, 5000), [await T(A, () => window.__master.given), await T(B, () => [localStorage.getItem('tree.grant.mb'), window.__duo.me]), await A.textContent('#toast')]);
     /* 다시 열어도 마스터가 놓은 것이 남음 */

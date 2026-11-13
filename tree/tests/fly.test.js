@@ -1,4 +1,4 @@
-// 방장의 비행 슈트 검사 (날기 단추 · 떠오르기 · 날아가기와 벽·가구 · 층 넘기 · 마당 · 착지 · 다른 기능과 부딪힐 때 · 친구 화면 · 방장이 아닌 사람). 실행: cd tree/tests && node fly.test.js
+// 비행 슈트로 날기 검사 (날기 단추 · 떠오르기 · 날아가기와 벽·가구 · 층 넘기 · 마당 · 착지 · 다른 기능과 부딪힐 때 · 친구 화면 · 권한 없는 사람). 실행: cd tree/tests && node fly.test.js
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8200, BASE = `http://localhost:${PORT}/tree/`;
@@ -61,7 +61,7 @@ const overlaps = (p) => T(p, () => {
     await place(A, 4, 12);
     check('비행 슈트를 안 입었으면 날기 단추가 없고 날 수 없음', !(await F(A)).shown && (await T(A, () => window.__fly.start())) === false && !(await F(A)).on);
     await T(A, () => window.__tree.setLook({ outfit: 'jet' })); await sleep(300);
-    check('방장이 비행 슈트를 입으면 "🚀 날기" 단추가 보임 (화면 안·44px 이상·다른 단추와 안 겹침)', (await A.isVisible('#flyBtn')) && (await A.textContent('#flyBtn')).includes('날기') && !(await A.isVisible('#flyUp')) && (await audit(A)).length === 0 && (await overlaps(A)).length === 0, [await audit(A), await overlaps(A)]);
+    check('권한이 있는 사람이 비행 슈트를 입으면 "🚀 날기" 단추가 보임 (화면 안·44px 이상·다른 단추와 안 겹침)', (await A.isVisible('#flyBtn')) && (await A.textContent('#flyBtn')).includes('날기') && !(await A.isVisible('#flyUp')) && (await audit(A)).length === 0 && (await overlaps(A)).length === 0, [await audit(A), await overlaps(A)]);
     check('땅에 있을 때는 불꽃이 안 보임', !(await F(A)).jets && (await F(A)).y === 0);
     await A.tap('#flyBtn');
     check('누르면 떠올라 0.55 높이에 떠 있음', await until(async () => { const f = await F(A); return f.on && Math.abs(f.alt - 0.55) < 0.06; }, 8000), await F(A));
@@ -183,17 +183,22 @@ const overlaps = (p) => T(p, () => {
     await A.tap('#flyBtn');
     check('착지하면 친구 화면에서도 내려서고 불꽃이 꺼짐', await until(async () => { const p = await peer(B), q = await peer(C); return p && !p.fly && q && !q.fly; }, 10000), await peer(B));
 
-    /* 방장이 아닌 사람 */
-    check('친구(방장이 아님)는 날기 단추가 없고 날 수 없음', !(await F(B)).shown && (await T(B, () => window.__fly.start())) === false && !(await F(B)).on && !(await F(C)).shown);
+    /* 권한 없는 사람 */
+    check('권한 없는 친구는 날기 단추가 없고 날 수 없음', !(await F(B)).shown && (await T(B, () => window.__fly.start())) === false && !(await F(B)).on && !(await F(C)).shown);
+    await T(B, () => window.__tree.setLook({ outfit: 'jet' })); await sleep(300);
+    check('권한 없는 친구는 비행 슈트를 입을 수 없음', (await T(B, () => window.__tree.look.outfit)) !== 'jet' && !(await F(B)).shown, await T(B, () => window.__tree.look.outfit));
     await T(A, (who) => { for (const v of ['3.00', '0.55']) window.__duo.feed({ t: 'fx', k: 'fly', v }, who); }, bid);
     await sleep(400);
-    check('방장이 아닌 사람이 보낸 "날고 있다"는 소식은 받지 않고 전하지도 않음', (await peer(A, bid)).fly === null && (await peer(C, bid)).fly === null);
+    check('비행 슈트를 안 입은 친구가 보낸 "날고 있다"는 소식은 받지 않음', (await peer(A, bid)).fly === null && (await peer(C, bid)).fly === null);
+    await T(A, (who) => { window.__duo.feed({ t: 'look', look: { gender: 'm', outfit: 'jet', face: 'smile' } }, who); window.__duo.feed({ t: 'fx', k: 'fly', v: '0.80' }, who); }, bid);
+    check('방장이 아니어도 비행 슈트를 입은 사람이 난다는 소식은 그대로 받고 전함 (권한은 그 사람 기기에서 판단)', await until(async () => { const p = await peer(A, bid), q = await peer(C, bid); return p && p.fly && Math.abs(p.fly.to - 0.8) < 0.01 && q && q.fly; }, 6000), [await peer(A, bid), await peer(C, bid)]);
+    await T(A, (who) => window.__duo.feed({ t: 'fx', k: 'fly', v: '' }, who), bid); await sleep(300);
     await T(B, () => { for (const v of ['abc', '99.00', '-1.00', 5, null, 'x'.repeat(99), '1.5']) window.__duo.feed({ t: 'fx', id: 'h', k: 'fly', v }); window.__duo.feed({ t: 'fx', id: 'zz', k: 'fly', v: '2.00' }); });
     await sleep(300);
     check('이상한 높이 소식이 와도 버팀', (await peer(B)).fly === null && errors.length === 0);
     await T(A, () => window.__tree.setLook({ outfit: 'santa' })); await sleep(300);
     await T(B, () => window.__duo.feed({ t: 'fx', id: 'h', k: 'fly', v: '2.00' })); await sleep(200);
-    check('비행 슈트를 안 입은 방장이 난다는 소식은 받지 않음', (await peer(B)).fly === null);
+    check('비행 슈트를 안 입은 사람이 난다는 소식은 받지 않음', (await peer(B)).fly === null);
     check('페이지 오류 없음', errors.length === 0, errors);
   } finally { await browser.close(); server.close(); }
   const ok = results.filter(Boolean).length;
