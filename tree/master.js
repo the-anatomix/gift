@@ -49,7 +49,7 @@ export function makeMaster(K) {
   let listKey = '';
   function paint() {
     const m = isMaster(), show = m || can(SKY);
-    if (tab.hidden === show) { tab.hidden = !show; $('tabs').style.gridTemplateColumns = show ? 'repeat(7,1fr)' : ''; // 탭이 일곱 개여도 한 줄
+    if (tab.hidden === show) { tab.hidden = !show; $('tabs').style.gridTemplateColumns = `repeat(${[...$('tabs').children].filter((b) => !b.hidden).length}, 1fr)`; // 탭이 하나 늘어도 한 줄
       if (!show && K.mode() === 'master') K.setMode(null); K.resized(); }
     for (const b of skyBox.children) b.setAttribute('aria-pressed', String(b.dataset.v === K.sky.time()));
     people.hidden = !m; foot.hidden = !m;

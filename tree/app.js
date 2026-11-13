@@ -663,7 +663,7 @@ function stepAside() {
 // 꾸밀 수 있는 사람인지에 따라 탭을 보이거나 숨긴다
 function paintRole() {
   for (const m of ['furn', 'tree', 'paint']) document.querySelector(`#tabs button[data-m="${m}"]`).hidden = !canEdit;
-  $('tabs').style.gridTemplateColumns = `repeat(${canEdit ? 6 : 3}, 1fr)`;
+  $('tabs').style.gridTemplateColumns = `repeat(${[...$('tabs').children].filter((b) => !b.hidden).length}, 1fr)`; // 보이는 탭 수만큼 (마스터 탭이 있으면 하나 더)
   if (!canEdit && (mode === 'furn' || mode === 'tree' || mode === 'paint')) setMode(null);
 }
 const FX = { dart: 'number', fire: 'number', music: 'string', act: 'string', lie: 'string', show: 'string' };
