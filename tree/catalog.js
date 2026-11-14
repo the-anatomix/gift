@@ -73,8 +73,8 @@ export const CINEMA = [
 FURNITURE.push(
   { id: 'arcade', name: '오락기', icon: '🕹️', w: 1, d: 1, set: 'game', solid: true, play: 'arcade' },
   { id: 'claw', name: '인형뽑기', icon: '🧸', w: 1, d: 1, set: 'game', solid: true, play: 'claw' },
-  { id: 'pool', name: '당구대', icon: '🎱', w: 4, d: 2, set: 'game', solid: true },
-  { id: 'beanbag', name: '빈백', icon: '🫘', w: 2, d: 2, set: 'game', solid: true },
+  { id: 'pool', name: '당구대', icon: '🎱', w: 4, d: 2, set: 'game', solid: true, play: 'pool' },
+  { id: 'beanbag', name: '빈백', icon: '🫘', w: 2, d: 2, set: 'game', solid: true, sit: true, seats: 1, rise: -0.1, seatZ: 0.06 }, // 한 사람이 푹 파묻혀 앉는다
   { id: 'bunny', name: '토끼 인형 (빨강)', icon: '🐰', w: 1, d: 1, set: 'game', solid: true },
   { id: 'bunny2', name: '토끼 인형 (하늘)', icon: '🐰', w: 1, d: 1, set: 'game', solid: true },
   { id: 'bunny3', name: '토끼 인형 (노랑)', icon: '🐰', w: 1, d: 1, set: 'game', solid: true },
@@ -217,7 +217,7 @@ export const SNOWMEN = 8;      // 마당에서 같이 만들어 놓는 눈사람
 // 방명록: 글은 이만큼까지(넘치면 가장 오래된 것부터 빠진다), 이름·글의 글자 수, 한 사람이 다시 남기기까지 기다리는 시간
 export const NOTE = { max: 60, name: 10, text: 80, gap: 5000 };
 // 이 방 최고 기록을 남기는 놀이와 그 점수의 끝 (다트 = 화살 3개의 합, 마시멜로 = 구운 점수)
-export const BEST = { dart: { name: '다트', top: 180 }, fire: { name: '마시멜로 굽기', top: 100 }, arcade: { name: '오락기 별 받기', top: 999 } };
+export const BEST = { dart: { name: '다트', top: 180 }, fire: { name: '마시멜로 굽기', top: 100 }, arcade: { name: '오락기 별 받기', top: 999 }, pool: { name: '당구', top: 100 } };
 // 이름별 순위(rank.js): 놀이마다 방에 남기는 사람 수, 순위 판에 보이는 등수
 export const RANK = { keep: 20, show: 10 };
 

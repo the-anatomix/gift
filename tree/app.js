@@ -1358,7 +1358,8 @@ function lieSpot(id, side) {
   if (!it || !g || !(kindOf(it.k).lie || kindOf(it.k).sit)) return null;
   g.updateMatrixWorld();
   if (kindOf(it.k).sit) { // 영화관 좌석 (cinema.js): 왼쪽(0)·오른쪽(1) 자리에 앉는다. pos = 발끝, head = 눈
-    const sx = side ? 0.47 : -0.47, y = kindOf(it.k).rise + SIT_Y, q = g.localToWorld(new THREE.Vector3(sx, y, 0.0)), e = g.localToWorld(new THREE.Vector3(sx, y + 0.86, 0.1));
+    const f = kindOf(it.k), sx = f.seats === 1 ? 0 : side ? 0.47 : -0.47, z = f.seatZ || 0, y = f.rise + SIT_Y; // 빈백(gameroom.js)은 한 자리, 가운데에 파묻혀 앉는다
+    const q = g.localToWorld(new THREE.Vector3(sx, y, z)), e = g.localToWorld(new THREE.Vector3(sx, y + 0.86, z + 0.1));
     return { id, side, sit: true, pos: [q.x, q.y, q.z], head: [e.x, e.y, e.z], ry: g.rotation.y };
   }
   const x = side ? 0.35 : -0.35, p = g.localToWorld(new THREE.Vector3(x, 0.4, 0.455)), h = g.localToWorld(new THREE.Vector3(x, 0.52, -0.6));
@@ -1383,7 +1384,7 @@ function lieDown(id) {
   approach(id, () => {
     if (mode !== null || carried() || pizza.mine()) return;
     const taken = [...others.values()].filter((a) => a.rest && a.rest.id === id).map((a) => a.rest.side);
-    const side = [0, 1].find((k) => !taken.includes(k));
+    const side = (kindOf(it.k).seats === 1 ? [0] : [0, 1]).find((k) => !taken.includes(k));
     const r = side === undefined ? null : lieSpot(id, side);
     if (!r) { if (S.items.has(id)) toast(sit ? '앉을 자리가 없어요' : '침대에 누울 자리가 없어요'); return; }
     me.lie(r);
@@ -1418,7 +1419,7 @@ const PLAY_LABEL = { dart: '🎯 다트 하기', tv: '📺 TV 보기', fire: '�
   $('tools').insertBefore(b, $('snap') || null);
 }
 PLAY_LABEL.advent = '🗓️ 어드벤트 달력'; // advent.js
-PLAY_LABEL.arcade = '🕹️ 오락기 하기'; PLAY_LABEL.claw = '🧸 인형 뽑기'; // gameroom.js
+PLAY_LABEL.arcade = '🕹️ 오락기 하기'; PLAY_LABEL.claw = '🧸 인형 뽑기'; PLAY_LABEL.pool = '🎱 당구 치기'; // gameroom.js
 PLAY_LABEL.pic = '🖼️ 사진 바꾸기'; // photo.js (꾸밀 수 있는 사람만)
 // 냉장고: 앞으로 가서 문을 열고 먹을 것을 고른다 (food.js)
 function snack(id) {

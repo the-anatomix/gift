@@ -4,6 +4,8 @@
 //   "🎮 4층을 게임방으로 꾸미기"(마스터 판)는 4층의 가구를 치우고 GAMEROOM 배치를 한 번에 놓는다. 권한은 영화관과 같은 것(master.js 의 CINE)을 쓴다.
 //   오락기: 판 위에 뜨는 작은 화면(2D 그림)에서 40초 동안 떨어지는 별을 바구니로 받는다. 점수는 이 방 기록·이름별 순위에 남는다(BEST.arcade).
 //   인형뽑기: 좌우로 오가는 집게를 인형 위에서 내린다(한 판에 세 번). 뽑으면 토끼 인형 하나가 내 옆에 놓인다(꾸밀 수 있는 사람만, 방에 열두 개까지).
+//   당구: 판 위에 뜨는 당구대(위에서 본 2D 그림)에서 흰 공을 끌어 당겼다 놓아 친다. 8번 안에 색 공 6개를 구멍에 넣는다(BEST.pool).
+//   빈백: 앉을 수 있다(catalog.js 의 sit, 한 자리). 앉기는 영화관 좌석과 같은 길(app.js 의 lieDown)을 쓴다.
 //   놀이는 하는 사람 화면의 일이다. 방 상태로는 점수(score·best)와 뽑은 인형(put)만 남는다.
 //   토끼 인형은 직접 지은 모양이다(늘어진 목도리, 세모 코와 웃는 입, 볼 터치). 남의 캐릭터를 따라 그리지 않는다.
 import { THREE, L, put, cbox, rbox, cyl, ball, cap } from './kit.js';
@@ -266,6 +268,141 @@ export function makeGameroom(K) {
     stop(c) { cur = null; if (c.m) { c.g.remove(c.m); c.m.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); c.m = null; } K.dirty(); },
   });
 
+  /* ───────── 당구: 8번 안에 색 공 6개 넣기 ───────── */
+  // 판 좌표는 당구대 천(1.72 × 0.76)을 300 × 133 으로 본 것. 흰 공을 누른 채 뒤로 끌었다 놓으면(새총처럼) 끈 반대쪽으로 끈 만큼 세게 나간다.
+  // 버튼으로도 친다: ↺ ↻ 로 방향을 돌리고, "치기"는 오르내리는 세기 막대가 그 순간 가리키는 세기로 친다. 흰 공이 빠지면 처음 자리로 돌아오고 한 번을 잃는다.
+  const POOL = { w: 300, h: 133, r: 5.5, pocket: 11, shots: 8, max: 560, drag: 95 };
+  const COLS = ['#D9483B', '#F2B544', '#3E7CB8', '#7A4FB8', '#2B2A28', '#E8776A'];
+  const pv = document.createElement('canvas'); pv.id = 'poolCv'; pv.hidden = true; pv.width = POOL.w * 2; pv.height = POOL.h * 2;
+  pv.setAttribute('role', 'img'); pv.setAttribute('aria-label', '당구대: 흰 공을 끌어 당겼다 놓아서 쳐요');
+  pv.style.cssText = `display:block;width:100%;max-width:${POOL.w + 40}px;aspect-ratio:${POOL.w}/${POOL.h};margin:0 auto;border-radius:12px;border:7px solid #7A4A2B;background:#2F8F5B;touch-action:none;flex:none;box-sizing:content-box`;
+  $('playBtns').parentNode.insertBefore(pv, $('playBtns'));
+  const pg = pv.getContext('2d');
+  const POCKETS = [[0, 0], [POOL.w / 2, -2], [POOL.w, 0], [0, POOL.h], [POOL.w / 2, POOL.h + 2], [POOL.w, POOL.h]];
+  const CUE0 = [POOL.w * 0.25, POOL.h / 2];
+  const poolXY = (e) => { const r = pv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * POOL.w, (e.clientY - r.top) / r.height * POOL.h]; };
+  let pull = null; // 끌고 있는 자리 [x, y]
+  pv.addEventListener('pointerdown', (e) => { const c = cur; if (!c || c.kind !== 'pool' || c.phase !== 'aim') return; pull = poolXY(e); try { pv.setPointerCapture(e.pointerId); } catch (_) {} aimFrom(c, pull); e.preventDefault(); });
+  pv.addEventListener('pointermove', (e) => { const c = cur; if (!pull || !c || c.kind !== 'pool') return; pull = poolXY(e); aimFrom(c, pull); });
+  const release = () => { const c = cur; if (!pull || !c || c.kind !== 'pool') { pull = null; return; } const p = c.pow; pull = null; if (p > 0.08) poolShoot(c, p); else c.pow = 0; };
+  pv.addEventListener('pointerup', release); pv.addEventListener('pointercancel', () => { pull = null; if (cur && cur.kind === 'pool') cur.pow = 0; });
+  // 끈 자리에서 흰 공 쪽으로 방향과 세기를 정한다 (흰 공에서 멀리 끌수록 세다)
+  function aimFrom(c, p) {
+    const q = c.balls[0], dx = q.x - p[0], dy = q.y - p[1], d = Math.hypot(dx, dy);
+    if (d > 3) c.ang = Math.atan2(dy, dx);
+    c.pow = clamp(d / POOL.drag, 0, 1);
+  }
+  function poolReset(c) {
+    c.phase = 'ready'; c.left = POOL.shots; c.sunk = 0; c.ang = 0; c.pow = 0; c.gauge = 0; c.msg = ''; c.score = 0;
+    const R = POOL.r * 2 + 0.6, x0 = POOL.w * 0.68, y0 = POOL.h / 2;
+    c.balls = [{ x: CUE0[0], y: CUE0[1], vx: 0, vy: 0, in: false, col: '#FFFFFF', cue: true }];
+    let k = 0;
+    for (let row = 0; row < 3; row++) for (let n = 0; n <= row; n++) c.balls.push({ x: x0 + row * R * 0.87, y: y0 + (n - row / 2) * R, vx: 0, vy: 0, in: false, col: COLS[k++] });
+  }
+  function poolStart(c) { poolReset(c); c.phase = 'aim'; sfx('whoosh'); poolPaint(c); }
+  function poolShoot(c, p) {
+    if (c.phase !== 'aim' || c.left <= 0) return false;
+    const q = c.balls[0], v = POOL.max * (0.18 + 0.82 * p);
+    q.vx = Math.cos(c.ang) * v; q.vy = Math.sin(c.ang) * v;
+    c.phase = 'roll'; c.left--; c.pow = 0; c.before = c.sunk; c.scratch = false; c.msg = '';
+    sfx('dartHit'); poolPaint(c);
+    return true;
+  }
+  const turnBtn = (label, id, d) => ({ label, id, fn: () => { if (cur && cur.kind === 'pool' && cur.phase === 'aim') cur.ang += d; } });
+  function poolPaint(c) {
+    pv.hidden = false;
+    const best = K.bestLine('pool') ? ' · ' + K.bestLine('pool') : '';
+    if (c.phase === 'aim') K.play.panel(`당구 · 남은 기회 ${c.left}번 · 넣은 공 ${c.sunk}/6`, (c.msg ? c.msg + ' · ' : '') + '흰 공을 끌어 당겼다 놓아서 쳐요', [turnBtn('↺', 'poolL', -0.1), { label: '🎱 치기', main: true, id: 'playGo', fn: () => poolShoot(c, 0.25 + 0.75 * Math.abs(Math.sin(c.gauge))) }, turnBtn('↻', 'poolR', 0.1), quit]);
+    else if (c.phase === 'roll') K.play.panel(`당구 · 남은 기회 ${c.left}번 · 넣은 공 ${c.sunk}/6`, '데구루루…', [quit]);
+    else if (c.phase === 'over') K.play.panel(c.sunk === 6 ? `공을 다 넣었어요! 🎉 ${c.score}점` : `공 ${c.sunk}개를 넣었어요 · ${c.score}점`, '한 판 더 할까요?' + best, [{ label: '🎱 한 판 더', main: true, id: 'playGo', fn: () => poolStart(c) }, quit]);
+    else K.play.panel('당구 · 공 넣기', `${POOL.shots}번 안에 색 공 6개를 구멍에 넣어요. 흰 공이 빠지면 한 번을 잃어요` + best, [{ label: '🎱 시작하기', main: true, id: 'playGo', fn: () => poolStart(c) }, quit]);
+  }
+  function poolOver(c) {
+    c.phase = 'over';
+    c.score = c.sunk * 10 + (c.sunk === 6 ? c.left * 5 : 0); // 공 하나에 10점, 다 넣으면 남은 기회마다 5점 더
+    sfx(c.sunk ? 'ovenDing' : 'wipe');
+    if (c.score > 0) K.record('pool', Math.min(c.score, 100));
+    poolPaint(c);
+  }
+  function poolStep(c, dt) {
+    const B = c.balls, R = POOL.r, n = 4, h = dt / n;
+    for (let s = 0; s < n; s++) {
+      for (const b of B) {
+        if (b.in) continue;
+        b.x += b.vx * h; b.y += b.vy * h;
+        const sp = Math.hypot(b.vx, b.vy);
+        if (sp > 0) { const k = Math.max(0, sp - (70 + sp * 0.9) * h) / sp; b.vx *= k; b.vy *= k; if (sp * k < 4) { b.vx = 0; b.vy = 0; } } // 천의 마찰
+        for (const [px, py] of POCKETS) if (Math.hypot(b.x - px, b.y - py) < POOL.pocket) { // 구멍에 빠졌다
+          b.in = true; b.vx = b.vy = 0;
+          if (b.cue) { c.scratch = true; sfx('wipe'); } else { c.sunk++; sfx('top'); }
+          break;
+        }
+        if (b.in) continue;
+        if (b.x < R) { b.x = R; b.vx = Math.abs(b.vx) * 0.78; } if (b.x > POOL.w - R) { b.x = POOL.w - R; b.vx = -Math.abs(b.vx) * 0.78; } // 쿠션
+        if (b.y < R) { b.y = R; b.vy = Math.abs(b.vy) * 0.78; } if (b.y > POOL.h - R) { b.y = POOL.h - R; b.vy = -Math.abs(b.vy) * 0.78; }
+      }
+      for (let i = 0; i < B.length; i++) for (let j = i + 1; j < B.length; j++) { // 공끼리 부딪힘 (같은 무게, 거의 탄성)
+        const a = B[i], b = B[j];
+        if (a.in || b.in) continue;
+        const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
+        if (d >= 2 * R || d < 1e-6) continue;
+        const nx = dx / d, ny = dy / d, o = (2 * R - d) / 2;
+        a.x -= nx * o; a.y -= ny * o; b.x += nx * o; b.y += ny * o;
+        const rel = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+        if (rel > 0) { const k = rel * 0.96; a.vx -= k * nx; a.vy -= k * ny; b.vx += k * nx; b.vy += k * ny; if (rel > 40) sfx('clack'); }
+      }
+    }
+    if (B.every((b) => b.in || (b.vx === 0 && b.vy === 0))) { // 다 멈췄다
+      const q = B[0];
+      if (q.in) { q.in = false; q.x = CUE0[0]; q.y = CUE0[1]; for (const b of B) if (b !== q && !b.in && Math.hypot(b.x - q.x, b.y - q.y) < 2 * POOL.r) q.y += 3 * POOL.r; if (c.left > 0) c.left--; } // 흰 공이 빠지면 처음 자리로, 한 번을 잃는다
+      const got = c.sunk - c.before;
+      c.msg = c.scratch ? '흰 공이 빠졌어요! 한 번을 잃어요' : got > 1 ? `한 번에 ${got}개! 👏` : got ? '들어갔다! 👍' : '';
+      if (c.sunk >= 6 || c.left <= 0) poolOver(c); else { c.phase = 'aim'; poolPaint(c); }
+    }
+  }
+  function poolDraw(c) {
+    const W = POOL.w, H = POOL.h, g = pg;
+    g.setTransform(2, 0, 0, 2, 0, 0);
+    g.fillStyle = '#2F8F5B'; g.fillRect(0, 0, W, H);
+    g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 1; g.beginPath(); g.moveTo(W * 0.25, 0); g.lineTo(W * 0.25, H); g.stroke();
+    g.fillStyle = '#1E1A16'; for (const [x, y] of POCKETS) { g.beginPath(); g.arc(x, y, POOL.pocket - 1, 0, 7); g.fill(); }
+    const q = c.balls[0];
+    if (c.phase === 'aim') { // 겨냥하는 선과 큐
+      const ux = Math.cos(c.ang), uy = Math.sin(c.ang), back = 10 + c.pow * 26;
+      g.setLineDash([4, 5]); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(q.x + ux * 8, q.y + uy * 8); g.lineTo(q.x + ux * 120, q.y + uy * 120); g.stroke(); g.setLineDash([]);
+      g.strokeStyle = '#D9B382'; g.lineWidth = 3.5; g.lineCap = 'round'; g.beginPath(); g.moveTo(q.x - ux * back, q.y - uy * back); g.lineTo(q.x - ux * (back + 120), q.y - uy * (back + 120)); g.stroke();
+      const p = pull ? c.pow : Math.abs(Math.sin(c.gauge)); // 세기 막대 (끌 때는 끈 만큼, 아니면 "치기" 단추의 세기가 오르내린다)
+      g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(W - 14, 10, 7, H - 20);
+      g.fillStyle = p > 0.75 ? '#E8776A' : '#FFD166'; g.fillRect(W - 14, 10 + (H - 20) * (1 - p), 7, (H - 20) * p);
+    }
+    for (const b of c.balls) {
+      if (b.in) continue;
+      g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.arc(b.x + 1.2, b.y + 1.6, POOL.r, 0, 7); g.fill();
+      g.fillStyle = b.col; g.beginPath(); g.arc(b.x, b.y, POOL.r, 0, 7); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.arc(b.x - 1.6, b.y - 1.8, 1.6, 0, 7); g.fill();
+    }
+    g.fillStyle = '#FFF4E0'; g.font = '800 11px system-ui, sans-serif'; g.textAlign = 'left'; g.fillText(`🎱 ${c.sunk}/6`, 6, H - 6);
+    g.textAlign = 'right'; g.fillText(`남은 ${c.left}번`, W - 20, H - 6);
+    if (c.phase === 'over') { g.fillStyle = 'rgba(10,30,20,.6)'; g.fillRect(0, 0, W, H); g.fillStyle = '#FFD166'; g.font = '800 20px system-ui, sans-serif'; g.textAlign = 'center'; g.fillText(`${c.score}점!`, W / 2, H / 2 + 7); }
+  }
+  window.addEventListener('keydown', (e) => { // PC: ← → 로 방향, 스페이스·엔터로 치기
+    const c = cur;
+    if (!c || c.kind !== 'pool' || c.phase !== 'aim') return;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { c.ang += e.key === 'ArrowLeft' ? -0.05 : 0.05; e.preventDefault(); e.stopPropagation(); }
+    else if ((e.code === 'Space' || e.key === 'Enter') && !e.repeat) { poolShoot(c, 0.25 + 0.75 * Math.abs(Math.sin(c.gauge))); e.preventDefault(); e.stopPropagation(); }
+  }, true);
+  K.play.add('pool', {
+    start(c) {
+      cur = c; poolReset(c);
+      K.setPose({ pos: world(c.g, 0, 2.1, portrait() ? 1.25 : 1.0), at: world(c.g, 0, 0.5, 0), fov: portrait() ? 62 : 46, inside: true });
+      poolPaint(c); poolDraw(c);
+    },
+    paint: poolPaint,
+    tick(c, dt) { if (c.phase === 'roll') poolStep(c, Math.min(dt, 0.04)); if (c.phase === 'aim') c.gauge += dt * 2.4; poolDraw(c); },
+    tap() {},
+    stop() { cur = null; pv.hidden = true; pull = null; },
+  });
+
   /* ───────── 4층을 한 번에 게임방으로 (마스터 판) ───────── */
   const onLv = (it) => K.levelOfCell(it.i) === GAME_LV;
   const row = document.createElement('div'), btn = document.createElement('button');
@@ -299,7 +436,11 @@ export function makeGameroom(K) {
       if (row.hidden !== !show) { row.hidden = !show; if (K.mode() === 'master') K.measure(); }
     },
     test: {
-      get state() { return cur ? { kind: cur.kind, phase: cur.phase, score: cur.score, lives: cur.lives, left: cur.left, won: cur.won, x: cur.x, t: cur.t, placed: cur.placed, drops: cur.drops ? cur.drops.length : 0 } : null; },
+      get state() { return cur ? { kind: cur.kind, phase: cur.phase, score: cur.score, lives: cur.lives, left: cur.left, won: cur.won, x: cur.x, t: cur.t, placed: cur.placed, drops: cur.drops ? cur.drops.length : 0, sunk: cur.sunk, ang: cur.ang } : null; },
+      get balls() { return cur && cur.kind === 'pool' ? cur.balls.map((b) => ({ x: b.x, y: b.y, in: b.in, moving: !!(b.vx || b.vy) })) : []; },
+      // 검사용: 당구 공 하나를 그 자리에 두고 멈춘다(i = 0 이 흰 공), 그 방향·세기로 친다
+      setBall(i, x, y) { const b = cur && cur.balls && cur.balls[i]; if (b) Object.assign(b, { x, y, vx: 0, vy: 0, in: false }); },
+      shoot(ang, p) { if (!cur || cur.kind !== 'pool') return false; cur.ang = ang; return poolShoot(cur, p); },
       get dolls() { return cur && cur.dolls ? cur.dolls.map((d) => ({ x: d.g.position.x, taken: d.taken })) : []; },
       get row() { return !row.hidden; },
       // 검사용: 오락기에 별·돌 하나를 바구니 바로 위에 떨어뜨린다, 남은 시간을 줄인다, 집게를 그 자리에 세운다

@@ -136,6 +136,39 @@ const settle = (p) => until(() => T(p, () => { const m = window.__tree.me; retur
     check('그때는 뽑아도 기계에 돌려놓았다고 알려 줌', await until(async () => (await st(A)).won === 1, 40000) && (await bunnies(A)) === 12 && (await st(A)).placed === false, [await st(A), await bunnies(A), await T(A, () => window.__game4.dolls)]);
     await T(A, () => window.__play.close()); await sleep(300);
 
+    /* 당구 */
+    const pool = await idOf(A, 'pool');
+    const balls = () => T(A, () => window.__game4.balls);
+    const still = () => until(async () => (await st(A)).phase !== 'roll', 15000);
+    await T(A, (id) => window.__play.open(id), pool); await sleep(600);
+    check('당구대를 열면 당구판(흰 공 + 색 공 6개)과 "시작하기"', (await A.isVisible('#poolCv')) && (await balls()).length === 7 && (await A.textContent('#playGo')).includes('시작하기'), await balls());
+    await A.tap('#playGo'); await sleep(200);
+    check('시작하면 남은 기회 8번, 방향 버튼과 "치기"', (await st(A)).phase === 'aim' && (await st(A)).left === 8 && (await A.isVisible('#poolL')) && (await A.isVisible('#poolR')) && (await A.textContent('#playGo')).includes('치기'), await st(A));
+    const a0 = (await st(A)).ang; await A.tap('#poolR');
+    check('↻ 를 누르면 겨냥하는 방향이 돎', Math.abs((await st(A)).ang - a0 - 0.1) < 1e-6);
+    await T(A, () => { const g = window.__game4; g.setBall(0, 60, 60); g.setBall(1, 30, 30); });
+    await T(A, () => window.__game4.shoot(-3 * Math.PI / 4, 0.5));
+    check('흰 공으로 색 공을 맞혀 구멍에 넣으면 넣은 공이 하나 늘고 기회는 하나 줆', await still() && (await st(A)).sunk === 1 && (await st(A)).left === 7 && (await balls())[1].in, [await st(A), (await balls())[1]]);
+    await shot(A, 'pool');
+    await T(A, () => window.__game4.setBall(0, 22, 22)); await T(A, () => window.__game4.shoot(-3 * Math.PI / 4, 0.3));
+    check('흰 공이 빠지면 처음 자리로 돌아오고 한 번을 더 잃음', await still() && (await st(A)).left === 5 && !(await balls())[0].in && (await A.textContent('#playSub')).includes('흰 공이 빠졌어요'), [await st(A), (await balls())[0]]);
+    const box2 = await A.locator('#poolCv').boundingBox(), q = (await balls())[0];
+    const qx = box2.x + q.x / 300 * box2.width, qy = box2.y + q.y / 133 * box2.height;
+    await A.mouse.move(qx, qy); await A.mouse.down(); await A.mouse.move(qx - 40, qy, { steps: 4 }); await A.mouse.up();
+    check('흰 공을 뒤로 끌었다 놓으면 끈 반대쪽(오른쪽)으로 나감', await until(async () => (await st(A)).left === 4, 3000) && Math.abs((await st(A)).ang) < 0.05, await st(A));
+    for (let k = 0; k < 4; k++) { await still(); await T(A, () => window.__game4.shoot(Math.PI / 2, 0.05)); }
+    check('기회를 다 쓰면 끝나고 점수(넣은 공 × 10)와 "한 판 더", 기록에 남음', await until(async () => (await st(A)).phase === 'over', 15000) && (await st(A)).score === (await st(A)).sunk * 10 && (await A.textContent('#playGo')).includes('한 판 더') && await until(() => T(A, () => !!window.__tree.S.best.pool), 5000), await st(A));
+    await T(A, () => window.__play.close()); await sleep(300);
+    check('닫으면 당구판이 사라짐', !(await A.isVisible('#poolCv')) && (await mode(A)) === null);
+
+    /* 빈백에 앉기 */
+    const bag = await idOf(A, 'beanbag');
+    check('빈백 앞에서 "💺 앉기"가 뜸', (await T(A, (id) => { const W = window.__tree, it = W.S.items.get(id); W.me.place(-4 + (it.i + 1) * 0.5, -4 + (it.j + 2.5) * 0.5); return W.nearAction(); }, bag)) === '💺 앉기');
+    await T(A, (id) => window.__tree.lieDown(id), bag);
+    check('누르면 빈백에 파묻혀 앉음', await until(() => T(A, () => window.__cinema.sitting), 15000) && (await T(A, (id) => window.__tree.lying.id === id, bag)));
+    await shot(A, 'beanbag');
+    await T(A, () => window.__tree.getUp()); await sleep(200);
+
     /* 그 앞에서 스페이스바, 저장 */
     check('오락기·인형뽑기 앞에서 할 일 이름이 뜸', await T(A, (ids) => { const W = window.__tree; const at = (id) => { const it = W.S.items.get(id); W.me.place(-4 + (it.i + 0.5) * 0.5, -4 + (it.j + 1.6) * 0.5); return W.nearAction(); }; return [at(ids[0]), at(ids[1])]; }, [arc, claw]).then((r) => r[0] === '🕹️ 오락기 하기' && r[1] === '🧸 인형 뽑기'));
     await T(A, () => window.__tree.dispatch({ t: 'wall', v: 1 })); await sleep(1500);
