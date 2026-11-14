@@ -1,0 +1,11 @@
+{
+  "name": "wish-tests",
+  "private": true,
+  "description": "새해 소원 쪽지 자동 검사",
+  "scripts": {
+    "test": "node dates.test.js && node link.test.js && node flow.test.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}

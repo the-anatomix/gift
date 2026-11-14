@@ -203,7 +203,7 @@ Object.defineProperties(sfx, { on: { get: () => conf.on }, vol: { get: () => con
 /* ───────── 방의 변화(dispatch 를 지난 op)에 맞는 소리. app.js 가 한 줄로 부른다 ───────── */
 const OPS = {
   put: 'place', move: 'place', del: 'remove', orn: 'orn', ornDel: 'ornOff', lights: 'lights', wall: 'paint', floor: 'paint',
-  pzTop: 'top', pzBake: 'ovenDing', pzClear: 'wipe',
+  pzTop: 'top', pzBake: 'ovenDing', pzClear: 'wipe', pzTake: 'carry', pzDrop: 'setDown',
   cakeCream: 'cream', cakeTop: 'top', cakeClear: 'wipe', cakeLit: 'candle', cakeBlow: 'blow', cakeTake: 'carry', cakeDrop: 'setDown', cakeBake: 'ovenDing', cakeEat: 'bite',
   note: 'note', adv: 'advent', gift: 'gift', giftOpen: 'giftOpen', snowman: 'snowman',
 };
