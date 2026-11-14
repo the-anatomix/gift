@@ -68,9 +68,9 @@ const server = http.createServer((q, s) => { let f = path.join(ROOT, decodeURICo
     check('자동으로 돌리면 실제 시각(낮 12시)', await until(async () => (await phase(A)) === 'day' && (await phase(B)) === 'day', 8000));
     /* 방 불 */
     await A.tap('#mkLamp [data-lv="2"]');
-    check('마스터 판에서 3층 불을 끄면 나와 친구에게 꺼지고 단추도 꺼진 표시', await until(async () => (await T(A, () => window.__lights.lamps.join())) === '1,1,0' && (await T(B, () => window.__lights.lamps.join())) === '1,1,0', 4000) && (await A.getAttribute('#mkLamp [data-lv="2"]', 'aria-pressed')) === 'false');
+    check('마스터 판에서 3층 불을 끄면 나와 친구에게 꺼지고 단추도 꺼진 표시', await until(async () => (await T(A, () => window.__lights.lamps.join())) === '1,1,0,1' && (await T(B, () => window.__lights.lamps.join())) === '1,1,0,1', 4000) && (await A.getAttribute('#mkLamp [data-lv="2"]', 'aria-pressed')) === 'false');
     await A.tap('#mkLamp [data-lv="2"]');
-    check('다시 누르면 켜짐', await until(async () => (await T(B, () => window.__lights.lamps.join())) === '1,1,1', 4000));
+    check('다시 누르면 켜짐', await until(async () => (await T(B, () => window.__lights.lamps.join())) === '1,1,1,1', 4000));
     /* 불꽃놀이·선물 */
     await T(A, () => window.__tree.dispatch({ t: 'gift', id: 'g1', to: '나', from: '친구', text: '메리 크리스마스', wrap: 'red', at: Date.now() }));
     check('마스터는 선물을 12월 25일 전에도 열 수 있고 친구는 못 엶', (await T(A, () => window.__gift.canOpen(window.__tree.S.gifts.get('g1')))) && await until(() => T(B, () => { const g = window.__tree.S.gifts.get('g1'); return !!g && !window.__gift.canOpen(g); }), 5000));

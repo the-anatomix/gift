@@ -59,7 +59,7 @@ async function walkAndTrace(p, act) {
 
     /* 가구 */
     await A.tap('#tabs button[data-m="furn"]'); await sleep(300);
-    check('가구 탭을 누르면 가구 43가지(어드벤트 달력과 달력으로 풀리는 특별 가구 7가지, 영화관 소품 포함)가 나옴', (await A.isVisible('#furn')) && (await A.locator('#furnList .pick').count()) === 43 && (await T(A, () => window.__tree.mode)) === 'furn');
+    check('가구 탭을 누르면 가구 51가지(어드벤트 달력과 달력으로 풀리는 특별 가구 7가지, 영화관 소품, 게임방 가구 포함)가 나옴', (await A.isVisible('#furn')) && (await A.locator('#furnList .pick').count()) === 51 && (await T(A, () => window.__tree.mode)) === 'furn');
     check('가구 판의 단추가 44px 이상', (await audit(A)).length === 0, await audit(A));
     // 목록: 접어 두면 옆으로 넘기고, "전체 보기"를 누르면 한 번에 다 보인다
     const shown = (sel) => A.evaluate((q) => { const box = document.querySelector(q), r = box.getBoundingClientRect();
@@ -67,7 +67,7 @@ async function walkAndTrace(p, act) {
     const n0 = await shown('#furnList');
     check('접어 둔 목록은 일부만 보이고, 더 있다는 표시가 있음', n0 >= 3 && n0 < 21 && (await A.evaluate(() => document.getElementById('furnList').classList.contains('more-right'))), n0);
     await A.tap('.more[data-list="furnList"]'); await sleep(250);
-    check('"전체 보기"를 누르면 가구 43가지가 한 번에 다 보임', (await shown('#furnList')) === 43 && (await A.textContent('.more[data-list="furnList"]')) === '접기' && (await audit(A)).length === 0, { n: await shown('#furnList'), bad: await audit(A) });
+    check('"전체 보기"를 누르면 가구가 아홉 줄(43가지 넘게) 한 번에 보이고 나머지는 목록 안에서 넘김', (await shown('#furnList')) >= 43 && (await A.evaluate(() => { const b = document.getElementById('furnList'); return b.scrollHeight > b.clientHeight; })) && (await A.textContent('.more[data-list="furnList"]')) === '접기' && (await audit(A)).length === 0, { n: await shown('#furnList'), bad: await audit(A) });
     await A.screenshot({ path: path.join(__dirname, 'out', 'furn-open.png') });
     const vOpen = await T(A, () => { const W = window.__tree, v = W.view, s = W.screenOf(W.me.x, W.me.z, 0); return s.y < innerHeight - v.bottom; });
     check('목록을 펼쳐도 아바타가 판에 가려지지 않음', vOpen);

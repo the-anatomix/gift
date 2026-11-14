@@ -104,9 +104,9 @@ const overlaps = (p) => T(p, () => {
     await shot(A, 'fly-2f.png');
     await hold(A, 1);
     check('▲ 단추로 3층까지', await until(async () => { const f = await F(A); return f.lv === 2 && f.view === 2 && !f.cross; }, 12000), await F(A));
-    await sleep(1500);
+    await until(async () => { const f = await F(A); return f.lv === 3 && !f.cross; }, 12000); await sleep(1500);
     const top = await F(A);
-    check('3층 천장 위로는 못 감', top.lv === 2 && Math.abs(top.alt - 1.2) < 0.03 && top.on, top);
+    check('▲ 를 더 누르면 4층까지 가고, 4층 천장 위로는 못 감', top.lv === 3 && Math.abs(top.alt - 1.2) < 0.03 && top.on, top);
     await hold(A, -1);
     check('▼ 를 누르고 있으면 3층 → 2층 → 1층으로 내려와 착지', await until(async () => { const f = await F(A); return !f.on && f.lv === 0 && f.y === 0; }, 25000), await F(A));
     await hold(A, 0);
@@ -144,7 +144,7 @@ const overlaps = (p) => T(p, () => {
     await T(A, () => window.__fly.airTo(window.__fly.air.x, -1));
     check('지붕보다 높이 뜨면 집 위를 지나감 (격자의 자리는 마당에 남고 층은 1층)', await until(async () => Math.abs((await AIR(A)).wz + 1) < 0.1, 12000) && (await AIR(A)).sz >= -4 + 19 * 0.5 && (await AIR(A)).lv === 0, await AIR(A));
     await hold(A, -1); await sleep(2500); await hold(A, 0);
-    check('집 위에서는 지붕 높이(9.0)보다 아래로 못 내려감', Math.abs((await AIR(A)).alt - 9) < 0.05 && (await F(A)).on, await AIR(A));
+    check('집 위에서는 지붕 높이(11.8)보다 아래로 못 내려감', Math.abs((await AIR(A)).alt - 11.8) < 0.05 && (await F(A)).on, await AIR(A));
     /* 집 밖 하늘 */
     await T(A, () => window.__fly.airTo(-12, 3));
     check('집 밖(울타리 너머)으로 날아감: 세상 좌표는 집 밖, 격자의 자리는 마당 가장자리', await until(async () => { const a = await AIR(A); return Math.hypot(a.wx + 12, a.wz - 3) < 0.1; }, 15000) && Math.abs((await AIR(A)).sx - (-4 + 0.18)) < 0.01 && (await AIR(A)).lv === 0, await AIR(A));

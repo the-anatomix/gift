@@ -50,7 +50,7 @@ const audit = (p) => p.evaluate(() => {
     const A = await open(ctx, url('la'));
     await sleep(600);
     const r0 = await ratio(A);
-    check('처음에는 세 층 모두 불이 켜져 있고 밝기는 정확히 원래대로(배수 1)', JSON.stringify(await lamps(A)) === '[1,1,1]' && r0[0] === 1 && r0[1] === 1 && (await T(A, () => window.__lights.lamp().join())) === '1,1', r0);
+    check('처음에는 네 층 모두 불이 켜져 있고 밝기는 정확히 원래대로(배수 1)', JSON.stringify(await lamps(A)) === '[1,1,1,1]' && r0[0] === 1 && r0[1] === 1 && (await T(A, () => window.__lights.lamp().join())) === '1,1', r0);
     check('저장 모양에 불 항목이 없음(예전 방과 같은 모양)', (await T(A, () => window.__tree.serialize().lamps)) === undefined);
     await stand(A, 0, 8, 12); await sleep(300);
     check('스위치에서 떨어져 있으면 불 단추가 없음', (await T(A, () => window.__lights.near())) === null);
@@ -60,7 +60,7 @@ const audit = (p) => p.evaluate(() => {
     check('1층 벽 스위치 앞에 서면 "불 끄기" 단추가 뜸 (화면 안·44px 이상)', (await T(A, () => window.__tree.nearAction())) === '💡 불 끄기' && (await A.isVisible('#act')) && (await A.textContent('#act')).includes('불 끄기') && (await audit(A)).length === 0, [await T(A, () => window.__tree.nearAction()), await audit(A)]);
     await A.screenshot({ path: path.join(__dirname, 'out', 'lights-on.png') });
     await A.tap('#act');
-    check('단추를 누르면 1층 불만 꺼짐', await until(async () => JSON.stringify(await lamps(A)) === '[0,1,1]', 3000) && (await A.textContent('#toast')).includes('1층 불을 껐어요'));
+    check('단추를 누르면 1층 불만 꺼짐', await until(async () => JSON.stringify(await lamps(A)) === '[0,1,1,1]', 3000) && (await A.textContent('#toast')).includes('1층 불을 껐어요'));
     await sleep(1600);
     const r1 = await ratio(A);
     check('불을 끄면 방이 어두워짐: 하늘빛 0.2배, 햇빛 0.04배 (바탕값에 곱함)', near(r1[0], 0.2) && near(r1[1], 0.04), r1);
@@ -94,39 +94,39 @@ const audit = (p) => p.evaluate(() => {
     await T(A, () => window.__tree.pressSpace());
     await sleep(1600);
     const rOn = await ratio(A);
-    check('스페이스바로 다시 켜면 정확히 원래 밝기(배수 1)로 돌아옴', JSON.stringify(await lamps(A)) === '[1,1,1]' && rOn[0] === 1 && rOn[1] === 1 && (await A.textContent('#toast')).includes('불을 켰어요'), rOn);
+    check('스페이스바로 다시 켜면 정확히 원래 밝기(배수 1)로 돌아옴', JSON.stringify(await lamps(A)) === '[1,1,1,1]' && rOn[0] === 1 && rOn[1] === 1 && (await A.textContent('#toast')).includes('불을 켰어요'), rOn);
 
     /* 3층: 따로 끄고, 저장된다 */
     await goSwitch(A, 2); await sleep(900);
     check('3층에도 스위치가 있음', (await T(A, () => window.__tree.level)) === 2 && (await T(A, () => window.__tree.nearAction())) === '💡 불 끄기');
     await T(A, () => window.__tree.pressSpace()); await sleep(1500);
-    check('3층 불만 꺼짐', JSON.stringify(await lamps(A)) === '[1,1,0]' && near((await ratio(A))[0], 0.2));
+    check('3층 불만 꺼짐', JSON.stringify(await lamps(A)) === '[1,1,0,1]' && near((await ratio(A))[0], 0.2));
     await sleep(500); await A.reload(); await ready(A);
-    check('다시 열어도 불 상태가 그대로임(저장됨)', JSON.stringify(await lamps(A)) === '[1,1,0]' && JSON.stringify(await T(A, () => window.__tree.serialize().lamps)) === '[1,1,0]');
+    check('다시 열어도 불 상태가 그대로임(저장됨)', JSON.stringify(await lamps(A)) === '[1,1,0,1]' && JSON.stringify(await T(A, () => window.__tree.serialize().lamps)) === '[1,1,0,1]');
 
     /* 여럿이 */
     await T(A, () => window.__duo.invite());
     await until(async () => (await T(A, () => window.__duo.mode)) === 'waiting');
     const inv = await T(A, () => window.__duo.inviteUrl()), room = inv.split('#r=')[1];
     const B = await open(ctx, url('lb', '#r=' + room));
-    check('나중에 들어온 친구도 같은 불 상태를 받음(3층만 꺼짐)', await until(async () => (await T(B, () => window.__duo.mode)) === 'on' && JSON.stringify(await lamps(B)) === '[1,1,0]', 12000) && (await T(B, () => window.__duo.hash())) === (await T(A, () => window.__duo.hash())));
+    check('나중에 들어온 친구도 같은 불 상태를 받음(3층만 꺼짐)', await until(async () => (await T(B, () => window.__duo.mode)) === 'on' && JSON.stringify(await lamps(B)) === '[1,1,0,1]', 12000) && (await T(B, () => window.__duo.hash())) === (await T(A, () => window.__duo.hash())));
     await goSwitch(B, 1); await sleep(900);
     await T(B, () => window.__tree.pressSpace());
-    check('친구가 2층 불을 끄면 방장에게도 꺼짐', await until(async () => JSON.stringify(await lamps(A)) === '[1,0,0]', 4000) && JSON.stringify(await lamps(B)) === '[1,0,0]');
+    check('친구가 2층 불을 끄면 방장에게도 꺼짐', await until(async () => JSON.stringify(await lamps(A)) === '[1,0,0,1]', 4000) && JSON.stringify(await lamps(B)) === '[1,0,0,1]');
     await stand(A, 1, 12, 10);
     check('같은 층에 있는 방장의 화면도 어두워짐', await until(async () => near((await ratio(A))[0], 0.2) && near((await ratio(B))[0], 0.2), 6000), [await ratio(A), await ratio(B)]);
     await T(A, () => window.__lights.toggle(1));
-    check('방장이 켜면 친구에게도 켜지고 알림이 뜸', await until(async () => JSON.stringify(await lamps(B)) === '[1,1,0]' && (await B.textContent('#toast')).includes('2층 불을 켰어요'), 4000));
+    check('방장이 켜면 친구에게도 켜지고 알림이 뜸', await until(async () => JSON.stringify(await lamps(B)) === '[1,1,0,1]' && (await B.textContent('#toast')).includes('2층 불을 켰어요'), 4000));
     check('두 사람의 방 지문이 같음', await until(async () => (await T(B, () => window.__duo.hash())) === (await T(A, () => window.__duo.hash())), 4000));
     // 구경하는 사람
     const V = await open(ctx, url('lv', '#v=' + room.split('-')[0]));
-    check('구경 온 사람도 같은 불 상태를 봄', await until(async () => (await T(V, () => window.__duo.mode)) === 'on' && JSON.stringify(await lamps(V)) === '[1,1,0]', 12000));
+    check('구경 온 사람도 같은 불 상태를 봄', await until(async () => (await T(V, () => window.__duo.mode)) === 'on' && JSON.stringify(await lamps(V)) === '[1,1,0,1]', 12000));
     await goSwitch(V, 0); await sleep(500);
     await T(V, () => window.__tree.pressSpace()); await sleep(500);
-    check('구경하는 사람은 불을 켜고 끌 수 없음(안내만 뜸)', JSON.stringify(await lamps(V)) === '[1,1,0]' && (await V.textContent('#toast')).includes('구경하는 중'));
+    check('구경하는 사람은 불을 켜고 끌 수 없음(안내만 뜸)', JSON.stringify(await lamps(V)) === '[1,1,0,1]' && (await V.textContent('#toast')).includes('구경하는 중'));
     await T(V, () => window.__duo.rawOp({ t: 'lamp', lv: 0, on: false })); await sleep(800);
-    check('구경하는 사람이 변화를 억지로 보내도 방장이 받지 않음', JSON.stringify(await lamps(A)) === '[1,1,0]' && JSON.stringify(await lamps(B)) === '[1,1,0]');
-    check('이상한 변화(없는 층, 이미 같은 상태)는 받지 않음', await T(A, () => { const W = window.__tree; return !W.dispatch({ t: 'lamp', lv: 3, on: false }) && !W.dispatch({ t: 'lamp', lv: 0, on: true }) && !W.dispatch({ t: 'lamp', lv: 1, on: 'x' }); }));
+    check('구경하는 사람이 변화를 억지로 보내도 방장이 받지 않음', JSON.stringify(await lamps(A)) === '[1,1,0,1]' && JSON.stringify(await lamps(B)) === '[1,1,0,1]');
+    check('이상한 변화(없는 층, 이미 같은 상태)는 받지 않음', await T(A, () => { const W = window.__tree; return !W.dispatch({ t: 'lamp', lv: 4, on: false }) && !W.dispatch({ t: 'lamp', lv: 0, on: true }) && !W.dispatch({ t: 'lamp', lv: 1, on: 'x' }); }));
     await ctx.close();
     check('페이지 오류 없음', errors.length === 0, errors);
   } finally {
