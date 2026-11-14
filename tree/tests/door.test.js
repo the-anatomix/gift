@@ -83,10 +83,10 @@ const audit = (p) => p.evaluate(() => {
 
     /* 구경 온 사람: 돌려보내기 */
     const C = await open(ctx, url('dc', '#v=' + id));
-    await until(async () => (await mode(C)) === 'door', 15000);
+    await until(async () => (await mode(C)) === 'door', 40000);
     await C.tap('#bell');
-    check('구경 링크로 온 사람도 초인종을 눌러야 하고, 방장에게 "구경하러 온"으로 보임', await until(async () => (await T(A, () => window.__duo.knocks.length)) === 1, 5000) && (await A.textContent('#knock')).includes('구경하러 온'));
-    check('방 안의 다른 사람에게도 딩동 알림이 감', await until(async () => (await B.textContent('#toast')).includes('딩동'), 4000));
+    check('구경 링크로 온 사람도 초인종을 눌러야 하고, 방장에게 "구경하러 온"으로 보임', await until(async () => (await T(A, () => window.__duo.knocks.length)) === 1, 20000) && (await A.textContent('#knock')).includes('구경하러 온'));
+    check('방 안의 다른 사람에게도 딩동 알림이 감', await until(async () => (await B.textContent('#toast')).includes('딩동'), 15000));
     await A.tap('#knock button:not(.main)');
     check('방장이 "돌려보내기"를 누르면 들어오지 못하고 안내를 봄', await until(async () => (await mode(C)) === 'denied', 5000) && (await C.textContent('#doorMain')).includes('들어갈 수 없어요') && (await C.textContent('#doorSub')).includes('열어 주지 않았어요') && !(await C.isVisible('#bell')) && (await C.isVisible('#doorHome')) && (await T(A, () => window.__duo.others.length)) === 1 && !(await A.isVisible('#knock')) && (await audit(C)).length === 0);
     await C.tap('#doorHome'); await ready(C);

@@ -135,7 +135,7 @@ const overlaps = (p) => T(p, () => {
     /* 마스터가 사람별로 주는 권한 */
     await A.tap('#tabs button[data-m="master"]'); await sleep(900);
     const bad = await T(A, () => [...document.querySelectorAll('#masterP button, #tabs button')].filter((b) => { const r = b.getBoundingClientRect(); return r.width && (r.height < 43.5 || r.width < 43.5 || r.left < 0 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5); }).map((b) => b.textContent));
-    check('마스터 판의 사람 줄에 🦌 가 더해져도 단추는 44px 이상·화면 안', (await T(A, () => document.querySelectorAll('#mkPeople .who .chip').length)) === 12 && bad.length === 0, bad);
+    check('마스터 판의 사람 줄에 🦌 가 더해져도 단추는 44px 이상·화면 안', (await T(A, () => document.querySelectorAll('#mkPeople .who .chip').length)) === 14 && bad.length === 0, bad);
     await A.tap(`#mkPeople .who[data-id="${bid}"] [data-bit="32"]`);
     check('🦌 를 켜 주면 친구에게 썰매 단추가 생김', await until(async () => (await SL(B)).shown, 5000), await SL(B));
     await B.tap('#sledBtn'); await until(async () => (await SL(B)).alt > 2.5, 8000);

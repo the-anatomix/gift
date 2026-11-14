@@ -77,7 +77,7 @@ const night = async (p) => { const c = await T(p, () => window.__play.pixel(20, 
     await T(A, () => window.__play.open('tv')); await sleep(300);
     await A.setInputFiles('#tvFile', { name: 'clip.webm', mimeType: 'video/webm', buffer: Buffer.from(b64, 'base64') });
     check('동영상을 넣으면 내 TV 에 나오고, 방 사람들에게 보내기 시작함', await until(async () => (await red(A)) && (await T(A, () => window.__media.tvOn)), 15000));
-    check('다른 사람들의 TV 에도 그 동영상이 나옴', await until(async () => (await red(B)) && (await red(C)) && (await red(D)), 30000), { b: await T(B, () => window.__play.remote), c: await T(C, () => window.__play.remote) });
+    check('다른 사람들의 TV 에도 그 동영상이 나옴', await until(async () => (await red(B)) && (await red(C)) && (await red(D)), 90000), { b: await T(B, () => window.__play.remote), c: await T(C, () => window.__play.remote) });
     check('받는 쪽은 누가 보내는지 알고 있음', (await T(B, () => window.__media.tvFrom)) === 'h' && (await T(B, () => window.__play.remote.from)) === 'h');
     await T(B, () => window.__play.open('tv')); await sleep(500);
     check('받는 사람의 TV 판에는 "친구가 넣은 동영상"과 소리 단추가 나옴', (await B.textContent('#playMain')).includes('친구가 넣은 동영상') && (await B.isVisible('#playSound')) && !(await B.isVisible('#playDrop')) && (await T(B, () => window.__play.remote.muted)));

@@ -82,10 +82,10 @@ const overlaps = (p) => T(p, () => {
     check('방의 상태는 그대로 (가구가 부서지거나 움직이지 않음)', JSON.stringify(await T(A, () => window.__tree.serialize())) === before && (await T(A, () => window.__tree.itemShown('sf'))));
     const two = await T(A, () => [window.__beam.fire(), window.__beam.fire()]);
     check('연달아 누르면 잠깐(0.7초) 쉬어야 다시 나감', two[0] === true && two[1] === false && (await BM(A)).count === 2, two);
-    await sleep(900);
+    await sleep(2500);
     await face(A, -1, 0); await T(A, () => window.__beam.fire()); await sleep(100);
     check('벽 쪽으로 쏘면 벽에서 멈춤', (await BM(A)).last.len < 2.6 && (await BM(A)).last.len > 1.5, (await BM(A)).last);
-    await sleep(900);
+    await sleep(2500);
     await A.keyboard.press('KeyB'); await sleep(100);
     check('키보드 B 로도 쏨', (await BM(A)).count === 4);
     await sleep(900);

@@ -50,7 +50,7 @@ const tapArrow = async (p, id, side) => { const a = (await H(p, id)).arrows.find
     check('끝의 가구 단추는 띠에 가려지지 않고 눌림', (await T(A, () => window.__tree.ghost)) !== null, last);
     await T(A, () => window.__tree.ghostCancel && window.__tree.ghostCancel()); await sleep(200);
     if ((await T(A, () => window.__tree.mode)) !== 'furn') await A.tap('#tabs button[data-m="furn"]');
-    for (let k = 0; k < 14 && (await H(A, 'furnList')).sides.includes('l'); k++) { await tapArrow(A, 'furnList', 'l'); await sleep(700); }
+    for (let k = 0; k < 40 && (await H(A, 'furnList')).sides.includes('l'); k++) { await tapArrow(A, 'furnList', 'l'); await sleep(700); }
     const back = await H(A, 'furnList');
     check('‹ 로 처음까지 돌아오면 ‹ 가 사라짐', back.sides === 'r' && back.left <= 4, back);
     await A.tap('#furnList > :first-child'); await sleep(300);

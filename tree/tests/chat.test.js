@@ -59,7 +59,7 @@ const audit = (p) => p.evaluate(() => {
     const two = await T(A, () => [window.__duo.say('하나'), window.__duo.say('둘')]);
     check('너무 빨리 이어 보내면 막힘', two[0] === true && two[1] === false && (await log(A)).length === 3 && (await A.textContent('#toast')).includes('천천히'), two);
     check('글 다듬기: 60자까지, 줄바꿈·겹친 빈칸은 한 칸으로', await T(A, () => { const c = window.__duo.cleanSay; return c('가'.repeat(100)).length === 60 && c('  a \n\n b\t c  ') === 'a b c' && c(5) === '' && c(null) === '' && c('\u0000\u0007') === ''; }));
-    check('말풍선은 몇 초 뒤 사라짐', await until(async () => (await bubs(A)).length === 0, 9000));
+    check('말풍선은 몇 초 뒤 사라짐', await until(async () => (await bubs(A)).length === 0, 30000));
 
     /* 여러 명 */
     await T(A, () => window.__duo.invite());

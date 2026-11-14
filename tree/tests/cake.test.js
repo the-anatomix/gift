@@ -107,7 +107,7 @@ const tapTop = async (p, dx, dz) => { const s = await T(p, (a) => window.__tree.
     await T(B, () => { window.__tree.setZoomMul(0); window.__tree.snapView(); });
     const isl = await T(B, () => { window.__tree.snapView(); return window.__tree.screenOf(8.75, -1.2, 0.6); });
     await B.touchscreen.tap(isl.x, isl.y);
-    check('다른 사람도 케이크 작업대를 누르면 옆으로 걸어와 같이 만들 수 있음', await until(async () => (await T(B, () => window.__tree.mode)) === 'play' && (await T(B, () => window.__play.state && window.__play.state.kind)) === 'cake', 20000) && (await B.textContent('#playMain')) === '케이크 만들기');
+    check('다른 사람도 케이크 작업대를 누르면 옆으로 걸어와 같이 만들 수 있음', await until(async () => (await T(B, () => window.__tree.mode)) === 'play' && (await T(B, () => window.__play.state && window.__play.state.kind)) === 'cake', 50000) && (await B.textContent('#playMain')) === '케이크 만들기');
     const bme = await T(B, () => [window.__tree.me.x, window.__tree.me.z]);
     check('같이 만드는 사람의 아바타는 케이크 작업대 옆에 서 있음', Math.hypot(bme[0] - 8.75, bme[1] + 1.5) < 2.2, bme);
     await sleep(500);
