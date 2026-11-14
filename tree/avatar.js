@@ -46,6 +46,7 @@ const TEAR = new THREE.MeshBasicMaterial({ color: 0x8CCBF2 });
 const SIZE = 1.25;   // 방 크기에 맞춘 전체 배율
 const SPEED = 2.6;   // 걷는 빠르기 (1초에 가는 거리)
 export const FLY_SPEED = 4.2; // 나는 빠르기 (fly.js)
+export const RUN = 1.9;      // Shift 를 누르고 달릴 때 걷는 빠르기의 몇 배
 export const BODY_R = 0.18;
 export const HEIGHT = 1.16 * SIZE; // 머리끝까지 높이 (모자·뿔 제외)
 // 사다리를 오르내리는 길 (세상 좌표). base = 사다리 밑, top = 2층 모서리. 걸리는 시간(초): 다가가기, 오르기, 올라서기
@@ -213,6 +214,7 @@ export function makeAvatar(look) {
   const A = {
     root, look: null, path: [], onArrive: null, moving: false, t: Math.random() * 6, blend: 0, face: 0,
     doing: null, blink: Math.random() * 4, // doing = 하고 있는 행동 { id, t, sec }
+    run: false,  // 달리는 중인지 (Shift. 다리를 더 빨리 놀리고 몸을 앞으로 숙인다)
     hold: false, // 케이크를 들고 있는지 (두 팔을 앞으로 내민다)
     push: false, // 눈 뭉치를 굴리는 중인지 (몸을 숙이고 두 손으로 민다. snowman.js 가 켠다)
     hop: null,   // 사다리를 오르내리는 중 { pts: 세상 좌표 네 점, t, to: [x, z] }
@@ -257,7 +259,7 @@ export function makeAvatar(look) {
 
     // dt 초만큼 진행. 움직였으면 true.
     step(dt) {
-      let moved = false, left = (A.fly ? FLY_SPEED : SPEED) * dt;
+      let moved = false, left = (A.fly ? FLY_SPEED : SPEED * (A.run ? RUN : 1)) * dt;
       if (A.rest && A.path.length) A.rise(); // 걸으려면 먼저 일어난다
       if (A.hop) { // 사다리를 타는 중: 밑(또는 위)까지 다가가고, 오르내리고, 올라선다
         const h = A.hop, T = LAD_T;
@@ -307,11 +309,12 @@ export function makeAvatar(look) {
       if (A.fly && A.fly.mv) moved = true;
       A.moving = moved;
       A.blend += ((moved ? 1 : 0) - A.blend) * Math.min(1, dt * 12);
-      A.t += dt * (moved ? 11 : 2.2);
+      A.t += dt * (moved ? (A.run && !A.fly ? 16 : 11) : 2.2);
       const sw = Math.sin(A.t) * A.blend, { body, legs, arms, head, eyes } = parts;
       // 걷는 몸짓(기본). lx·ax = 다리·팔을 앞뒤로, az = 팔을 옆으로, by = 몸 높이, bx·bz = 몸 숙임·기울임, hx·hz = 고개
       const P = { lx: [sw * 0.75, -sw * 0.75], ax: [-sw * 0.65, sw * 0.65], az: [-0.28, 0.28],
         by: Math.abs(Math.sin(A.t)) * 0.045 * A.blend + Math.sin(A.t) * 0.006 * (1 - A.blend), bx: 0, bz: 0, hx: 0, hz: Math.sin(A.t * 0.5) * 0.035 * A.blend, as: 1 };
+      if (A.run && !A.fly) { P.lx = [sw * 1.05, -sw * 1.05]; P.ax = [-sw * 1.1, sw * 1.1]; P.az = [-0.2, 0.2]; P.by *= 1.8; P.bx = 0.22 * A.blend; P.hx = -0.12 * A.blend; } // 달리기: 다리와 팔을 크게, 몸은 앞으로
       let spin = 0;
       const act = A.doing;
       if (act) { act.t += dt; if (moved || act.t >= act.sec) A.doing = null; }
@@ -347,11 +350,12 @@ export function makeAvatar(look) {
         const k = A.blend, b = Math.sin(fl.t * 2.6);
         P.lx = [0.12 + 0.45 * k + 0.05 * b, 0.02 + 0.4 * k - 0.05 * b]; P.ax = [0.75 * k, 0.75 * k]; P.az = [-0.55 + 0.3 * k, 0.55 - 0.3 * k];
         P.by = b * 0.025; P.bx = 0.08 + 0.62 * k; P.bz = 0; P.hx = -0.4 * k; P.hz = 0; P.as = 1; spin = 0;
+        if (fl.car) { const w = Math.sin(fl.t * 3.2); P.lx = [-1.38, -1.38]; P.ax = [-0.2, -0.2]; P.az = [-(1.6 + 0.35 * w), 1.6 - 0.35 * w]; P.as = 1.25; P.by = Math.abs(w) * 0.02; P.bx = -0.04; P.hx = -0.08; P.hz = 0.06 * w; } // 썰매 기차의 객차에 앉아 두 팔을 흔든다 (train.js)
         if (fl.sled) { P.lx = [-1.38, -1.38]; P.ax = [-0.95 + 0.06 * b, -0.95 - 0.06 * b]; P.az = [0.12, -0.12]; P.by = 0; P.bx = -0.04; P.hx = 0.03 * b; } // 썰매에 앉아 고삐를 쥔다 (sleigh.js)
         root.position.y = fl.y;
       }
       if (A.aim > 0) { A.aim -= dt; P.ax[0] = -Math.PI / 2 - (A.aimP || 0) - P.bx; P.az[0] = 0; P.as = 1.15; } // 한 손을 앞으로 뻗어 빛줄기를 쏜다 (beam.js)
-      if (parts.jets) for (const m of parts.jets) { m.visible = !!fl && !fl.sled; if (fl) m.scale.y = 0.75 + 0.5 * Math.abs(Math.sin(fl.t * 31 + m.id)) + 0.5 * A.blend; }
+      if (parts.jets) for (const m of parts.jets) { m.visible = !!fl && !fl.sled && !fl.car; if (fl) m.scale.y = 0.75 + 0.5 * Math.abs(Math.sin(fl.t * 31 + m.id)) + 0.5 * A.blend; }
       let lying = 0;
       if (A.rest) { // 누웠다: 등을 대고 반듯이, 눈을 감는다
         lying = -Math.PI / 2;

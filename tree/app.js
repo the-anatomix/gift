@@ -7,7 +7,7 @@ import { Grid, NX, NZ, CELL, X0, Z0, X1, Z1, GX, GZ, GX1, GZ1, LEVELS, FLOOR_H, 
 import { buildRoom, WALL_H, TREE, FRONT, fixedCell, noBuild, surfaceR } from './room.js';
 import { makeWardrobe, HOST_OUTFIT } from './costume.js';
 import { makeFly } from './fly.js';
-import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, FACES, ACTS, BODY_R, SPEED } from './avatar.js';
+import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, FACES, ACTS, BODY_R, SPEED, RUN } from './avatar.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER, STARTER_EAST, STARTER_UP, CAKE, NOTE } from './catalog.js';
 import { makeState, apply, setLockFree, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake, benchOf, cakesList, cakeAtBench, cakeOnTable, sendHome, notesList, cleanWords, rankList } from './state.js';
 import { buildItem } from './furniture.js';
@@ -26,6 +26,7 @@ import { makeRank } from './rank.js';
 import { makeSky } from './sky.js';
 import { makeMaster, can, LOCK, FIRE, SUIT, SLED, CINE } from './master.js';
 import { makeSleigh } from './sleigh.js';
+import { makeTrain } from './train.js';
 import { makeBeam } from './beam.js';
 import './hint.js';
 import { makeAdvent } from './advent.js';
@@ -467,6 +468,7 @@ function paintLevels() {
 
 /* ───────── 걷기 ───────── */
 function goTo(x, z) {
+  if (train.on) return true; // 썰매 기차에 탄 동안은 썰매가 데려간다 (train.js)
   if (fly.on && fly.goTo(x, z)) return true; // 나는 중에는 그쪽으로 날아간다 (fly.js)
   if (me.hop) return false; // 사다리를 타는 중에는 끝까지 간다
   const pts = grid.route(me.x, me.z, x, z);
@@ -699,6 +701,8 @@ function paintRole() {
 }
 const FX = { dart: 'number', fire: 'number', music: 'string', act: 'string', lie: 'string', show: 'string' };
 FX.fly = 'string'; // 비행 슈트·썰매로 나는 높이와 하늘의 자리 (fly.js)
+FX.car = 'string'; // 썰매 기차에 탔다·내렸다 (train.js)
+FX.run = 'string'; // Shift 로 달린다('1')·걷는다('')
 FX.beam = 'string'; // 비행 슈트의 손바닥 빛줄기 (beam.js)
 FX.snow = FX.hit = 'string'; // 마당 눈싸움 (snow.js)
 FX.prop = FX.climb = FX.heavy = FX.help = 'string'; // 받쳐 주기·별 달기·큰 가구 둘이 들기 (coop.js)
@@ -755,6 +759,8 @@ const duo = makeDuo({
     if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false;
     if (m.k === 'act' && games.quiet(id)) return true; // 술래에게는 숨은 사람의 행동이 안 보인다
     if (m.k === 'fly') return fly.peerFx(m, id); // 날고 있는 높이와 하늘의 자리 (fly.js)
+    if (m.k === 'car') return train.peerFx(m, id); // 썰매 기차 (train.js)
+    if (m.k === 'run') { const a = others.get(id); if (!a) return false; a.run = m.v === '1'; return true; } // 달리기
     if (m.k === 'beam') return beam.peerFx(m, id); // 손바닥 빛줄기 (beam.js)
     if (m.k === 'act') { const a = others.get(id); if (a && ACT_SFX[m.v]) sfx(ACT_SFX[m.v], a); return !!(a && a.act(m.v)); } // 그 사람이 한 행동
     if (m.k === 'lie') { // 그 사람이 침대에 누웠거나('침대:자리') 일어났다('')
@@ -1118,8 +1124,13 @@ const fly = makeFly({
 flyApi = fly;
 // 루돌프 썰매의 모양·방울·꼬리 (sleigh.js), 비행 슈트의 손바닥 빛줄기 (beam.js)
 const sleigh = makeSleigh({ scene, me, others: () => others, dirty: () => { dirty = true; } });
+// 썰매 기차: 썰매 뒤에 객차를 달고 같이 탄다 (train.js)
+const train = makeTrain({
+  scene, me, others: () => others, myId: () => duo.me, online: () => duo.mode === 'on', grid, yard: () => fly.yard, busy: () => flyBusy() || fly.on,
+  fx: (m) => duo.fx(m), toast: (m) => toast(m), nameOf: (id) => nameOf(id), dirty: () => { dirty = true; },
+});
 const flyBusy = () => !(mode === null || mode === 'chat' || mode === 'emo') || !!ghost || !!pose || !!me.rest || !!me.hop || me.hold || me.push
-  || games.on || snow.on || !!(window.__snow && window.__snow.team && window.__snow.team.on);
+  || games.on || snow.on || train.on || !!(window.__snow && window.__snow.team && window.__snow.team.on);
 const beam = makeBeam({
   scene, me, others: () => others, grid, fixed: fixedCell, sky: () => fly.sky,
   show: () => look.outfit === HOST_OUTFIT && isHost() && !fly.ride && !flyBusy(),
@@ -1402,7 +1413,7 @@ function climb(L, up) {
 }
 // 지금 서 있는 자리에서 할 수 있는 일 { label, run }. 누워 있으면 일어나기, 사다리 옆이면 오르내리기, 아니면 가장 가까운(바라보는) 가구
 function nearAction() {
-  if (mode !== null || ghost || me.hop || fly.on) return null; // 나는 중에는 쉰다 (fly.js)
+  if (mode !== null || ghost || me.hop || fly.on || train.on) return null; // 나는 중·썰매 기차에 탄 중에는 쉰다 (fly.js, train.js)
   { const g = games.action(); if (g) return g; } // 같이 놀기 중에 할 수 있는 일 (찾았다·옷장·슬쩍)
   if (me.rest && me.rest.sit) { const f = food.action(); if (f) return f; } // 좌석에 앉은 채로 들고 있는 팝콘·음료를 먹는다 (일어나기는 아래 판의 단추나 걷기로)
   if (me.rest) return { label: me.rest.sit ? '💺 일어나기' : '🛏️ 일어나기', run: getUp };
@@ -1490,7 +1501,7 @@ function lift(e, ok) {
   if (mode === null && master.tap(e.clientX, e.clientY)) return; // 숨은 열쇠 (master.js)
   if ((mode === null || mode === 'gift') && gift.tap(e.clientX, e.clientY)) return; // 트리 밑 선물 상자
   if (mode === 'fridge' && food.tap(e.clientX, e.clientY)) return; // 열린 냉장고 안의 음식
-  if (mode === null && !fly.on) { const id = pickItem(e.clientX, e.clientY); if (id && useItem(id)) return; } // 케이크 내려놓기, 놀 수 있는 가구, 침대, 냉장고
+  if (mode === null && !fly.on && !train.on) { const id = pickItem(e.clientX, e.clientY); if (id && useItem(id)) return; } // 케이크 내려놓기, 놀 수 있는 가구, 침대, 냉장고
   if (mode === 'tree') { treeTap(e.clientX, e.clientY); return; }
   if (mode === 'furn') { const id = pickItem(e.clientX, e.clientY); if (id && coop.heavyPick(id)) return; } // 큰 가구는 친구가 있으면 둘이 든다 (coop.js)
   if (mode === 'furn') { const id = pickItem(e.clientX, e.clientY); if (id) { ghostPick(id); return; } }
@@ -1507,8 +1518,10 @@ canvas.addEventListener('wheel', (e) => { e.preventDefault(); zoomBy(Math.exp(-e
 
 // 키보드: 방향키·WASD 는 화면 기준으로 걷는다
 const keys = new Set();
+let shiftDown = false; // Shift 를 누르고 있으면 달린다
 const KEY = { ArrowUp: 'u', KeyW: 'u', ArrowDown: 'd', KeyS: 'd', ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r' };
 addEventListener('keydown', (e) => {
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') shiftDown = true;
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
   if (KEY[e.code]) { keys.add(KEY[e.code]); e.preventDefault(); }
   else if (e.code === 'Space') { // 그 앞에서 스페이스바: 놀이를 시작하거나 그 일을 한다
@@ -1524,10 +1537,11 @@ addEventListener('keydown', (e) => {
   else if (ghost && e.code === 'Escape') ghostCancel();
   else if (ghost && (e.code === 'Delete' || e.code === 'Backspace')) ghostRemove();
 });
-addEventListener('keyup', (e) => { if (KEY[e.code]) keys.delete(KEY[e.code]); });
-addEventListener('blur', () => keys.clear());
+addEventListener('keyup', (e) => { if (KEY[e.code]) keys.delete(KEY[e.code]); if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') shiftDown = false; });
+addEventListener('blur', () => { keys.clear(); shiftDown = false; });
 
 function keyWalk(dt) {
+  if (train.on) return false; // 썰매 기차에 탄 동안 (train.js)
   if (mode === 'tree') return false; // 트리를 꾸미는 동안은 트리 옆에 서 있는다
   if (pose) return false;           // 놀이 중에는 걷지 않는다
   if (me.hop) return false;         // 사다리를 타는 중
@@ -1546,7 +1560,7 @@ function keyWalk(dt) {
     const [ci, cj] = cellOf(me.x, me.z), at = (c) => ci === c[0] && cj === c[1];
     for (const L of LADDERS) if ((at(L.a) && dx > 0.6) || (at(L.b) && dx < -0.6)) { const c = at(L.a) ? L.b : L.a; me.walk([centerOf(c[0], c[1])]); return false; }
   }
-  const step = SPEED * push * dt;
+  const step = SPEED * (me.run ? RUN : 1) * push * dt; // Shift 를 누르면 달린다
   const nx = clamp(me.x + dx * step, X0 + BODY_R, GX1 - BODY_R), nz = clamp(me.z + dz * step, Z0 + BODY_R, GZ1 - BODY_R);
   const ox = me.x, oz = me.z;
   if (grid.fits(nx, nz, BODY_R)) me.place(nx, nz);
@@ -1776,7 +1790,8 @@ function frame(now) {
 
   // 걷기 (나는 중이면 fly.js 가 높이와 자리를 옮긴다)
   fly.tick(dt);
-  sleigh.tick(dt); beam.tick(dt);
+  sleigh.tick(dt); train.tick(dt); beam.tick(dt);
+  { const r = shiftDown && !fly.on && !train.on && !me.rest; if (r !== me.run) { me.run = r; if (duo.mode === 'on') duo.fx({ k: 'run', v: r ? '1' : '' }); } } // Shift: 달리기
   const byKey = keyWalk(dt);
   const moved = byKey ? (me.animate(dt, true), true) : me.step(dt);
   if (moved || me.blend > 0.01 || me.doing) dirty = true;

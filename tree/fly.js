@@ -35,7 +35,7 @@ const HOVER = 0.55;           // 처음 떠오르는 높이
 const RIDE_HOVER = 2.6;       // 썰매를 타면 떠오르는 높이
 const HOLD = 0.35;            // 천장·바닥에서 이만큼 더 누르고 있으면 층을 넘는다(초)
 const WALL = 0.3;             // 집 벽의 두께쯤
-const ZY = Z0 + YARD.j0 * CELL + BODY_R; // 마당의 북쪽 끝(집 남쪽 벽 바로 앞)
+export const ZY = Z0 + YARD.j0 * CELL + BODY_R; // 마당의 북쪽 끝(집 남쪽 벽 바로 앞)
 const FLY_RE = /^(s?)(\d{1,2}\.\d\d)(?:;(-?\d{1,2}\.\d\d);(-?\d{1,2}\.\d\d))?$/;
 
 // K = { me, others(), grid, fixed(i, j), isHost(), canSled(), look(), setLook(patch), busy(), online(), fx(m), toast(msg), dirty(), $ }
@@ -275,6 +275,8 @@ export function makeFly(K) {
     get on() { return on; }, get ride() { return ride; },
     // 하늘에 있는지(마당 위로 높이 떴거나 집 밖). 카메라가 따라가며 넓게 보여 준다 (app.js 의 updateView)
     get sky() { return !!air(); },
+    // 위가 뚫린 마당에 서 있는지 (썰매 기차에 타는 자리, train.js)
+    get yard() { return !on && openYard(); },
     // 하늘에서 화면이 얼마나 넓게 보여야 하는지 0~1 (집 밖으로 나갔거나 높이 떴을수록 1)
     get wide() { const A = air(); if (!A) return 0; const out = Math.max(X0 - A.x, A.x - X1, ZY - A.z, A.z - GZ1, 0); return clamp(Math.max(out / 2.5, (alt() - 3) / 4), 0, 1); },
     tick, start, land, mount,
