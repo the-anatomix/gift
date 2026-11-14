@@ -32,6 +32,8 @@ export const FOODS = [
   { id: 'juice', snd: 'straw', name: '주스', icon: '🧃', n: 3, sip: true, fx: 0xF7A531, say: '쪼옥', done: '🧃 주스를 다 마셨어요' },
   { id: 'soda', snd: 'straw', name: '탄산', icon: '🥤', n: 3, sip: true, fx: 'fizz', say: '캬~', done: '🥤 탄산을 다 마셨어요. 얼음만 남았어요' },
   { id: 'water', snd: 'gulp', name: '물', icon: '💧', n: 2, sip: true, fx: 0x8FD0F0, say: '꿀꺽', done: '💧 물을 다 마셨어요. 빈 병이에요' },
+  // 영화관 매점 (cine: 냉장고에는 없고 팝콘 기계에서 꺼낸다. cinema.js). 좌석에 앉은 채로도 먹는다
+  { id: 'popcorn', snd: 'crisp', name: '팝콘', icon: '🍿', n: 5, cine: true, fx: 0xFFE9A8, say: '바삭', done: '🍿 팝콘을 다 먹었어요. 빈 통만 남았어요' },
   // 와인 냉장고
   { id: 'red', snd: 'gulp', name: '레드 와인', icon: '🍷', n: 4, sip: true, wine: 'glass', col: 0x7A1528, bottle: 0x1F3A2A, foil: 0x7A1528, fx: 0x7A1528, say: '음~', done: '🍷 레드 와인을 다 마셨어요. 빈 잔이에요' },
   { id: 'white', snd: 'gulp', name: '화이트 와인', icon: '🥂', n: 4, sip: true, wine: 'glass', col: 0xF0E2A2, bottle: 0x9DB36A, foil: 0xE8DFC0, fx: 0xF0E2A2, say: '상큼', done: '🥂 화이트 와인을 다 마셨어요. 빈 잔이에요' },
@@ -39,7 +41,8 @@ export const FOODS = [
   { id: 'bubbly', snd: 'gulp', name: '스파클링', icon: '🍾', n: 4, sip: true, wine: 'flute', col: 0xF6E9B4, bottle: 0x1B3325, foil: 0xE7B441, fx: 'fizz', say: '톡톡', done: '🍾 스파클링 와인을 다 마셨어요. 빈 잔이에요' },
   { id: 'grape', snd: 'gulp', name: '포도주스', icon: '🍇', n: 4, sip: true, wine: 'glass', col: 0x5B2A7A, bottle: 0x3B1D55, foil: 0xC9B6E4, fx: 0x5B2A7A, say: '달콤', done: '🍇 포도주스를 다 마셨어요(무알코올). 빈 잔이에요' },
 ];
-const WINES = FOODS.filter((f) => f.wine), PANTRY = FOODS.filter((f) => !f.wine);
+const WINES = FOODS.filter((f) => f.wine), PANTRY = FOODS.filter((f) => !f.wine && !f.cine);
+const lying = (a) => !!a.rest && !a.rest.sit; // 누워 있는지 (좌석에 앉은 것은 아니다: 앉아서는 들고 먹을 수 있다)
 const BY = new Map(FOODS.map((f) => [f.id, f]));
 const HAND = 2.1; // 손에 들었을 때의 배율 (머리가 큰 캐릭터에 맞춘다. 선반에서는 1.3)
 const ID_RE = /^[\w-]{1,24}$/;
@@ -208,6 +211,13 @@ const MODEL = {
     mesh(g, 'cap', () => cyl(0.013, 0.013, 0.014, 10), 0x3D7FD9, 0, 0.134, 0);
     return (left) => level(left / n);
   },
+};
+MODEL.popcorn = (g, n) => { // 팝콘 통: 빨강·하양 띠의 통에 수북한 팝콘이 먹을수록 내려가고, 빈 통이 남는다
+  mesh(g, 'pcBucket', () => { const c = new THREE.CylinderGeometry(0.05, 0.036, 0.1, 12, 1, true); c.translate(0, 0.05, 0); return c; }, new THREE.MeshLambertMaterial({ color: 0xC8332B, side: THREE.DoubleSide }));
+  mesh(g, 'pcBand', () => new THREE.CylinderGeometry(0.0478, 0.0436, 0.03, 12, 1, true), 0xFFF4E0, 0, 0.065, 0);
+  mesh(g, 'pcBase', () => cyl(0.036, 0.036, 0.004, 12), 0xC8332B, 0, 0.002, 0);
+  const heap = mesh(g, 'pcHeap', () => ball(0.046, 9, 6), 0xFFE9A8), tops = [[0.018, 0.012], [-0.02, 0.006], [0.002, -0.02], [-0.006, 0.022]].map(([x, z]) => mesh(g, 'pcBit', () => ball(0.016, 6, 5), 0xFFF6D0, x, 0, z));
+  return (left) => { const k = left / n, y = 0.03 + 0.07 * k; heap.visible = left > 0; heap.position.y = y; heap.scale.set(0.82 + 0.18 * k, 0.5, 0.82 + 0.18 * k); tops.forEach((m, i) => { m.visible = left > i; m.position.y = y + 0.022; }); };
 };
 for (const f of WINES) MODEL[f.id] = (g, n) => { const level = wineGlass(g, f.col, f.wine === 'flute'); return (left) => level(left / n); };
 // 음식 하나의 모양 { g, set(left) }
@@ -381,10 +391,10 @@ export function makeFoodPlay(K) {
   function hold(h, a, dt) {
     const arm = a.parts.arms[0];
     if (h.g.parent !== arm) arm.add(h.g);
-    h.g.visible = !a.rest; // 누워 있을 때는 보이지 않는다
+    h.g.visible = !lying(a); // 누워 있을 때는 보이지 않는다 (좌석에 앉아서는 들고 있다)
     // 그냥 들고 있을 때: 팔을 앞으로 내밀어 든다 (걷는 몸짓 뒤에 덮어쓴다. 먹는 몸짓·케이크·사다리가 먼저다)
     const sipping = h.f.sip && a.acting === 'eat'; // 마시는 몸짓은 여기서 정한다 (냠냠의 오물오물 대신 잔을 들어 기울인다)
-    const free = !a.rest && !a.hop && !a.hold && !a.push && (!a.doing || sipping);
+    const free = !lying(a) && !a.hop && !a.hold && !a.push && (!a.doing || sipping);
     if (free) { arm.rotation.x = -1.05 + 0.04 * Math.sin(clock * 2 + (h.who.length || 1)); arm.rotation.z = 0.12; arm.scale.y = 1; }
     let tilt = 0;
     if (h.bt !== null) {
@@ -404,7 +414,7 @@ export function makeFoodPlay(K) {
     if (h.cheer !== null) { // 건배: 잔을 앞으로 쭉 내밀어 부딪힌다 (cheers.js)
       h.cheer += dt;
       const t = h.cheer, w = Math.max(0, Math.min(1, t / 0.38, (1.25 - t) / 0.35)), e = w * w * (3 - 2 * w), hit = Math.max(0, 1 - Math.abs(t - 0.45) / 0.12);
-      if (!a.rest && !a.hop && !a.hold) { arm.rotation.x = -1.05 - 0.42 * e + 0.07 * hit; arm.rotation.z = 0.12 - 0.3 * e; arm.scale.y = 1 + 0.42 * e; a.parts.head.rotation.x = -0.08 * e; }
+      if (!lying(a) && !a.hop && !a.hold) { arm.rotation.x = -1.05 - 0.42 * e + 0.07 * hit; arm.rotation.z = 0.12 - 0.3 * e; arm.scale.y = 1 + 0.42 * e; a.parts.head.rotation.x = -0.08 * e; }
       tilt = 0.22 * e;
       if (t > 1.3) h.cheer = null;
     }
@@ -578,7 +588,7 @@ export function makeFoodPlay(K) {
   function bite() {
     const h = held.get('me');
     if (!h || h.left <= 0 || h.wait > 0 || h.pour) return false;
-    if (K.me.rest || !K.act('eat')) return false;
+    if (lying(K.me) || !K.act('eat')) return false;
     h.left--; h.wait = 1.0; h.pend = 0; h.bt = 0; sentHold = clock;
     tell(`h:${h.kind}:${h.left}`);
     return true;
@@ -663,7 +673,7 @@ export function makeFoodPlay(K) {
     // 들고 있는 것이 있으면 먹기가 먼저다 (app.js 의 nearAction)
     action() {
       const h = held.get('me');
-      if (!h || K.me.rest) return null;
+      if (!h || lying(K.me)) return null;
       if (h.left <= 0) return { label: `${h.f.icon} 잘 ${h.f.sip ? '마셨어요' : '먹었어요'}`, run() {} }; // 빈 그릇이 남아 있는 동안에는 다른 일이 잘못 눌리지 않게
       return { label: `${h.f.icon} ${h.f.name} ${h.f.sip ? '마시기' : '먹기'} ${'●'.repeat(h.left)}${'○'.repeat(h.f.n - h.left)}`, run: bite };
     },

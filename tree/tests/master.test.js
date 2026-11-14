@@ -101,7 +101,7 @@ const server = http.createServer((q, s) => { let f = path.join(ROOT, decodeURICo
     check('받은 권한은 다시 들어와도 그대로', (await locks(B)) === 0 && (await B.isVisible('#tabs button[data-m="master"]')));
     await until(async () => (await T(A, () => window.__duo.count)) === 2, 20000);
     await A.tap('#tabs button[data-m="master"]'); await sleep(200); if (!(await A.isVisible('#masterP'))) await A.tap('#tabs button[data-m="master"]');
-    check('마스터 판을 다시 열면 친구가 가진 권한이 켜진 채로 보임', await until(() => T(A, () => [...document.querySelectorAll('#mkPeople .who .chip')].length === 6 && [...document.querySelectorAll('#mkPeople .who .chip')].every((b) => b.getAttribute('aria-pressed') === 'true')), 6000), await T(A, () => window.__master.given));
+    check('마스터 판을 다시 열면 친구가 가진 권한이 켜진 채로 보임', await until(() => T(A, () => [...document.querySelectorAll('#mkPeople .who .chip')].length === 7 && [...document.querySelectorAll('#mkPeople .who .chip')].every((b) => (b.getAttribute('aria-pressed') === 'true') === (b.dataset.bit !== '64'))), 6000), await T(A, () => window.__master.given)); // 🎬(64)는 이 검사에서 주지 않았다
     check('다시 들어와도 비행 슈트를 입은 채이고 날기 단추가 있음', await until(() => T(B, () => window.__tree.look.outfit === 'jet' && window.__fly.shown), 5000), await T(B, () => window.__tree.look.outfit));
     await A.tap('#mkPeople .who [data-bit="16"]');
     check('🚀 를 끄면 친구는 평상복으로 바뀌고 날기 단추와 옷 목록의 비행 슈트가 사라짐', await until(async () => (await T(B, () => window.__tree.look.outfit === 'basic' && !window.__fly.shown)) && !(await jetChip(B)), 5000), await T(B, () => window.__tree.look.outfit));

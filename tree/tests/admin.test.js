@@ -115,10 +115,9 @@ const audit = (p) => p.evaluate(() => {
     await D.close();
 
     /* 꾸미기·영화관·불·불꽃놀이 */
-    await B.tap('#tabs button[data-m="paint"]'); await sleep(400);
-    check('공동 관리자에게 "3층을 영화관으로 바꾸기" 단추가 보임', (await B.isVisible('#cineBtn')) && (await adm(B)).can && (await audit(B)).length === 0, await audit(B));
-    const made = await T(B, () => window.__cinema.convert());
-    check('공동 관리자가 영화관을 차리면 방장의 방에도 차려짐', made === 18 && await until(async () => (await T(A, () => window.__cinema.has)) && (await hash(A)) === (await hash(B)), 8000), made);
+    check('영화관으로 한 번에 바꾸는 단추는 마스터키 전용: 공동 관리자에게도 보이지 않고 직접 불러도 바뀌지 않음', !(await B.isVisible('#cineBtn')) && !(await B.isVisible('#tabs button[data-m="master"]')) && (await adm(B)).can && (await T(B, () => window.__cinema.convert())) === -1 && !(await T(A, () => window.__cinema.has)));
+    await T(B, () => window.__tree.dispatch({ t: 'put', id: 'admscr', k: 'screen', i: 64 + 0, j: 5, r: 1 }));
+    check('공동 관리자가 영화관 소품(스크린)을 직접 놓으면 방장의 방에도 놓임', await until(async () => (await T(A, () => window.__cinema.has)) && (await hash(A)) === (await hash(B)), 8000));
     await T(B, () => window.__tree.setMode(null));
     check('공동 관리자가 불을 끄면 모두에게 꺼짐', (await T(B, () => window.__lights.toggle(2))) && await until(async () => (await T(A, () => window.__lights.lamps.join())) === '1,1,0', 4000));
     check('불꽃놀이는 마스터키를 켠 사람만: 공동 관리자도 못 터뜨림', !(await T(B, () => window.__sky.press())), await T(B, () => document.getElementById('toast').textContent));
@@ -157,7 +156,7 @@ const audit = (p) => p.evaluate(() => {
     await A.screenshot({ path: path.join(__dirname, 'out', 'admin-three.png') });
     await A.tap(`#duoPeople button[data-adm][data-pid="${bid}"]`);
     check('방장이 "🔑 해제"를 누르면 공동 관리자가 아니게 됨(알림)', await until(async () => !(await adm(B)).me && (await B.textContent('#toast')).includes('해제'), 5000) && (await adm(A)).list.length === 1 && !(await adm(B)).can && !(await adm(B)).pass, await adm(B));
-    check('해제된 사람은 문 알림을 더 받지 않고 영화관 단추도 사라짐', await until(async () => !(await T(B, () => document.getElementById('cineRow').hidden === false)), 3000) && (await T(B, () => window.__duo.canEdit)));
+    check('해제된 사람은 문 알림을 더 받지 않음', (await T(B, () => window.__duo.canEdit)));
     await B.reload(); await ready(B);
     await sleep(2500);
     check('해제된 사람은 다시 올 때 초인종을 눌러야 함', (await mode(B)) === 'door' && (await T(A, () => window.__duo.knocks.length)) === 0);

@@ -285,7 +285,7 @@ export function makeSky(K) {
   room.floors.forEach((f, lv) => {
     for (const side of ['n', 's', 'w', 'e']) {
       const up = f.walls[side].upper;
-      for (const m of [...up.children]) {
+      for (const m of [...up.children, ...up.children.filter((c) => c.userData.deco).flatMap((c) => c.children)]) { // 3층의 창은 따로 묶여 있다 (room.js 의 deco)
         const mat = m.material;
         if (!m.isMesh || !mat || !mat.isMeshBasicMaterial) continue;
         const h = mat.color.getHex();

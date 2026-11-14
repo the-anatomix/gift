@@ -5,7 +5,7 @@
 import { THREE, M, put, cyl } from './kit.js';
 import { DART, TV, SONGS, CREAMS, TOPPINGS, CAKE, dartScore } from './catalog.js';
 import { TV_MAT } from './furniture.js';
-import { sfx } from './sfx.js';
+import { sfx, sfxHear } from './sfx.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -147,9 +147,12 @@ export function makePlay(K) {
   const hasRemote = () => !!rv && rv.readyState >= 2 && rv.videoWidth > 0;
   const watching = () => !!cur && cur.kind === 'tv';
   // 소리는 TV 를 보고 있고 소리를 켰을 때만 난다. 내 동영상이 있으면 그것을, 없으면 친구 것을 듣는다.
+  // 영화관 좌석에 앉아 있는 동안에는 판을 열지 않아도 소리가 난다 (효과음을 꺼 두었으면 안 나고, 크기도 효과음 크기를 따른다). 일어나면 꺼진다
+  let seated = false, hearKey = '';
   function applySound() {
-    if (video) video.muted = !(sound && watching());
-    if (rv) rv.muted = !(sound && watching() && !video);
+    const vol = sfxHear(), on = watching() ? sound : seated && vol > 0, v = watching() ? 1 : Math.max(0.05, Math.min(1, vol));
+    if (video) { video.muted = !on; video.volume = v; }
+    if (rv) { rv.muted = !(on && !video); rv.volume = v; }
   }
   // 내 동영상을 방 사람들에게 보낸다: TV 그림판을 영상으로, 동영상의 소리를 붙여서
   let sharing = false;
@@ -577,6 +580,8 @@ export function makePlay(K) {
     // 다른 모듈의 놀이를 더한다 (방명록: book.js). impl = { start(c), paint(c), tick, tap, stop }
     add(kind, impl) { KINDS[kind] = impl; },
     panel, // 아래 판을 그린다 (다른 모듈의 놀이가 쓴다)
+    pose: (p) => K.setPose(p), // 놀이 중 카메라 자리 (다른 모듈의 놀이가 쓴다)
+    get showing() { return hasVideo() || hasRemote(); }, // TV·스크린에 동영상이 나오고 있는지 (영화관의 영사기 빛: cinema.js)
     get cur() { return cur; },
     get spot() { return cur ? cur.spot || cur.id : null; }, // 놀이가 벌어지는 가구 (탁자에 올려놓은 케이크면 그 탁자)
     // 놀이를 연다. id = 가구, kind = 그 가구의 놀이 (케이크면 id = 케이크, 그 케이크가 놓인 가구에서 논다)
@@ -599,6 +604,10 @@ export function makePlay(K) {
     tick(dt) {
       if (cur) KINDS[cur.kind].tick(cur, dt);
       tickSong();
+      { // 앉았거나 일어났거나 효과음 설정이 바뀌었으면 소리를 맞춘다
+        const s = !!(K.seated && K.seated()), key = s + ':' + sfxHear();
+        if (key !== hearKey) { hearKey = key; seated = s; applySound(); if (s) { tryPlay(); if (rv) rv.play().catch(() => { wantPlay = true; }); } }
+      }
       if (K.hasKind('tv')) { tvT += dt; if (tvT > 0.06) { drawScreen(tvT); tvT = 0; } }
     },
     tap(px, py) { if (cur) KINDS[cur.kind].tap(cur, px, py); },

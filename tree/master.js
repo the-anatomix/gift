@@ -6,13 +6,14 @@
 //     SKY  하늘을 낮·노을·밤으로 바꾼다 (방 사람 모두에게)
 //     GIFT 트리 밑 선물을 12월 25일 전에도 연다
 //     SUIT 비행 슈트를 입고 난다 (costume.js, fly.js),  SLED 마당에서 루돌프 썰매를 타고 하늘을 난다 (fly.js, sleigh.js)
+//     CINE 3층을 한 번에 영화관으로 바꾸는 단추 (cinema.js)
 //   마스터 탭에서 방에 있는 사람마다 이 권한들을 따로 켜고 끌 수 있다. 받은 권한은 그 사람 기기에 남아 다음에도 그대로다.
 //   소식: { k: 'mk', v: '<받는 사람 id>:<권한 숫자>' } 주기, { k: 'mk', v: '?' } 지금 권한 묻기, { k: 'mk', v: '=<권한 숫자>' } 답.
 // 암호는 코드에 해시(SHA-256)로만 둔다. 사이트 코드는 누구나 볼 수 있고 소식도 흉내 낼 수 있으니 완벽한 보안은 아니고, 모르는 사람이 우연히 켜지 못하게 하는 정도다.
 import { THREE } from './kit.js';
 const NS = (() => { try { const n = new URLSearchParams(location.search).get('ns'); return n ? '.' + n : ''; } catch (_) { return ''; } })(); // 자동 검사는 ?ns= 로 창마다 저장값을 나눈다
 const HASH = 'de94e28d7a302b52374831e94e8c70adddf861c691e77ab53f0646f55543a3e7', SLOT = 'tree.master' + NS, GRANT = 'tree.grant' + NS;
-export const LOCK = 1, FIRE = 2, SKY = 4, GIFT = 8, SUIT = 16, SLED = 32, ALL = 63;
+export const LOCK = 1, FIRE = 2, SKY = 4, GIFT = 8, SUIT = 16, SLED = 32, CINE = 64, ALL = 127;
 export const KEY_AT = { x: -3.72, y: 0.03, z: -3.72 };
 const get = (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } };
 export function isMaster() { return get(SLOT) === HASH; }
@@ -31,7 +32,7 @@ export function makeMaster(K) {
   $('tabs').appendChild(tab);
   const panel = el('div', 'sheet'); panel.id = 'masterP'; panel.hidden = true;
   const css = el('style');
-  css.textContent = '#masterP .who{display:flex;align-items:center;gap:3px}#masterP .who span{flex:1;min-width:0;font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+  css.textContent = '#masterP .who{display:flex;flex-wrap:wrap;align-items:center;gap:3px}#masterP .who span{flex:1 0 100%;min-width:0;font-size:13px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
     + '#masterP .chip{min-width:44px;min-height:44px;padding:0 4px}#masterP #mkPeople{display:flex;flex-direction:column;gap:6px;max-height:150px;overflow-y:auto}';
   document.head.appendChild(css);
   const h = el('h2', '', '🔑 마스터'), skyRow = el('div', 'row'), people = el('div'), off = el('button', 'btn', '마스터키 끄기'), foot = el('div', 'row');
@@ -60,10 +61,10 @@ export function makeMaster(K) {
   fireRow.appendChild(fireBtn);
   panel.append(h, skyRow, lampRow, fireRow, people, foot);
   $('tabs').parentNode.insertBefore(panel, $('tabs'));
-  const BITS = [[LOCK, '🔓', '달력 잠금 없이 쓰기'], [FIRE, '🎆', '불꽃놀이'], [SKY, '🌙', '하늘 바꾸기'], [GIFT, '🎁', '선물 미리 열기'], [SUIT, '🚀', '비행 슈트'], [SLED, '🦌', '루돌프 썰매']];
+  const BITS = [[LOCK, '🔓', '달력 잠금 없이 쓰기'], [FIRE, '🎆', '불꽃놀이'], [SKY, '🌙', '하늘 바꾸기'], [GIFT, '🎁', '선물 미리 열기'], [SUIT, '🚀', '비행 슈트'], [SLED, '🦌', '루돌프 썰매'], [CINE, '🎬', '3층을 영화관으로 바꾸기']];
   let listKey = '';
   function paint() {
-    const m = isMaster(), show = m || can(SKY) || can(FIRE);
+    const m = isMaster(), show = m || can(SKY) || can(FIRE) || can(CINE);
     if (tab.hidden === show) { tab.hidden = !show; $('tabs').style.gridTemplateColumns = `repeat(${[...$('tabs').children].filter((b) => !b.hidden).length}, 1fr)`; // 탭이 하나 늘어도 한 줄
       if (!show && K.mode() === 'master') K.setMode(null); K.resized(); }
     for (const b of skyBox.children) b.setAttribute('aria-pressed', String(b.dataset.v === K.sky.time()));
