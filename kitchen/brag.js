@@ -2,9 +2,11 @@
 // 원하면 자기 사진을 폴라로이드처럼 흰 테두리에 넣어 사진 속에 붙일 수 있다.
 // 사진은 이 기기 안에서 그림에 합쳐질 뿐, 어디에도 보내거나 저장하지 않는다.
 import { kitchen as K } from './app.js';
-import { SITE } from './theme.js';
+import { SITE, pickTheme } from './theme.js';
 
 const $ = (id) => document.getElementById(id);
+// 카드 색. 계절 판은 theme.js 의 card 로 바꾼다
+const CARD = Object.assign({ bg: ['#FFF8EA', '#FBE6D2', '#F0CDB4'], accent: '#D9483B', tape: 'rgba(217,72,59,.5)', foot: '#8A6A55', orn: '♥', label: '', snow: false }, pickTheme().card);
 const W = 1080, H = 1350, SCENE_H = 850;
 const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
 const c = cv.getContext('2d');
@@ -40,8 +42,8 @@ function polaroid(x, y, rot) { // 흰 테두리 사진
   c.save(); c.beginPath(); c.rect(px, py, ph, ph); c.clip();
   const s = Math.max(ph / photo.width, ph / photo.height), w = photo.width * s, h = photo.height * s;
   c.drawImage(photo, -w / 2, py + ph / 2 - h / 2, w, h); c.restore();
-  c.fillStyle = '#D9483B'; c.textAlign = 'center'; c.font = `700 46px ${FONT}`; c.fillText(gift && gift.mine ? '내가 만들었어 ♥' : '잘 받았어 ♥', 0, fh / 2 - 26);
-  c.fillStyle = 'rgba(217,72,59,.5)'; c.save(); c.translate(0, -fh / 2 - 2); c.rotate(-0.06); c.fillRect(-56, -16, 112, 32); c.restore(); // 붙인 테이프
+  c.fillStyle = CARD.accent; c.textAlign = 'center'; c.font = `700 46px ${FONT}`; c.fillText(gift && gift.mine ? '내가 만들었어 ♥' : '잘 받았어 ♥', 0, fh / 2 - 26);
+  c.fillStyle = CARD.tape; c.save(); c.translate(0, -fh / 2 - 2); c.rotate(-0.06); c.fillRect(-56, -16, 112, 32); c.restore(); // 붙인 테이프
   c.restore();
 }
 function chipTitle(x, y) { // 등급 띠
@@ -55,12 +57,16 @@ function chipTitle(x, y) { // 등급 띠
 }
 function background() {
   const bg = c.createRadialGradient(W / 2, 520, 80, W / 2, 620, 1000);
-  bg.addColorStop(0, '#FFF8EA'); bg.addColorStop(0.55, '#FBE6D2'); bg.addColorStop(1, '#F0CDB4');
+  bg.addColorStop(0, CARD.bg[0]); bg.addColorStop(0.55, CARD.bg[1]); bg.addColorStop(1, CARD.bg[2]);
   c.fillStyle = bg; c.fillRect(0, 0, W, H);
+  if (CARD.snow) { // 눈송이: 늘 같은 자리에 찍는다
+    c.fillStyle = 'rgba(255,255,255,.9)';
+    for (let i = 0; i < 46; i++) { c.beginPath(); c.arc((i * 397) % W, (i * 263) % 860, 5 + (i % 4) * 2.5, 0, 7); c.fill(); }
+  }
 }
 function footer() {
-  c.textAlign = 'center'; c.fillStyle = '#8A6A55'; c.font = `700 28px ${SANS}`;
-  c.fillText('갓 구운 선물 · 미니 주방' + (SITE.account ? ' · @' + SITE.account : ''), W / 2, 1312);
+  c.textAlign = 'center'; c.fillStyle = CARD.foot; c.font = `700 28px ${SANS}`;
+  c.fillText('갓 구운 선물 · 미니 주방' + CARD.label + (SITE.account ? ' · @' + SITE.account : ''), W / 2, 1312);
 }
 // 만든 사람의 카드: 완성된 과자 + 과정 사진 네 장 + 한마디
 function drawMine() {
@@ -116,7 +122,7 @@ function draw() {
   c.shadowColor = 'transparent'; c.strokeStyle = '#E6CFA2'; c.lineWidth = 3; rr(px + 13, py + 13, pw - 26, ph - 26, 20); c.stroke();
   c.restore();
   c.strokeStyle = '#E0C79A'; c.lineWidth = 2; c.beginPath(); c.moveTo(W / 2 - 110, py + 52); c.lineTo(W / 2 - 34, py + 52); c.moveTo(W / 2 + 34, py + 52); c.lineTo(W / 2 + 110, py + 52); c.stroke();
-  c.fillStyle = '#D9483B'; c.textAlign = 'center'; c.font = `400 30px ${SANS}`; c.fillText('♥', W / 2, py + 63);
+  c.fillStyle = CARD.accent; c.textAlign = 'center'; c.font = `400 30px ${SANS}`; c.fillText(CARD.orn, W / 2, py + 63);
   c.fillStyle = '#4A2F1F'; c.textAlign = 'left';
   let y = py + 122;
   if (gift && gift.to) { c.font = `700 52px ${FONT}`; c.fillText(gift.to, px + 56, y); y += 66; }

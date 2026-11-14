@@ -3,6 +3,7 @@
 // 채팅은 없다. 글자 입력은 과자에 새기는 6자뿐이고, 화면에 넣는 글자는 모두 textContent 로 넣는다.
 import { kitchen as K } from './app.js';
 import { openRoom } from './net.js';
+import { themeSearch } from './theme.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -55,7 +56,7 @@ export function unpackState(txt) {
   }
   return st;
 }
-const baseUrl = () => location.origin + location.pathname + location.search;
+const baseUrl = () => location.origin + location.pathname + themeSearch(); // 계절 판이면 상대도 같은 판으로 열리게
 const inviteUrl = () => baseUrl() + (xmode ? '#x=' : '#r=') + room;
 const continueUrl = () => baseUrl() + '#s=' + packState(K.getState());
 

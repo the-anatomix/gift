@@ -32,6 +32,17 @@ const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 60);
 const THEME = pickTheme();
 const C = THEME.colors; // 색과 계절 소품은 theme.js 한 곳에서 바꾼다
 for (const k in THEME.ui) document.documentElement.style.setProperty(k, THEME.ui[k]);
+document.documentElement.dataset.theme = THEME.id;
+if (THEME.tag) { const t = $('season'); t.textContent = THEME.tag; t.hidden = false; t.parentNode.classList.add('season'); } // 계절 판 이름표
+if (THEME.orn) for (const o of document.querySelectorAll('.letterpaper .orn')) o.textContent = THEME.orn;
+if (THEME.snow && !reduceMotion) { // 받는 화면에 내리는 눈. 움직임은 CSS 가 맡는다
+  const box = $('snowfx');
+  for (let i = 0; i < 16; i++) {
+    const f = document.createElement('i'), d = 6 + (i * 7) % 6;
+    f.style.cssText = `left:${(i * 61) % 100}%;width:${4 + i % 4 * 2}px;height:${4 + i % 4 * 2}px;animation-duration:${d}s;animation-delay:-${(i * 1.3) % d}s`;
+    box.appendChild(f);
+  }
+}
 if (SITE.account) { const a = $('account'); a.textContent = SITE.account; a.hidden = false; }
 const CHOCO = [
   { name: '밀크', hex: 0x7B4A2D },
@@ -40,7 +51,7 @@ const CHOCO = [
   { name: '딸기', hex: 0xF2A0AE },
   { name: '말차', hex: 0x9DB86A },
 ];
-const TEXT_COLORS = [
+const TEXT_COLORS = THEME.textColors || [
   { name: '크림', css: '#FFF6E2' }, { name: '초콜릿', css: '#5A3824' }, { name: '빨강', css: '#D9483B' },
   { name: '분홍', css: '#F28B9B' }, { name: '노랑', css: '#F6C85F' },
 ];
@@ -50,6 +61,7 @@ const KINDS = [
   { id: 'star', name: '별', dot: '#F6C85F', step: 15, colors: [0xF6C85F, 0xFFF3C4] },
   { id: 'nut', name: '견과', dot: '#C8935A', step: 11, colors: [0xC8935A, 0xA9713F, 0xE0B982] },
 ];
+if (THEME.sprinkle) Object.assign(KINDS[0], THEME.sprinkle); // 계절 판의 스프링클 색 (가짓수는 그대로)
 
 /* ───────── 도형 도우미 ───────── */
 const mats = new Map();
@@ -189,7 +201,9 @@ function buildStick() {
 }
 
 buildRoom(); buildCounters(); buildChoco(); buildTopping(); buildStick();
-THEME.props({ THREE, scene, put, rbox, cyl, C, TOP_Y });
+const propKit = { THREE, scene, put, rbox, cyl, C, TOP_Y };
+const propFn = THEME.props(propKit); // 움직이는 계절 소품이 있으면 함수가 돌아온다
+const propTick = typeof propFn === 'function' && !reduceMotion ? propFn : null;
 
 /* ───────── 상태 ─────────
    화면에 보이는 것은 모두 S 에서 나온다. 바꿀 때는 dispatch(사건) 한 곳으로만 바꾼다. */
@@ -422,7 +436,7 @@ const ANCHOR = {
 const mods = {};
 for (const id in STATION_MODS) {
   const kit = {
-    THREE, scene, C, M, put, rbox, cyl, TOP_Y, tween, poke, toast, ease, easeBack, reduceMotion,
+    THREE, scene, C, M, put, rbox, cyl, TOP_Y, tween, poke, toast, ease, easeBack, reduceMotion, theme: THEME,
     station: id,
     active: () => S.station === id,
     send: (d) => dispatch({ t: 'st', s: id, d }),       // 상태를 바꾸는 유일한 길. apply(d) 로 돌아온다(상대에게도 간다)
@@ -527,7 +541,8 @@ function setStage(on) {
       const sl = mods.pack.slot();
       stageDisc = new THREE.Group(); stageDisc.position.set(sl.x - 0.1, TOP_Y, sl.z + 0.12); scene.add(stageDisc);
       put(cyl(0.64, 0.68, 0.05, 44), C.white, 0, -0.026, 0, stageDisc);
-      put(cyl(0.7, 0.72, 0.03, 44), C.accentSoft, 0, -0.066, 0, stageDisc, false);
+      put(cyl(0.7, 0.72, 0.03, 44), C.stageRing || C.accentSoft, 0, -0.066, 0, stageDisc, false);
+      if (THEME.stage) THEME.stage(propKit, stageDisc); // 계절 소품은 받침과 함께 보였다 숨는다
     }
     const keep = new Set([stick, stageDisc, ...mods.pack.stage]);
     stageSaved = new Map();
@@ -915,7 +930,7 @@ function placeLabels() {
     labelEls[id].style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-50%)`;
   }
 }
-let raf = 0, frames = 0;
+let raf = 0, frames = 0, propFrames = 0, propAt = 0;
 // 저사양 폰: 이어서 그린 45장의 평균이 30fps 에 못 미치면 한 번만 품질을 낮춘다(픽셀 비율 1, 그림자 절반)
 let quality = 'high', lastDraw = 0, slowSum = 0, slowN = 0;
 function lowerQuality() {
@@ -939,14 +954,18 @@ function frame(now) {
     t.fn(k);
     if (k >= 1) { tweens.delete(t); if (t.done) t.done(); }
   }
-  if (now > wake && !tweens.size) return;
+  // 주방이 쉬는 동안: 움직이는 계절 소품(눈·전구)이 있을 때만 드문드문 그린다. 그림자는 다시 만들지 않는다
+  const idle = now > wake && !tweens.size;
+  if (idle && (!propTick || stageOn || now - propAt < (quality === 'low' ? 260 : 100))) return;
+  if (propTick && !stageOn && now - propAt >= 100) { propAt = now; propTick(now); }
   if (drawGrains(now)) poke(100);
   applyCam();
   camera.updateProjectionMatrix();
   camera.updateMatrixWorld();
   if (S.station === 'home' || travel) placeLabels();
-  renderer.shadowMap.needsUpdate = true;
+  renderer.shadowMap.needsUpdate = !idle;
   renderer.render(scene, camera);
+  if (idle) { propFrames++; lastDraw = 0; return; } // 느린 박자로 그린 장면은 속도 판정과 frames 에 넣지 않는다
   frames++; watchSpeed(now);
 }
 document.addEventListener('visibilitychange', () => {
@@ -972,7 +991,12 @@ export const kitchen = {
   setHomeAction(a, panel) { homeAction = a; homePanel = panel || null; panelKey = ''; renderPanel(); refit(); },
   refit, // 아래 패널 높이가 바뀌었을 때 카메라를 다시 맞춘다
   project(x, y, z) { _v.set(x, y, z).project(camera); return { x: (_v.x * 0.5 + 0.5) * W, y: (-_v.y * 0.5 + 0.5) * H }; },
-  get frames() { return frames; }, get me() { return ME; }, get quality() { return quality; }, lowerQuality, theme: THEME.name,
+  get frames() { return frames; }, get me() { return ME; }, get quality() { return quality; }, lowerQuality, theme: THEME.name, themeId: THEME.id,
+  get propFrames() { return propFrames; }, // 쉬는 동안 계절 소품 때문에 그린 횟수
+  season() { // 계절 소품 이름: 주방에 놓인 것과 받는 화면 받침에 놓인 것 (검사용)
+    const names = (g) => (g ? g.children.map((o) => o.name).filter(Boolean) : []);
+    return { room: names(scene.getObjectByName('season')), stage: names(stageDisc) };
+  },
   stickScreen() { // 과자 가운데의 화면 좌표 (검사용)
     const a = stick.localToWorld(V3(0, 0, 0)).project(camera), b = stick.localToWorld(V3(0, STICK.L * 0.8, 0)).project(camera);
     const f = (v) => ({ x: (v.x * 0.5 + 0.5) * W, y: (-v.y * 0.5 + 0.5) * H });

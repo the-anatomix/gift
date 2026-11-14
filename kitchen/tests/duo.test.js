@@ -189,7 +189,7 @@ async function extraSuite(browser) {
   await n.evaluate(() => window.__kitchen.lowerQuality());
   await tab(n, '토핑'); await rub(n);
   check('품질을 낮춘 뒤에도 그대로 동작', (await n.evaluate(() => window.__kitchen.quality)) === 'low' && (await n.evaluate(() => window.__kitchen.S.grains.length)) > 0);
-  check('계절 판 설정이 한 곳(theme.js)에서 읽힘', (await n.evaluate(() => window.__kitchen.theme)) === '기본');
+  check('계절 판 설정이 한 곳(theme.js)에서 읽힘', ['기본', '크리스마스'].includes(await n.evaluate(() => window.__kitchen.theme))); // 12월 1~25일에는 크리스마스 판으로 열린다
 
   // 개인정보: 저장소에 아무것도 남기지 않는다
   await n.evaluate(() => window.__duo.createRoom());
