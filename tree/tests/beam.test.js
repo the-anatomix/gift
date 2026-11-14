@@ -135,7 +135,7 @@ const overlaps = (p) => T(p, () => {
     await sleep(900);
     await T(B, () => { for (let k = 0; k < 5; k++) window.__duo.feed({ t: 'fx', id: 'h', k: 'beam', v: '1.57;0.00;3.0' }); }); await sleep(150);
     check('한꺼번에 쏟아지는 빔 소식은 하나만 받음', (await BM(B)).active.length === 1, (await BM(B)).active);
-    await sleep(900);
+    await until(async () => (await BM(B)).active.length === 0, 5000); // 앞의 빛줄기가 다 사라진 뒤에 (느린 기기에서는 화면 시간이 늦게 간다)
     await T(B, () => { for (const v of ['abc', '9.99;0.00;3.0', '0.00;2.00;3.0', '0.00;0.00;9.9', '0.00;0.00;0.1', '1.57;0.00', 5, null, '1.57;0.00;3.0;1']) window.__duo.feed({ t: 'fx', id: 'h', k: 'beam', v }); window.__duo.feed({ t: 'fx', id: 'zz', k: 'beam', v: '1.57;0.00;3.0' }); });
     await sleep(200);
     check('이상한 빔 소식은 받지 않음', (await BM(B)).active.length === 0 && errors.length === 0, (await BM(B)).active);

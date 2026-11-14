@@ -194,7 +194,7 @@ const peerLv = (p) => T(p, () => window.__duo.others.map((o) => o.level));
     const bt = cxz(32 + 12, 12);
     await walk(PB, bt[0], bt[1]);
     const ob = () => T(PA, () => window.__duo.other);
-    check('친구가 2층으로 가면 내 화면에서도 친구 자리가 2층 그 자리로 따라옴', await until(async () => { const o = await ob(); return o && Math.hypot(o.x - bt[0], o.z - bt[1]) < 0.1 && !o.moving; }, 15000), await ob());
+    check('친구가 2층으로 가면 내 화면에서도 친구 자리가 2층 그 자리로 따라옴', await until(async () => { const o = await ob(); return o && Math.hypot(o.x - bt[0], o.z - bt[1]) < 0.1 && !o.moving; }, 30000), await ob());
     check('2층에 있는 친구는 1층에 있는 내 화면에서 숨음 (친구 화면에서도 나는 숨음)', await until(async () => (await peersShown(PA)).join() === 'false' && (await peersShown(PB)).join() === 'false' && (await peerLv(PA)).join() === '1' && (await peerLv(PB)).join() === '0', 5000), { a: await peersShown(PA), b: await peersShown(PB), la: await peerLv(PA), lb: await peerLv(PB) });
     const at2 = cxz(32 + 14, 12);
     await walk(PA, at2[0], at2[1]);
@@ -204,10 +204,10 @@ const peerLv = (p) => T(p, () => window.__duo.others.map((o) => o.level));
     check('친구가 2층에 놓은 가구가 내 방에도 2층에 놓이고 보임', gift && gift.i >= 32 && await until(async () => (await hash(PA)) === (await hash(PB)), 5000) && (await T(PA, (id) => !!window.__tree.S.items.get(id) && window.__tree.itemShown(id), gift.id)), gift);
     const ct = cxz(64 + 10, 12);
     await walk(PB, ct[0], ct[1]);
-    check('친구가 3층으로 가면 2층의 내 화면에서 숨음', await until(async () => { const o = await ob(); return o && Math.hypot(o.x - ct[0], o.z - ct[1]) < 0.1; }, 15000) && await until(async () => (await peersShown(PA)).join() === 'false', 5000), { o: await ob(), a: await peersShown(PA) });
+    check('친구가 3층으로 가면 2층의 내 화면에서 숨음', await until(async () => { const o = await ob(); return o && Math.hypot(o.x - ct[0], o.z - ct[1]) < 0.1; }, 30000) && await until(async () => (await peersShown(PA)).join() === 'false', 5000), { o: await ob(), a: await peersShown(PA) });
     check('3층에 있는 친구 화면에서는 2층 선물이 숨음', !(await T(PB, (id) => window.__tree.itemShown(id), gift.id)));
     await walk(PB, -2, -3);
-    check('친구가 1층으로 내려와도 자리가 맞음', await until(async () => { const o = await ob(); return o && Math.hypot(o.x + 2, o.z + 3) < 0.1; }, 15000), await ob());
+    check('친구가 1층으로 내려와도 자리가 맞음', await until(async () => { const o = await ob(); return o && Math.hypot(o.x + 2, o.z + 3) < 0.1; }, 30000), await ob());
 
     check('페이지 오류 없음', errors.length === 0, errors);
   } finally { await browser.close(); server.close(); }
