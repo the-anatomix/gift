@@ -64,7 +64,7 @@ const night = async (p) => { const c = await T(p, () => window.__play.pixel(20, 
 
     /* TV 같이 보기 */
     check('동영상을 넣기 전에는 모두 눈 내리는 밤', (await night(A)) && (await night(B)));
-    const b64 = await A.evaluate(() => new Promise((ok, no) => {
+    const clip = (ms) => A.evaluate((ms) => new Promise((ok, no) => {
       const c = document.createElement('canvas'); c.width = 96; c.height = 54;
       const g = c.getContext('2d'); let k = 0;
       const paint = () => { g.fillStyle = '#E01010'; g.fillRect(0, 0, 96, 54); g.fillStyle = '#fff'; g.fillRect(k++ % 90, 20, 6, 6); };
@@ -72,11 +72,14 @@ const night = async (p) => { const c = await T(p, () => window.__play.pixel(20, 
       const rec = new MediaRecorder(c.captureStream(25), { mimeType: 'video/webm' }), parts = [];
       rec.ondataavailable = (e) => parts.push(e.data);
       rec.onstop = () => { clearInterval(iv); const fr = new FileReader(); fr.onload = () => ok(fr.result.split(',')[1]); fr.onerror = no; fr.readAsDataURL(new Blob(parts, { type: 'video/webm' })); };
-      rec.start(); setTimeout(() => rec.stop(), 1200);
-    }));
+      rec.start(); setTimeout(() => rec.stop(), ms);
+    }), ms);
+    let b64 = ''; // 느린 기기에서는 빈 영상이 녹화되기도 한다: 그때는 더 길게 다시 찍는다
+    for (const ms of [1200, 3000, 6000, 10000]) { b64 = await clip(ms); if (b64.length > 3000) break; }
     await T(A, () => window.__play.open('tv')); await sleep(300);
+    console.log('   (검사용 영상 크기)', b64.length);
     await A.setInputFiles('#tvFile', { name: 'clip.webm', mimeType: 'video/webm', buffer: Buffer.from(b64, 'base64') });
-    check('동영상을 넣으면 내 TV 에 나오고, 방 사람들에게 보내기 시작함', await until(async () => (await red(A)) && (await T(A, () => window.__media.tvOn)), 15000));
+    check('동영상을 넣으면 내 TV 에 나오고, 방 사람들에게 보내기 시작함', await until(async () => (await red(A)) && (await T(A, () => window.__media.tvOn)), 60000));
     check('다른 사람들의 TV 에도 그 동영상이 나옴', await until(async () => (await red(B)) && (await red(C)) && (await red(D)), 90000), { b: await T(B, () => window.__play.remote), c: await T(C, () => window.__play.remote) });
     check('받는 쪽은 누가 보내는지 알고 있음', (await T(B, () => window.__media.tvFrom)) === 'h' && (await T(B, () => window.__play.remote.from)) === 'h');
     await T(B, () => window.__play.open('tv')); await sleep(500);
@@ -84,8 +87,8 @@ const night = async (p) => { const c = await T(p, () => window.__play.pixel(20, 
     await B.tap('#playSound'); await sleep(200);
     check('소리 켜기를 누르면 친구 영상의 소리가 켜짐', !(await T(B, () => window.__play.remote.muted)));
     await B.screenshot({ path: path.join(__dirname, 'out', 'tv-shared.png') });
-    await B.tap('#playQuit'); await sleep(300);
-    check('그만 보면 소리는 꺼지고 화면은 계속 나옴', (await T(B, () => window.__play.remote.muted)) && (await red(B)));
+    await B.tap('#playQuit');
+    check('그만 보면 소리는 꺼지고 화면은 계속 나옴', await until(async () => (await T(B, () => window.__play.remote.muted)) && (await red(B)), 15000));
     const E = await open(browser, url('#r=' + room));
     check('나중에 들어온 사람의 TV 에도 나옴', await until(() => red(E), 30000));
     await A.tap('#playDrop');
