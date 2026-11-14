@@ -138,7 +138,7 @@ async function suite(browser, label, query, twoContexts) {
 
   /* 이상한 말이 와도 버틴다 */
   const before = await hash(A);
-  const bad = await T(A, () => { const D = window.__duo; for (const m of [null, 5, 'x', {}, { t: 5 }, { t: 'op' }, { t: 'op', op: { t: 'put', id: '<b>', k: 'sofa', i: 0, j: 0, r: 0 } }, { t: 'op', op: { t: 'put', id: 'z1', k: 'sofa', i: 99, j: 0, r: 0 } },
+  const bad = await T(A, () => { const D = window.__duo; for (const m of [null, 5, 'x', {}, { t: 5 }, { t: 'op' }, { t: 'op', op: { t: 'put', id: '<b>', k: 'sofa', i: 0, j: 0, r: 0 } }, { t: 'op', op: { t: 'put', id: 'z1', k: 'sofa', i: 199, j: 0, r: 0 } },
     { t: 'state' }, { t: 'state', state: 'no' }, { t: 'hello', state: { v: 1, at: 9e13, items: 'x' } }, { t: 'look', look: { gender: '<script>' } }, { t: 'pos', x: 'a', z: 1 }, { t: 'pos', x: 999, z: 0 }, { t: 'ping', h: 5 }, { t: 'nope' }]) D.feed(m); return D.mode; });
   await sleep(400);
   check('규칙에 어긋난 말이 와도 방이 망가지지 않음', bad === 'on' && (await hash(A)) === before && errors.length === 0 && (await other(A)).look.outfit === 'rudolph', { bad, errors });

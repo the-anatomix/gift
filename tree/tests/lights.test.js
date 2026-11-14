@@ -65,7 +65,7 @@ const audit = (p) => p.evaluate(() => {
     const r1 = await ratio(A);
     check('불을 끄면 방이 어두워짐: 하늘빛 0.2배, 햇빛 0.04배 (바탕값에 곱함)', near(r1[0], 0.2) && near(r1[1], 0.04), r1);
     const glow = await T(A, () => window.__party.bright().glow);
-    check('트리 둘레 빛은 그대로 남고, 스위치의 작은 불이 켜져 어두워도 찾을 수 있음', glow === 1.6 && JSON.stringify(await T(A, () => window.__lights.dots)) === '[true,false,false]', glow);
+    check('트리 둘레 빛은 그대로 남고, 스위치의 작은 불이 켜져 어두워도 찾을 수 있음', glow === 1.6 && JSON.stringify(await T(A, () => window.__lights.dots)) === '[true,false,false,false]', glow);
     check('꺼진 스위치 앞에서는 "불 켜기"', (await T(A, () => window.__tree.nearAction())) === '💡 불 켜기');
     await A.screenshot({ path: path.join(__dirname, 'out', 'lights-off.png') });
 
