@@ -87,7 +87,7 @@ const server = http.createServer((q, s) => { let f = path.join(ROOT, decodeURICo
     check('받은 권한은 다시 들어와도 그대로', (await locks(B)) === 0 && (await B.isVisible('#tabs button[data-m="master"]')));
     await until(async () => (await T(A, () => window.__duo.count)) === 2, 20000);
     await A.tap('#tabs button[data-m="master"]'); await sleep(200); if (!(await A.isVisible('#masterP'))) await A.tap('#tabs button[data-m="master"]');
-    check('마스터 판을 다시 열면 친구가 가진 권한이 켜진 채로 보임', await until(() => T(A, () => [...document.querySelectorAll('#mkPeople .who .chip')].length === 4 && [...document.querySelectorAll('#mkPeople .who .chip')].every((b) => b.getAttribute('aria-pressed') === 'true')), 6000), await T(A, () => window.__master.given));
+    check('마스터 판을 다시 열면 친구가 가진 권한이 켜진 채로 보임', await until(() => T(A, () => [...document.querySelectorAll('#mkPeople .who .chip')].length === 5 && [...document.querySelectorAll('#mkPeople .who .chip')].every((b) => b.getAttribute('aria-pressed') === 'true')), 6000), await T(A, () => window.__master.given));
     await A.tap('#mkPeople .who [data-bit="1"]');
     check('🔓 를 끄면 친구에게 잠금이 돌아옴', await until(async () => (await locks(B)) > 0, 5000), [await T(A, () => window.__master.given), await T(B, () => [localStorage.getItem('tree.grant.mb'), window.__duo.me]), await A.textContent('#toast')]);
     /* 다시 열어도 마스터가 놓은 것이 남음 */

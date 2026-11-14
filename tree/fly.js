@@ -209,7 +209,7 @@ export function makeFly(K) {
     // 방장이 날고 있다는 소식. 방장('h')이 비행 슈트를 입고 있을 때만 받는다
     peerFx(m, id) {
       const a = K.others().get(id);
-      if (id !== 'h' || !a || typeof m.v !== 'string') return false;
+      if (!a || typeof m.v !== 'string') return false;
       if (m.v === '') { if (a.fly) { a.fly = null; a.sync(); a.animate(0, false); K.dirty(); } return true; }
       const y = Number(m.v);
       if (!/^\d{1,2}\.\d\d$/.test(m.v) || !(y >= 0 && y <= LEVELS * FLOOR_H + YARD_TOP) || a.look.outfit !== HOST_OUTFIT || a.rest || a.hop) return false;
