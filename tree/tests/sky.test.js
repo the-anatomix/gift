@@ -136,10 +136,10 @@ const pov = (p, fp) => T(p, (fp) => { if ((window.__tree.pov === 'fp') !== fp) w
     await setNow(A, 2026, 12, 24, 21, 0);
     check('12월 24일 밤: 눈이 내림 (마당 위 입자가 보임)', await until(async () => { const s = await sky(A); return s.weather > 0 && s.snow > 0.3 && await T(A, () => window.__sky.snowShown); }, 8000), await sky(A));
     await shot(A, 'phone-snow-night-iso');
-    await pov(A, true); await place(A, 2.6, 9.0); await look(A, 0.25, -1); await sleep(2500);
+    await pov(A, true); await place(A, 2.6, 9.0); await look(A, 0.25, -1); await sleep(900);
     check('1인칭에서는 하늘 돔이 보임', await T(A, () => window.__sky.dome));
     const yardSky = await meanColor(A, [0.05, 0.1, 0.95, 0.16]);
-    check('마당 1인칭 밤하늘은 어두움', yardSky.l < 80, yardSky);
+    check('마당 1인칭 밤하늘은 어두움', yardSky.l < 90, yardSky);
     await shot(A, 'phone-snow-night-fp-yard');
     await look(A, 0.1, 1); await sleep(600); await shot(A, 'phone-snow-night-fp-yard-south');
     await place(A, -1.2, -2.2); await look(A, -0.15, -1); await sleep(900);

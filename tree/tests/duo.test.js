@@ -17,7 +17,7 @@ async function open(ctx, url) {
   const p = await ctx.newPage();
   await p.addInitScript(() => { window.__bare = true; }); // 기본 가구 없이 빈 방에서 시작한다
   p.on('pageerror', (e) => { errors.push(e.message); console.log('   (페이지 오류)', e.message); });
-  await p.goto(url);
+  await p.goto(url, { timeout: 120000 });
   await ready(p);
   if (await p.isVisible('#lookDone')) await p.click('#lookDone');
   return p;

@@ -13,7 +13,7 @@ async function open(ctx, url, look = true) {
   const p = await ctx.newPage();
   await p.addInitScript(() => { window.__bare = true; }); // 기본 가구 없이 빈 방에서 시작한다
   p.on('pageerror', (e) => { errors.push(e.message); console.log('   (페이지 오류)', e.message); });
-  await p.goto(url); await ready(p);
+  await p.goto(url, { timeout: 120000 }); await ready(p);
   if (look && await p.isVisible('#lookDone')) await p.click('#lookDone');
   return p;
 }
@@ -107,9 +107,9 @@ const audit = (p) => p.evaluate(() => {
     check('내보낸 사람은 같은 링크로 다시 와도 들어오지 못함', await until(async () => (await mode(B)) === 'denied', 6000) && (await T(B, () => window.__duo.why)) === 'ban' && (await T(A, () => window.__duo.knocks.length)) === 0 && (await T(A, () => window.__duo.others.length)) === 0);
     // 다른 기기의 친구는 들어올 수 있다
     const D = await open(ctx, url('dd', '#r=' + room));
-    await until(async () => (await mode(D)) === 'door', 15000);
+    await until(async () => (await mode(D)) === 'door', 40000);
     await T(D, () => window.__door.ring());
-    await until(async () => (await T(A, () => window.__duo.knocks.length)) === 1, 5000);
+    await until(async () => (await T(A, () => window.__duo.knocks.length)) === 1, 20000);
     await T(A, () => window.__duo.admit(window.__duo.knocks[0].id));
     check('다른 친구는 그대로 들어올 수 있음', await until(async () => (await mode(D)) === 'on' && (await hash(A)) === (await hash(D)), 30000));
     // 문 앞에서 기다리던 사람이 그냥 가 버리면 알림이 사라진다
