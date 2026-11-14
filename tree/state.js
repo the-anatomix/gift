@@ -17,6 +17,8 @@
 //   { t: 'cakeDrop', id, by, on }    내려놓는다 (on = 올려놓을 탁자 가구 id. 없으면 작업대로 돌아간다)
 //   { t: 'cakeBake', id, home }      오븐에서 새 케이크를 구워 빈 작업대 home 에 올린다 (id = home 이면 다 먹은 처음 케이크를 다시 굽는다)
 //   { t: 'cakeEat', id }             한 조각 먹기 (다 먹으면 케이크가 없어진다)
+//   { t: 'pzTake', id, by }          구운 피자를 든다 (한 사람이 케이크든 피자든 하나만)
+//   { t: 'pzDrop', id, by, on }      내려놓는다 (on = 탁자. 없으면 화덕의 도마로 돌아간다)
 //   { t: 'cakeSet', id, c }          저장해 둔 케이크를 통째로 놓는다 (방을 다시 열 때만)
 // 방명록과 이 방 최고 기록 (구경하는 사람도 남길 수 있다. 지우기는 꾸밀 수 있는 사람만)
 //   { t: 'note', id, name, text, at }  한마디 남기기 (at = 남긴 때 ms). NOTE.max 개가 넘치면 가장 오래된 것부터 빠진다
@@ -36,7 +38,7 @@
 // 마당 눈사람 (구경하는 사람도 할 수 있다. 놓인 뒤에는 보통 가구 눈사람이라 'move'·'del' 로 옮기고 치운다. 저장도 가구로 한다)
 //   { t: 'snowman', id, i, j }         같이 만든 눈사람을 마당 칸 (i, j) 에 놓는다. 방에 눈사람이 SNOWMEN 개 있으면 더 놓지 못한다
 // 방 불 (lights.js). 층마다 따로 켜고 끈다. 꾸밀 수 있는 사람만
-//   { t: 'lamp', lv, on }              lv 층(0 = 1층)의 불을 켠다(on = true) / 끈다. S.lamps = [1, 1, 1] (저장값에 없으면 모두 켜진 것)
+//   { t: 'lamp', lv, on }              lv 층(0 = 1층)의 불을 켠다(on = true) / 끈다. S.lamps = [1, 1, 1, 1] (저장값에 없으면 모두 켜진 것)
 // 공동 관리자 (admin.js). 방장만 지정하고 해제한다(손님이 보낸 것은 duo.js 가 받지 않는다)
 //   { t: 'adm', tag, on }              tag = 그 기기의 이 방 전용 표(비밀값의 지문, 16진 20자). S.adm = 표의 모음, ADMINS 개까지
 // 액자에 넣은 사진 (photo.js). 방의 상태에는 사진의 지문만 둔다. 사진 자체는 따로 주고받고 기기마다 따로 기억한다. 꾸밀 수 있는 사람만
@@ -120,6 +122,19 @@ export function sendHome(S, id) {
   if (!benchFree(S, benchOf(id, c), id)) rmCake(S, id, c);
   return true;
 }
+// 탁자 위에 놓인 피자의 id = 그 피자를 구운 화덕 (없으면 null)
+export function pizzaOnTable(S, t) {
+  for (const [id, p] of S.pizzas) if (!p.by && p.on === t) return id;
+  return null;
+}
+// 든 사람이 떠났을 때: 피자를 화덕의 도마로 돌려보낸다
+export function pizzaHome(S, id) {
+  const p = S.pizzas.get(id);
+  if (!p || (!p.by && !p.on)) return false;
+  p.by = null; p.on = null;
+  return true;
+}
+const holdsPizza = (S, by) => { for (const p of S.pizzas.values()) if (p.by === by) return true; return false; };
 const liveCount = (S) => { let n = 0; for (const c of S.cakes.values()) if (!c.gone) n++; return n; };
 
 // 방명록의 이름과 글: 글자 수(이모지도 한 글자) 안이고, 제어 문자·글 방향을 바꾸는 문자가 없고, 앞뒤 빈칸 없이 무언가 적혀 있어야 한다
@@ -149,7 +164,7 @@ export function makeState() {
   // sync = 친구의 방과 똑같다고 마지막으로 확인했을 때의 at (한 번도 맞춘 적 없으면 0). at > sync 면 헤어진 뒤 혼자 꾸민 것이다.
   // notes = 방명록 (id → { id, name, text, at }), best = 이 방 최고 기록 (놀이 → { v, name }), rank = 이름별 순위 (놀이 → Map(이름 → 점수))
   // adv = 어드벤트 달력에서 연 칸 (d → { name, at }), gifts = 트리 밑 선물 (id → { id, to, from, text, wrap, at, cake, open })
-  return { items: new Map(), orns: new Map(), cakes: new Map(), notes: new Map(), best: {}, rank: {}, lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id, at: 0, sync: 0, adv: new Map(), gifts: new Map(), pizzas: new Map(), lamps: [1, 1, 1], adm: new Set(), pics: new Map() };
+  return { items: new Map(), orns: new Map(), cakes: new Map(), notes: new Map(), best: {}, rank: {}, lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id, at: 0, sync: 0, adv: new Map(), gifts: new Map(), pizzas: new Map(), lamps: [1, 1, 1, 1], adm: new Set(), pics: new Map() };
 }
 
 // 그 자리에 놓을 수 있는지. fixed(i, j) = 트리처럼 처음부터 막힌 칸. ignoreId = 옮기는 중인 자기 자신.
@@ -219,6 +234,7 @@ export function apply(S, op, fixed) {
       if (!it) return false;
       S.items.delete(op.id);
       S.pizzas.delete(op.id); // 화덕을 치우면 만들던 피자도 없어진다
+      for (const p of S.pizzas.values()) if (p.on === op.id && !p.by) p.on = null; // 치운 탁자 위의 피자는 도마로 돌아간다
       if (S.pics) S.pics.delete(op.id); // 치운 액자의 사진
       if (it.k === 'cake') { S.cakes.delete(op.id); for (const [id, c] of [...S.cakes]) if (c.home === op.id) S.cakes.delete(id); } // 작업대와 거기서 나온 케이크들
       for (const [id, c] of [...S.cakes]) if (c.on === op.id && !c.by) sendHome(S, id); // 치운 탁자 위의 케이크는 작업대로 돌아간다
@@ -261,6 +277,7 @@ export function apply(S, op, fixed) {
     case 'cakeTake': {
       if (!okPid(op.by)) return false;
       for (const x of S.cakes.values()) if (x.by === op.by) return false; // 한 사람이 하나만 든다
+      if (holdsPizza(S, op.by)) return false;
       const c = cakeOf(S, op.id, true);
       if (!c || c.by) return false;
       c.by = op.by; c.on = null;
@@ -273,7 +290,7 @@ export function apply(S, op, fixed) {
       if (op.on !== undefined && op.on !== null) {
         const t = S.items.get(op.on);
         if (!t || !F[t.k].holds) return false;
-        if (cakeOnTable(S, op.on)) return false; // 탁자 하나에 케이크 하나
+        if (cakeOnTable(S, op.on) || pizzaOnTable(S, op.on)) return false; // 탁자 하나에 케이크(나 피자) 하나
         on = op.on;
       } else if (!benchFree(S, benchOf(op.id, c), op.id)) return false; // 작업대가 없거나 다른 케이크가 올라가 있다
       c.by = null; c.on = on;
@@ -303,7 +320,7 @@ export function apply(S, op, fixed) {
     case 'pz': { // 도우 펴기 → 소스 바르기 → 치즈 뿌리기 (차례대로만)
       const it = S.items.get(op.id), p = S.pizzas.get(op.id), want = { dough: 1, sauce: 2, cheese: 3 }[op.a];
       if (!it || F[it.k].play !== 'pizza' || !want || (p ? p.st : 0) !== want - 1) return false;
-      if (p) p.st = want; else S.pizzas.set(op.id, { st: 1, tops: [], left: PIZZA.slices });
+      if (p) p.st = want; else S.pizzas.set(op.id, { st: 1, tops: [], left: PIZZA.slices, by: null, on: null });
       return true;
     }
     case 'pzTop': { // 치즈를 뿌린 뒤, 굽기 전에만 올린다
@@ -315,16 +332,38 @@ export function apply(S, op, fixed) {
     case 'pzBake': { const p = S.pizzas.get(op.id); if (!p || p.st !== 3) return false; p.st = 4; p.left = PIZZA.slices; return true; }
     case 'pzEat': { // 구운 피자를 한 조각 먹는다. 다 먹으면 도마가 빈다
       const p = S.pizzas.get(op.id);
-      if (!p || p.st !== 4 || !(p.left > 0)) return false;
+      if (!p || p.st !== 4 || !(p.left > 0) || p.by) return false; // 들고 가는 중에는 못 먹는다 (도마나 탁자에 있을 때만)
       if (--p.left <= 0) S.pizzas.delete(op.id);
       return true;
     }
     case 'pzClear': return S.pizzas.delete(op.id);
+    case 'pzTake': { // 구운 피자를 통째로 든다
+      const p = S.pizzas.get(op.id);
+      if (!okPid(op.by) || !p || p.st !== 4 || p.by || holdsPizza(S, op.by)) return false;
+      for (const x of S.cakes.values()) if (x.by === op.by) return false;
+      p.by = op.by; p.on = null;
+      return true;
+    }
+    case 'pzDrop': {
+      const p = S.pizzas.get(op.id);
+      if (!p || !p.by || p.by !== op.by) return false;
+      let on = null;
+      if (op.on !== undefined && op.on !== null) {
+        const t = S.items.get(op.on);
+        if (!t || !F[t.k].holds || cakeOnTable(S, op.on) || pizzaOnTable(S, op.on)) return false; // 탁자 하나에 하나
+        on = op.on;
+      }
+      p.by = null; p.on = on;
+      return true;
+    }
     case 'pzSet': { // 저장된 방을 풀 때만 쓴다
       const it = S.items.get(op.id), p = op.p;
       if (!it || F[it.k].play !== 'pizza' || !p || !isInt(p.st) || p.st < 1 || p.st > 4 || !isInt(p.left) || p.left < 1 || p.left > PIZZA.slices || !Array.isArray(p.tops)) return false;
       const tops = p.tops.filter((t) => Array.isArray(t) && has(PIZZA_TOPS, t[0]) && okNum(t[1], -PIZZA.r, PIZZA.r) && okNum(t[2], -PIZZA.r, PIZZA.r)).slice(0, PIZZA.max).map((t) => [t[0], t[1], t[2]]);
-      S.pizzas.set(op.id, { st: p.st, tops: p.st >= 3 ? tops : [], left: p.st === 4 ? p.left : PIZZA.slices });
+      let by = null, on = null;
+      if (p.st === 4 && p.by) { if (!okPid(p.by) || holdsPizza(S, p.by)) return false; by = p.by; }
+      else if (p.st === 4 && p.on) { const t = S.items.get(p.on); if (t && F[t.k].holds && !cakeOnTable(S, p.on) && !pizzaOnTable(S, p.on)) on = p.on; } // 탁자가 없어졌으면 도마에
+      S.pizzas.set(op.id, { st: p.st, tops: p.st >= 3 ? tops : [], left: p.st === 4 ? p.left : PIZZA.slices, by, on });
       return true;
     }
     case 'cakeSet': {
@@ -413,7 +452,7 @@ export function apply(S, op, fixed) {
       return true;
     }
     case 'lamp': { // 방 불: 층마다 (lights.js)
-      if (![0, 1, 2].includes(op.lv) || typeof op.on !== 'boolean' || !!S.lamps[op.lv] === op.on) return false;
+      if (![0, 1, 2, 3].includes(op.lv) || typeof op.on !== 'boolean' || !!S.lamps[op.lv] === op.on) return false;
       S.lamps[op.lv] = op.on ? 1 : 0;
       return true;
     }
@@ -461,8 +500,8 @@ export function serialize(S) {
     ...(S.star ? { star: [S.star.name, S.star.help] } : {}), // 꼭대기 별 [단 사람, 받친 사람] (안 달렸으면 없다)
     adv: [...S.adv].sort((a, b) => a[0] - b[0]).map(([d, o]) => [d, o.name, o.at]), // 어드벤트 달력에서 연 칸 [날, 연 사람, 연 때]. 이 항목이 없으면 달력이 없던 때의 방
     gifts: giftsList(S).map((g) => [g.id, g.to, g.from, g.text, g.wrap, g.at, g.cake ? 1 : 0, g.open ? 1 : 0]), // 트리 밑 선물 [id, 받는 사람, 보낸 사람, 편지, 포장, 둔 때, 케이크, 열림]
-    ...(S.lamps.some((v) => !v) ? { lamps: [...S.lamps] } : {}), // 방 불 [1층, 2층, 3층] (모두 켜져 있으면 없다)
-    ...(S.pizzas.size ? { pizzas: [...S.pizzas].map(([id, p]) => [id, p.st, p.left, p.tops.map((t) => [t[0], t[1], t[2]])]) } : {}), // 만들던 피자 [화덕, 단계, 남은 조각, 토핑] (없으면 없다)
+    ...(S.lamps.some((v) => !v) ? { lamps: [...S.lamps] } : {}), // 방 불 [1층, 2층, 3층, 4층] (모두 켜져 있으면 없다)
+    ...(S.pizzas.size ? { pizzas: [...S.pizzas].map(([id, p]) => [id, p.st, p.left, p.tops.map((t) => [t[0], t[1], t[2]]), ...(p.by || p.on ? [p.by || '', p.on || ''] : [])]) } : {}), // 만들던 피자 [화덕, 단계, 남은 조각, 토핑] (없으면 없다). 들었거나 탁자에 올렸으면 [든 사람, 탁자] 가 붙는다
     ...(S.adm.size ? { adm: [...S.adm].sort() } : {}),           // 공동 관리자의 표 (없으면 없다)
     ...(S.pics.size ? { pics: [...S.pics].sort((a, b) => (a[0] < b[0] ? -1 : 1)) } : {}), // 액자에 넣은 사진 [액자, 지문] (없으면 없다)
   };
@@ -511,8 +550,8 @@ export function ops(data) {
   if (data.rank && typeof data.rank === 'object' && !Array.isArray(data.rank)) for (const k of Object.keys(BEST)) for (const [name, v] of rows(data.rank[k]).slice(0, RANK.keep)) out.push({ t: 'score', k, v, name });
   out.push(Array.isArray(data.star) ? { t: 'star', on: true, name: data.star[0], help: data.star[1] } : { t: 'star', on: false }); // 꼭대기 별이 없던 때의 방은 안 달린 채로 연다
   for (const [id, to, from, text, wrap, at, cake, open] of rows(data.gifts)) out.push({ t: 'gift', id, to, from, text, wrap, at, cake: cake === 1 || cake === true, open: open === 1 || open === true }); // 선물이 없던 때의 방은 빈 트리 밑
-  if (Array.isArray(data.lamps)) data.lamps.slice(0, 3).forEach((v, lv) => { if (!v) out.push({ t: 'lamp', lv, on: false }); }); // 불이 없던 때의 방은 모두 켜진 채로
-  for (const [id, st, left, tops] of rows(data.pizzas)) out.push({ t: 'pzSet', id, p: { st, left, tops } }); // 피자가 없던 때의 방은 빈 도마
+  if (Array.isArray(data.lamps)) data.lamps.slice(0, 4).forEach((v, lv) => { if (!v) out.push({ t: 'lamp', lv, on: false }); }); // 불이 없던 때의 방은 모두 켜진 채로
+  for (const [id, st, left, tops, by, on] of rows(data.pizzas)) out.push({ t: 'pzSet', id, p: { st, left, tops, by: by || null, on: on || null } }); // 피자가 없던 때의 방은 빈 도마
   for (const [id, h] of rows(data.pics).slice(0, MAX_ITEMS)) out.push({ t: 'pic', id, h }); // 사진이 없던 때의 방은 모두 원래 그림
   if (Array.isArray(data.adm)) for (const tag of data.adm.slice(0, ADMINS)) out.push({ t: 'adm', tag, on: true });
   return out;

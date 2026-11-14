@@ -1,0 +1,11 @@
+{
+  "name": "fourcut-tests",
+  "private": true,
+  "description": "네 컷 사진관 자동 검사",
+  "scripts": {
+    "test": "node fourcut.test.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}

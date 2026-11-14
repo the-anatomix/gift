@@ -9,7 +9,7 @@ import { THREE, put } from './kit.js';
 import { CELL, X0, Z0, FLOOR_DI, LEVELS, cellOf, zoneOf } from './path.js';
 
 // 스위치가 달린 칸(집 기준 a, j = 0: 북쪽 벽). 그 칸과 둘레 한 칸 안에 서면 누를 수 있다
-export const SWITCH = [19, 27, 27];
+export const SWITCH = [19, 27, 27, 27];
 const DARK = [0.2, 0.04]; // 불을 껐을 때 [하늘빛, 햇빛]의 배수. 햇빛을 더 줄여 그림자가 옅어진다
 
 export function makeLights(K) {

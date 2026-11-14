@@ -5,8 +5,10 @@ import { kitchen as K } from './app.js';
 import { packState, unpackState, share, canGive, give, takeGift } from './duo.js';
 import { openBrag } from './brag.js';
 import { bgm } from './bgm.js';
+import { pickTheme } from './theme.js';
 
 const $ = (id) => document.getElementById(id);
+const THEME = pickTheme();
 const LIM = { to: 20, fr: 20, m: 200 }; // 첫 줄·끝 줄은 쓴 그대로 보여 준다 (예: "사랑하는 지우에게", "너를 아끼는 민서가")
 const clip = (v, n) => Array.from(String(v == null ? '' : v)).slice(0, n).join('');
 const b64 = {
@@ -18,6 +20,7 @@ function giftText() {
   const st = K.getState();
   const gr = K.grades();
   const o = { v: 1, f: 1, p: [gr.dough, gr.cut, gr.oven, gr.choco], s: packState(st), b: (st.x.pack && st.x.pack.box) | 0, q: (st.x.pack && st.x.pack.seal) | 0, to: clip($('ltTo').value.trim(), LIM.to), fr: clip($('ltFrom').value.trim(), LIM.fr), m: clip($('ltMsg').value.trim(), LIM.m) };
+  if (THEME.id !== 'base') o.t = THEME.id; // 계절 판에서 만든 선물은 판 이름을 함께 담는다(받는 사람도 그 판으로 열린다). 기본 판 링크는 예전과 똑같다
   return b64.enc(JSON.stringify(o));
 }
 const giftUrl = () => location.origin + location.pathname + '#g=' + giftText();
@@ -138,14 +141,14 @@ function showLetter(on) {
 function setBar(opened) {
   $('rcOpen').hidden = opened; $('rcOpen').disabled = false; $('rcRow2').hidden = !opened;
   $('rcSub').textContent = opened ? '' : '화면을 밀면 돌려 볼 수 있어요.';
-  $('rcHint').firstChild.textContent = opened ? (best === 2 ? '완벽하게 만든 막대과자예요.' : best === 1 ? '정성껏 만든 막대과자예요.' : '직접 구운 막대과자예요.') : '선물이 도착했어요.';
+  $('rcHint').firstChild.textContent = opened ? (best === 2 ? '완벽하게 만든 막대과자예요.' : best === 1 ? '정성껏 만든 막대과자예요.' : '직접 구운 막대과자예요.') : THEME.hello || '선물이 도착했어요.';
   $('rcMake').textContent = back ? '내 주방으로' : '나도 만들기';
   document.documentElement.style.setProperty('--barh', $('bottom').offsetHeight + 'px'); // 봉투를 아래 막대 바로 위에 둔다
   K.refit();
 }
 function sparkle() {
   for (let i = 0; i < 7; i++) later(i * 110, () => {
-    const e = document.createElement('div'); e.className = 'emo'; e.textContent = i % 2 ? '✨' : '💛';
+    const e = document.createElement('div'); e.className = 'emo'; e.textContent = THEME.sparks ? THEME.sparks[i % THEME.sparks.length] : i % 2 ? '✨' : '💛';
     e.style.left = 14 + Math.random() * 72 + '%'; e.style.bottom = 30 + Math.random() * 25 + '%'; e.style.fontSize = 22 + Math.random() * 18 + 'px';
     $('emos').appendChild(e); setTimeout(() => e.remove(), 1700);
   });

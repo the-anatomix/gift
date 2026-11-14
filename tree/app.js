@@ -9,7 +9,7 @@ import { makeWardrobe, HOST_OUTFIT } from './costume.js';
 import { makeFly } from './fly.js';
 import { makeAvatar, cleanLook, DEFAULT_LOOK, GENDERS, OUTFITS, FACES, ACTS, BODY_R, SPEED, RUN } from './avatar.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, STARTER, STARTER_EAST, STARTER_UP, CAKE, NOTE } from './catalog.js';
-import { makeState, apply, setLockFree, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake, benchOf, cakesList, cakeAtBench, cakeOnTable, sendHome, notesList, cleanWords, rankList } from './state.js';
+import { makeState, apply, setLockFree, canPlace, footprint, cellsOf, kindOf, serialize, ops, stampOf, syncOf, guestWins, newCake, benchOf, cakesList, cakeAtBench, cakeOnTable, sendHome, pizzaHome, notesList, cleanWords, rankList } from './state.js';
 import { buildItem } from './furniture.js';
 import { buildOrnament, buildLights } from './decor.js';
 import { makeDuo, ROOM_RE, CAP, ECAP, DOOR } from './duo.js';
@@ -39,6 +39,7 @@ import { makeAdmin } from './admin.js';
 import { ADMINS } from './catalog.js';
 import { makeCheers } from './cheers.js';
 import { makePizza } from './pizza.js';
+import { makeGameroom } from './gameroom.js';
 import { sfx, sfxOp, sfxWalk, mountSfxUI } from './sfx.js';
 import { makeCakeView, dressCake, flicker, pickTop, disposeCakeView } from './cake.js';
 
@@ -201,6 +202,7 @@ function dispatch(op, from = 'me') {
       if (wasLit > 0 && k && k.lit === 0 && op.t === 'cakeBlow') celebrate(); // 마지막 촛불이 꺼졌다
     }
   } else if (op.t === 'move') { seat(itemObj.get(op.id), S.items.get(op.id)); paintLevels(); }
+  else if (op.t === 'pzTake' || op.t === 'pzDrop' || op.t === 'pzClear' || op.t === 'pzEat' || op.t === 'pzSet') seatCakes(); // 피자를 들거나 내려놓으면 몸짓과 탁자의 소품이 바뀐다
   else if (op.t === 'del') { dropObj(itemObj, op.id, itemsG, true); syncCakes(); } // 치운 탁자 위의 케이크는 작업대로 돌아가 있다
   else if (op.t === 'orn') {
     const g = buildOrnament(S.orns.get(op.id));
@@ -225,6 +227,8 @@ function dispatch(op, from = 'me') {
   if (mode === 'play' && play.id === op.id && (op.t === 'del' || op.t === 'move')) setMode(null); // 놀던 가구를 친구가 옮기거나 치움
   // 꾸미던 케이크를 누가 들고 갔거나, 케이크가 놓인 탁자를 옮기거나 치움
   if (mode === 'play' && play.kind === 'cake' && (((op.t === 'cakeTake' || op.t === 'cakeDrop' || eaten) && play.id === op.id) || ((op.t === 'del' || op.t === 'move') && play.spot === op.id))) setMode(null);
+  // 먹던 피자를 누가 들고 갔거나 내려놓았거나, 피자가 놓인 탁자를 옮기거나 치움
+  if (mode === 'play' && play.kind === 'pizza' && (((op.t === 'pzTake' || op.t === 'pzDrop') && play.id === op.id) || ((op.t === 'del' || op.t === 'move') && play.spot === op.id))) setMode(null);
   if (eaten) toast('케이크를 다 먹었어요! 오븐에서 새로 구울 수 있어요 🍰');
   S.at = Date.now();
   saveSoon();
@@ -256,6 +260,7 @@ function loadRoom(data, fromPeer = false) {
   S.at = stampOf(data);
   S.sync = fromPeer ? S.at : syncOf(data);
   if (!fromPeer) for (const [id, c] of [...S.cakes]) if (c.by) sendHome(S, id); // 저장해 둔 방을 열 때는 아무도 케이크를 들고 있지 않다
+  if (!fromPeer) for (const [id, p] of S.pizzas) if (p.by) pizzaHome(S, id); // 피자도
   syncCakes();
   lights.paint(); // 방 불 스위치 (lights.js)
   rebuildGrid();
@@ -681,6 +686,8 @@ function dropPeer(id) {
   if (!a) return;
   let had = false;
   for (const [cid, c] of [...S.cakes]) if (c.by === id) { sendHome(S, cid); had = true; } // 들고 있던 케이크는 작업대로 돌아간다
+  for (const [zid, p] of S.pizzas) if (p.by === id) { pizzaHome(S, zid); had = true; } // 들고 있던 피자는 도마로
+  pizza.tick(0); // 손에 붙어 있던 피자 모양을 먼저 옮긴다
   if (had) syncCakes();
   scene.remove(a.root);
   a.root.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
@@ -772,7 +779,7 @@ const duo = makeDuo({
       a.lie(r); dirty = true;
       return true;
     }
-    if (m.k === 'show' && m.v === 'fire') return sky.peerFx(m, id); // 크리스마스 불꽃놀이 (sky.js)
+    if (m.k === 'show' && (m.v === 'fire' || m.v === 'dawn')) return sky.peerFx(m, id); // 불꽃놀이, 새해 해돋이 미리 보기 (sky.js)
     if (m.k === 'show') return party.peerFx(m, id); // 점등식·단체 사진
     if (m.k === 'snow' || m.k === 'hit') return snow.peerFx(m, id); // 마당 눈싸움
     if (m.k === 'prop' || m.k === 'climb' || m.k === 'heavy' || m.k === 'help') return coop.peerFx(m, id); // 협동 놀이
@@ -1175,7 +1182,7 @@ const advent = makeAdvent({
 });
 // 숨은 마스터키 (master.js): 제목을 일곱 번 누른다
 const master = makeMaster({
-  toast: (m) => toast(m), sky: { time: () => sky.time, setTime: (v) => sky.setTime(v) }, fire: () => sky.openFire(), lamp: { on: (lv) => lights.isOn(lv), toggle: (lv) => lights.toggle(lv) }, changed: () => { advent.repaint(); wardrobe.paint(); dirty = true; },
+  toast: (m) => toast(m), sky: { time: () => sky.time, setTime: (v) => sky.setTime(v) }, fire: () => sky.openFire(), dawn: () => sky.dawn(), lamp: { on: (lv) => lights.isOn(lv), toggle: (lv) => lights.toggle(lv) }, changed: () => { advent.repaint(); wardrobe.paint(); dirty = true; },
   scene, ray(px, py) { aimRay(px, py); return ray.ray; }, shown: () => myLv === 0,
   fx: (m) => duo.fx(m), myId: () => duo.me, others: () => [...others.keys()], nameOf: (id) => nameOf(id), setMode: (m) => setMode(m), mode: () => mode,
   resized: () => { if (mode === 'master') measure(false); },
@@ -1196,7 +1203,7 @@ const gift = makeGift({
 const food = makeFoodPlay({
   scene, me, avatar: (id) => others.get(id), itemObj: (id) => itemObj.get(id), S: () => S, approach: (id, then) => approach(id, then),
   mode: () => mode, setMode: (m) => setMode(m), act: (id) => doAct(id), fx: (m) => duo.fx(m), online: () => duo.mode === 'on',
-  toast: (m) => toast(m), dirty: () => { dirty = true; }, busy: () => !!carried(),
+  toast: (m) => toast(m), dirty: () => { dirty = true; }, busy: () => !!carried() || !!pizza.mine(),
   ray(px, py) { aimRay(px, py); return ray.ray; },
   resized: () => { if (mode === 'fridge') measure(false); },
 });
@@ -1205,7 +1212,22 @@ const cheers = makeCheers({ food, me, others: () => others, fx: (m) => duo.fx(m)
 // 피자 화덕 (pizza.js): 놀이 판은 play.js 것을 같이 쓴다
 const pizza = makePizza({
   play, S: () => S, itemObj: (id) => itemObj.get(id), op: (o) => dispatch(o), canEdit: () => canEdit, toast: (m) => toast(m), close: () => setMode(null),
-  setPose: (p) => { pose = p; applyPov(); dirty = true; }, ray(px, py) { aimRay(px, py); return ray.ray; }, food, busy: () => !!carried(), dirty: () => { dirty = true; },
+  setPose: (p) => { pose = p; applyPov(); dirty = true; }, ray(px, py) { aimRay(px, py); return ray.ray; }, food, busy: () => !!carried() || !!pizza.mine(), dirty: () => { dirty = true; },
+  me: () => duo.me, avatar: (pid) => avatarOf(pid), holdsY: (id) => kindOf(S.items.get(id).k).holds,
+});
+// 4층 게임방 (gameroom.js): 오락기·인형뽑기 놀이, 마스터 판의 "4층을 게임방으로 꾸미기"
+const gameroom = makeGameroom({
+  play, S: () => S, itemObj: (id) => itemObj.get(id), op: (o) => dispatch(o), newId, canEdit: () => canEdit, isMaster: () => can(CINE), toast: (m) => toast(m), close: () => setMode(null),
+  setPose: (p) => { pose = p; applyPov(); dirty = true; }, levelOfCell, mode: () => mode, measure: () => measure(false), dirty: () => { dirty = true; },
+  record: (k, v) => rank.record(k, v), bestLine: (k) => book.bestLine(k),
+  // 인형뽑기에서 뽑은 토끼 인형을 내 옆 빈자리에 놓는다 (꾸밀 수 있는 사람만, 방에 열두 개까지)
+  prize() {
+    if (!canEdit) return false;
+    let n = 0; for (const it of S.items.values()) if (it.k.startsWith('bunny')) n++;
+    if (n >= 12) return false;
+    const k = ['bunny', 'bunny2', 'bunny3'][Math.floor(Math.random() * 3)], spot = findSpot(k, 0);
+    return !!spot && dispatch({ t: 'put', id: newId(), k, i: spot[0], j: spot[1], r: 0 });
+  },
 });
 sfx.listen(() => me); mountSfxUI($('duoP'));
 const ACT_SFX = { clap: 'clap', jump: 'jump', cheer: 'whoosh', dance: 'whoosh' };
@@ -1264,8 +1286,9 @@ function seatCakes(list = cakesList(S)) {
     if (v.root.parent !== parent) parent.add(v.root);
     v.root.position.set(0, y, z); v.root.scale.setScalar(sc);
   }
+  for (const pid of pizza.carriers()) { const a = avatarOf(pid); if (a) held.add(a); } // 피자를 든 사람도 두 팔을 내민다
   for (const a of [me, ...others.values()]) a.hold = held.has(a);
-  for (const [id, g] of itemObj) if (g.userData.deco) g.userData.deco.visible = !cakeOn(id); // 케이크가 놓인 탁자의 소품은 치워 둔다
+  for (const [id, g] of itemObj) if (g.userData.deco) g.userData.deco.visible = !cakeOn(id) && !pizza.onTable(id); // 케이크나 피자가 놓인 탁자의 소품은 치워 둔다
   paintCarry();
   dirty = true;
 }
@@ -1273,24 +1296,43 @@ function seatCakes(list = cakesList(S)) {
 function tidyCarry() {
   const here = new Set([duo.me, ...others.keys()]);
   for (const [id, c] of [...S.cakes]) if (c.by && !here.has(c.by)) sendHome(S, id);
+  for (const [id, p] of S.pizzas) if (p.by && !here.has(p.by)) pizzaHome(S, id);
   syncCakes();
 }
 function paintCarry() {
   const el = $('carryP'), was = el.hidden;
-  el.hidden = !(carried() && mode === null);
+  const pz = !carried() && pizza.mine();
+  el.hidden = !((carried() || pz) && mode === null);
+  if (!el.hidden && el.dataset.k !== (pz ? 'p' : 'c')) { // 들고 있는 것에 맞춰 안내를 바꾼다
+    el.dataset.k = pz ? 'p' : 'c';
+    el.querySelector('.hint').innerHTML = pz ? '🍕 피자를 들고 있어요<small>탁자를 누르면 가서 올려놓아요. 거기서 다 같이 한 조각씩 먹어요.</small>' : '🎂 케이크를 들고 있어요<small>탁자나 케이크 작업대를 누르면 가서 내려놓아요.</small>';
+    $('carryBack').textContent = pz ? '도마에 두기' : '작업대에 두기';
+  }
   if (was !== el.hidden) measure(false); // 아래 판 높이가 바뀌었다
 }
 function putDown(on) { const id = carried(); return !!id && dispatch({ t: 'cakeDrop', id, by: duo.me, on }); }
-$('carryBack').addEventListener('click', () => { if (putDown(null)) toast('케이크를 작업대에 돌려놓았어요'); else if (carried()) toast('작업대에 이미 다른 케이크가 있어요. 탁자에 올려놓아 보세요'); });
+$('carryBack').addEventListener('click', () => { if (!carried() && pizza.mine()) { if (pizza.drop(null)) toast('피자를 화덕의 도마에 돌려놓았어요'); return; } if (putDown(null)) toast('케이크를 작업대에 돌려놓았어요'); else if (carried()) toast('작업대에 이미 다른 케이크가 있어요. 탁자에 올려놓아 보세요'); });
 // 케이크와 얽힌 가구를 눌렀을 때. 여기서 처리했으면 true
 function cakeTap(id) {
   const it = S.items.get(id), mine = carried();
   if (!it) return false;
   const holds = !!kindOf(it.k).holds;
+  { // 피자 (pizza.js): 들고 있으면 탁자나 화덕에 내려놓고, 탁자 위의 피자는 눌러서 같이 먹는다
+    const pz = pizza.mine();
+    if (pz) {
+      if (id !== pz && !holds) return false;
+      if (holds && (cakeOn(id) || pizza.onTable(id))) { toast('그 탁자에는 이미 다른 것이 올라가 있어요'); return true; }
+      approach(id, () => { if (pizza.mine() === pz && S.items.has(id) && pizza.drop(holds ? id : null)) toast(holds ? '피자를 탁자에 올려놓았어요. 탁자를 누르면 한 조각씩 먹어요 🍕' : '피자를 화덕의 도마에 돌려놓았어요'); });
+      return true;
+    }
+    const tp = holds && pizza.onTable(id);
+    if (tp) { approach(id, () => { if (S.items.has(id) && pizza.onTable(id) === tp && mode === null) { setMode('play'); if (!play.start(tp, 'pizza')) setMode(null); } }); return true; }
+  }
   if (mine) { // 들고 있을 때: 탁자나 그 케이크의 작업대를 누르면 가서 내려놓는다
     const home = benchOf(mine, S.cakes.get(mine));
     if (id !== home && !holds) return false;
     if (holds && cakeOn(id)) { toast('그 탁자에는 이미 케이크가 있어요'); return true; }
+    if (holds && pizza.onTable(id)) { toast('그 탁자에는 피자가 올라가 있어요'); return true; }
     if (!holds && cakeAtBench(S, id)) { toast('작업대에 이미 다른 케이크가 있어요. 탁자에 올려놓아 보세요'); return true; }
     approach(id, () => { if (carried() === mine && S.items.has(id) && putDown(holds ? id : null)) toast(holds ? '케이크를 탁자에 올려놓았어요' : '케이크를 작업대에 돌려놓았어요'); });
     return true;
@@ -1337,8 +1379,9 @@ function lieDown(id) {
   if (!it || !(kindOf(it.k).lie || sit)) return false;
   if (me.rest && me.rest.id === id) return true;
   if (carried()) { toast(sit ? '케이크를 들고는 앉을 수 없어요' : '케이크를 들고는 누울 수 없어요'); return true; }
+  if (pizza.mine()) { toast(sit ? '피자를 들고는 앉을 수 없어요. 탁자에 올려놓고 앉아요' : '피자를 들고는 누울 수 없어요'); return true; }
   approach(id, () => {
-    if (mode !== null || carried()) return;
+    if (mode !== null || carried() || pizza.mine()) return;
     const taken = [...others.values()].filter((a) => a.rest && a.rest.id === id).map((a) => a.rest.side);
     const side = [0, 1].find((k) => !taken.includes(k));
     const r = side === undefined ? null : lieSpot(id, side);
@@ -1375,6 +1418,7 @@ const PLAY_LABEL = { dart: '🎯 다트 하기', tv: '📺 TV 보기', fire: '�
   $('tools').insertBefore(b, $('snap') || null);
 }
 PLAY_LABEL.advent = '🗓️ 어드벤트 달력'; // advent.js
+PLAY_LABEL.arcade = '🕹️ 오락기 하기'; PLAY_LABEL.claw = '🧸 인형 뽑기'; // gameroom.js
 PLAY_LABEL.pic = '🖼️ 사진 바꾸기'; // photo.js (꾸밀 수 있는 사람만)
 // 냉장고: 앞으로 가서 문을 열고 먹을 것을 고른다 (food.js)
 function snack(id) {
@@ -1393,7 +1437,10 @@ function dress(id) {
 const useItem = (id) => cakeTap(id) || startPlay(id) || lieDown(id) || snack(id) || dress(id) || cinema.use(id);
 // 그 가구로 지금 할 수 있는 일의 이름 (없으면 null)
 function actionOf(it) {
-  const f = kindOf(it.k), mine = carried();
+  const f = kindOf(it.k), mine = carried(), pz = pizza.mine();
+  if (pz && f.holds) return cakeOn(it.id) || pizza.onTable(it.id) ? null : '🍕 피자 올려놓기';
+  if (pz && it.id === pz) return '🍕 도마에 두기';
+  if (f.holds && pizza.onTable(it.id)) return '🍕 피자 같이 먹기';
   if (mine && f.holds) return cakeOn(it.id) ? null : '🎂 케이크 내려놓기';
   if (mine && it.id === benchOf(mine, S.cakes.get(mine))) return cakeAtBench(S, it.id) ? null : '🎂 작업대에 두기';
   if (f.holds) return cakeOn(it.id) ? '🍰 케이크 먹기·꾸미기' : null;
@@ -1722,7 +1769,7 @@ function edges() {
 }
 for (const b of document.querySelectorAll('.more')) {
   const box = $(b.dataset.list);
-  const paint = () => { const on = opened.has(box.id); box.classList.toggle('open', on); b.textContent = on ? '접기' : '전체 보기'; b.setAttribute('aria-expanded', String(on)); };
+  const paint = () => { const on = opened.has(box.id); box.classList.toggle('open', on); if (on) { box.scrollLeft = 0; box.scrollTop = 0; } /* 펼친 목록은 위아래로만 넘긴다 */ b.textContent = on ? '접기' : '전체 보기'; b.setAttribute('aria-expanded', String(on)); };
   b.addEventListener('click', () => { if (!opened.delete(box.id)) opened.add(box.id); store.set(OPEN_KEY, [...opened]); paint(); measure(false); });
   paint();
 }
@@ -1830,7 +1877,7 @@ function frame(now) {
   names.tick();
   sky.tick(dt);
   advent.tick(dt); gift.tick(dt); food.tick(dt); cheers.tick(dt); pizza.tick(dt); sfxWalk(dt, me, others.values());
-  lights.tick(dt); cinema.tick(); photos.tick(dt);
+  lights.tick(dt); cinema.tick(); gameroom.tick(); photos.tick(dt);
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
   renderer.render(scene, cam());
@@ -1892,7 +1939,7 @@ window.__play = Object.assign(play.test, {
 Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose }, id: { get: () => play.id }, spot: { get: () => play.spot } });
 window.__sky = sky.test;
 window.__master = { get on() { return master.on; }, get given() { return master.test.given; }, key: master.test.key };
-window.__food = food.test; window.__pizza = pizza.test;
+window.__food = food.test; window.__pizza = pizza.test; window.__game4 = gameroom.test; window.__game4.convert = () => gameroom.convert();
 window.__cheers = cheers.test;
 window.__lights = Object.assign(lights.test, { toggle: (lv) => lights.toggle(lv), near: () => { const a = lights.near(); return a ? a.label : null; }, lamp: () => [...LAMP] });
 window.__photo = { choose: (id, f) => photos.choose(id, f), reset: (id) => photos.reset(id), get: (h) => photos.get(h), get count() { return photos.count; }, of: (id) => S.pics.get(id) || '', shown: (id) => cinema.picShown(id), tidy: () => photos.tidy() };
@@ -1908,6 +1955,7 @@ window.__tree = {
   NX, NZ, GX, GZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, LEVELS, FLOOR_H, FLOOR_DX, LADDERS, FRONT, toWorld, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
   ghostNew, ghostPick, ghostMoveTo, ghostTurn, ghostDone, ghostCancel, ghostRemove, surfaceR, serialize: () => serialize(S),
   setZoomMul(m) { setZoomMul(m); },
+  dawn: () => sky.dawn(), aim(y, p) { fy = y; fpitch = p; applyPov(); dirty = true; }, // 새해 해돋이 미리 보기, 1인칭에서 바라보는 쪽
   doAct, carried, putDown, cakeTap, useItem, lieDown, getUp, climb, pressSpace, nearAction: () => { const a = nearAction(); return a ? a.label : null; },
   get level() { return myLv; }, get lying() { return me.rest ? { id: me.rest.id, side: me.rest.side } : null; },
   itemShown: (id) => { const g = itemObj.get(id); return !!g && g.visible; }, cakes: () => cakesList(S).map(([id, c]) => ({ id, ...c })), freeBench,

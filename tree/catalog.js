@@ -68,6 +68,24 @@ export const CINEMA = [
   ['popcorn', 29, 6, 3],
   ['art1', 0, 0, 0], ['art2', 7, 0, 0], ['art3', 11, 0, 0], ['art4', 17, 0, 0], ['art5', 21, 0, 0], ['art5', 8, 17, 2], ['art1', 15, 17, 2],
 ];
+// 4층 게임방 (gameroom.js 가 모양과 놀이를 만든다). set = 게임방 묶음(표시일 뿐이다): 가구 탭의 목록에서 누구나 골라 어느 층에든 놓는다.
+// 한 번에 차리는 GAMEROOM 배치는 마스터키를 켠 사람만 쓴다. 토끼 인형은 인형뽑기에서 뽑아도 나온다
+FURNITURE.push(
+  { id: 'arcade', name: '오락기', icon: '🕹️', w: 1, d: 1, set: 'game', solid: true, play: 'arcade' },
+  { id: 'claw', name: '인형뽑기', icon: '🧸', w: 1, d: 1, set: 'game', solid: true, play: 'claw' },
+  { id: 'pool', name: '당구대', icon: '🎱', w: 4, d: 2, set: 'game', solid: true },
+  { id: 'beanbag', name: '빈백', icon: '🫘', w: 2, d: 2, set: 'game', solid: true },
+  { id: 'bunny', name: '토끼 인형 (빨강)', icon: '🐰', w: 1, d: 1, set: 'game', solid: true },
+  { id: 'bunny2', name: '토끼 인형 (하늘)', icon: '🐰', w: 1, d: 1, set: 'game', solid: true },
+  { id: 'bunny3', name: '토끼 인형 (노랑)', icon: '🐰', w: 1, d: 1, set: 'game', solid: true },
+  { id: 'bigbunny', name: '큰 토끼 인형', icon: '🐇', w: 2, d: 2, set: 'game', solid: true },
+);
+// 4층 게임방의 배치 [종류, 집 기준 i, j, 돌린 횟수]. 사다리 구멍 (27, 13)·올라선 칸 (28, 13)·스위치 앞(27, 0)은 비워 둔다
+export const GAMEROOM = [
+  ['arcade', 3, 0, 0], ['arcade', 5, 0, 0], ['arcade', 7, 0, 0], ['claw', 11, 0, 0], ['claw', 13, 0, 0], ['dart', 17, 0, 0], ['dart', 20, 0, 0],
+  ['pool', 7, 8, 0], ['beanbag', 16, 6, 0], ['beanbag', 16, 10, 0], ['table', 20, 8, 0], ['music', 29, 3, 3],
+  ['bigbunny', 0, 15, 0], ['bunny', 3, 16, 0], ['bunny2', 9, 0, 0], ['bunny3', 15, 0, 0], ['bunny2', 19, 11, 0], ['bunny', 23, 0, 0],
+];
 // 액자에 넣는 사진 (photo.js): 가로·세로 픽셀(액자 비율), max = 주고받는 글(JPEG data URL)의 글자 수 상한, keep = 기기에 남겨 두는 안 쓰는 사진 수
 export const PIC = { w: 512, h: 374, max: 90000, keep: 24 };
 export const ADMINS = 8; // 공동 관리자 수 (admin.js)
@@ -199,7 +217,7 @@ export const SNOWMEN = 8;      // 마당에서 같이 만들어 놓는 눈사람
 // 방명록: 글은 이만큼까지(넘치면 가장 오래된 것부터 빠진다), 이름·글의 글자 수, 한 사람이 다시 남기기까지 기다리는 시간
 export const NOTE = { max: 60, name: 10, text: 80, gap: 5000 };
 // 이 방 최고 기록을 남기는 놀이와 그 점수의 끝 (다트 = 화살 3개의 합, 마시멜로 = 구운 점수)
-export const BEST = { dart: { name: '다트', top: 180 }, fire: { name: '마시멜로 굽기', top: 100 } };
+export const BEST = { dart: { name: '다트', top: 180 }, fire: { name: '마시멜로 굽기', top: 100 }, arcade: { name: '오락기 별 받기', top: 999 } };
 // 이름별 순위(rank.js): 놀이마다 방에 남기는 사람 수, 순위 판에 보이는 등수
 export const RANK = { keep: 20, show: 10 };
 

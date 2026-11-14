@@ -165,10 +165,15 @@ const ACCOUNT = '';
 const ROOMS = [
   { open: true, icon: '🍪', name: '막대과자 같이 굽기', href: '../kitchen/',
     desc: '작은 3D 주방에서 반죽하고, 굽고, 꾸며서 편지랑 같이 선물해요.',
-    tags: ['혼자', '둘이 같이', '선물 링크'], day: '11월 11일' },
+    tags: ['혼자', '둘이 같이', '선물 링크', '12월엔 크리스마스 판'], day: '11월 11일' },
   { open: false, icon: '🎄', name: '트리 같이 꾸미기', desc: '둘이 한 트리에 장식을 하나씩 달아요.', tags: ['둘이 같이'], day: '크리스마스' },
   { open: false, icon: '🎯', name: '서로 얼마나 알까', desc: '친구가 낸 문제를 맞히고 점수를 비교해요.', tags: ['친구랑'] },
-  { open: false, icon: '💌', name: '새해 소원 쪽지', desc: '소원을 적어 접어 두면 정한 날에 열려요.', tags: ['혼자', '둘이'], day: '새해' },
+  { open: true, icon: '📸', name: '네 컷 사진관', href: '../fourcut/',
+    desc: '3·2·1 네 컷을 찍어 한 장으로 남겨요. 멀리 있는 친구랑 반반 나눠 같이 찍을 수도 있어요.',
+    tags: ['혼자', '둘이 같이', '저장·공유'] },
+  { open: true, icon: '💌', name: '새해 소원 쪽지', href: '../wish/',
+    desc: '소원을 적어 접어 두면 정한 날에 열려요. 서로 주고받고, 이룬 소원도 표시해요.',
+    tags: ['혼자', '둘이', '쪽지 링크'], day: '새해' },
 ];
 
 function card(r) {

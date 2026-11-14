@@ -28,7 +28,12 @@ node pack.test.js     # 포장 · 편지 · 선물 링크 · 받는 화면
 node xmode.test.js    # 혼자/둘이 고르기 · 둘이 서로 선물
 node title.test.js    # 과자 등급 · PERFECT/GOOD 판정 · 순서 안내
 node brag.test.js     # 자랑 카드 · 만든 과정 사진
+node theme.test.js    # 계절 판: 날짜·주소로 고르기, 크리스마스 소품, 예전 선물 링크, 크리스마스 선물 링크
 ```
+
+`theme.test.js` 는 브라우저 시계를 고정해 7월·12월을 흉내 냅니다(`page.clock.setFixedTime`). 화면 사진은 `out/theme-*.png`.
+다른 검사는 오늘 날짜의 판으로 돕니다. 12월 1일~25일에는 크리스마스 판으로 돕니다(날짜 함수를 잠시 고쳐 미리 돌려 봤고 모두 통과).
+기본 판으로 보려면 검사 주소에 `?theme=base` 를 붙입니다.
 
 결과는 줄마다 `통과` / `실패` 로 나오고, 화면 사진은 `out/` 에 남습니다(커밋하지 않음).
 
@@ -37,6 +42,8 @@ node brag.test.js     # 자랑 카드 · 만든 과정 사진
 - `?net=bc` : PeerJS 대신 BroadcastChannel 로 잇습니다. 같은 브라우저의 탭끼리만 통합니다.
 - `?broker=localhost:포트` : PeerJS 브로커를 로컬 것으로 바꿉니다(localhost 만 허용).
 - `?ct=밀리초`, `?st=밀리초` : 연결 대기 시간, 무응답 판정 시간을 줄입니다.
+- `?theme=xmas`, `?theme=base` : 날짜와 상관없이 그 판으로 엽니다.
+- `window.__kitchen.themeId`(지금 판), `.season()`(계절 소품 이름), `.propFrames`(쉬는 동안 계절 소품 때문에 그린 횟수. `frames` 에는 들지 않습니다)
 
 ## 이 검사로 알 수 없는 것
 

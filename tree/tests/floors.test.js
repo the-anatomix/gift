@@ -44,22 +44,22 @@ const peerLv = (p) => T(p, () => window.__duo.others.map((o) => o.level));
 
     /* 층 오르내리기 */
     const L = await T(A, () => window.__tree.LADDERS);
-    check('사다리 두 개: 1층 (19,8) → 2층 (52,8), 2층 (56,8) → 3층 (89,8)', JSON.stringify(L.map((l) => [l.lv, l.a, l.b])) === '[[0,[19,8],[52,8]],[1,[56,8],[89,8]]]', L);
-    check('격자는 94 × 27 칸, 문은 셋(방 문 둘 + 현관문)', (await T(A, () => [window.__tree.GX, window.__tree.GZ, window.__tree.room.doors.length])).join() === '94,27,3');
+    check('사다리 세 개: 1층 (19,8) → 2층 (52,8), 2층 (56,8) → 3층 (89,8), 3층 (91,13) → 4층 (124,13)', JSON.stringify(L.map((l) => [l.lv, l.a, l.b])) === '[[0,[19,8],[52,8]],[1,[56,8],[89,8]],[2,[91,13],[124,13]]]', L);
+    check('격자는 126 × 27 칸, 문은 셋(방 문 둘 + 현관문)', (await T(A, () => [window.__tree.GX, window.__tree.GZ, window.__tree.room.doors.length])).join() === '126,27,3');
     const putOk = await T(A, () => { const W = window.__tree; return [['f1', 'sofa', 1, 6, 1], ['u2', 'lamp', 34, 2, 0], ['u3', 'plant', 66, 2, 0]].every(([id, k, i, j, r]) => W.dispatch({ t: 'put', id, k, i, j, r })); });
     const v0 = await vis(A, ['f1', 'u2', 'u3']);
-    check('1층에 있을 때: 1층 바닥과 1층 가구만 보이고 위층과 위층 가구는 숨음', putOk && v0.lv === 0 && v0.floors.join() === 'true,false,false' && v0.items.join() === 'true,false,false', v0);
+    check('1층에 있을 때: 1층 바닥과 1층 가구만 보이고 위층과 위층 가구는 숨음', putOk && v0.lv === 0 && v0.floors.join() === 'true,false,false,false' && v0.items.join() === 'true,false,false', v0);
     const [x2, z2] = cxz(32 + 6, 5);
     const w1 = await walk(A, x2, z2);
     check('2층 자리로 가라고 하면 사다리를 타고 올라가서 그 자리까지 감', w1.ok && w1.climb && w1.lv === 1 && Math.hypot(w1.x - x2, w1.z - z2) < 0.15 && Math.abs(w1.y - 2.8) < 0.05 && w1.lvs.join() === '0,1' && w1.bad === 0, w1);
     const v1 = await vis(A, ['f1', 'u2', 'u3']);
-    check('2층에서는 2층 바닥과 2층 가구만 보이고 1층 가구(와 트리)는 숨음', v1.floors.join() === 'false,true,false' && v1.items.join() === 'false,true,false', v1);
+    check('2층에서는 2층 바닥과 2층 가구만 보이고 1층 가구(와 트리)는 숨음', v1.floors.join() === 'false,true,false,false' && v1.items.join() === 'false,true,false', v1);
     await A.screenshot({ path: path.join(__dirname, 'out', 'floors-2f.png') });
     const [x3, z3] = cxz(64 + 6, 12);
     const w2 = await walk(A, x3, z3);
     check('3층까지 올라감 (높이 5.6)', w2.ok && w2.climb && w2.lv === 2 && Math.hypot(w2.x - x3, w2.z - z3) < 0.15 && Math.abs(w2.y - 5.6) < 0.05 && w2.bad === 0, w2);
     const v2 = await vis(A, ['f1', 'u2', 'u3']);
-    check('3층에서는 3층과 3층 가구만 보임', v2.floors.join() === 'false,false,true' && v2.items.join() === 'false,false,true', v2);
+    check('3층에서는 3층과 3층 가구만 보임', v2.floors.join() === 'false,false,true,false' && v2.items.join() === 'false,false,true', v2);
     const w3 = await walk(A, -2, -3);
     check('3층에서 1층 자리로 가라고 하면 사다리 둘을 내려가서 감', w3.ok && w3.climb && w3.lvs.join() === '2,1,0' && w3.lv === 0 && Math.hypot(w3.x + 2, w3.z + 3) < 0.15 && Math.abs(w3.y) < 0.05 && w3.bad === 0, w3);
     check('1층으로 돌아오면 다시 1층만 보임', (await vis(A, ['f1', 'u2', 'u3'])).items.join() === 'true,false,false');

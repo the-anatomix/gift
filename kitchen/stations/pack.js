@@ -3,7 +3,7 @@
 export default function (kit) {
   const { THREE, scene, put, rbox, cyl, C, TOP_Y } = kit;
   const POS = { x: 0.6, z: -1.82 }, BOX = { w: 0.32, h: 0.92, d: 0.22 };
-  const BOXES = [
+  const BOXES = (kit.theme && kit.theme.boxes) || [
     { name: '크림', hex: 0xFFF1DA, ribbon: C.accent },
     { name: '빨강', hex: C.accent, ribbon: 0xFFF6E2 },
     { name: '초콜릿', hex: C.choc, ribbon: C.accent },

@@ -11,6 +11,10 @@
 //     25일 하루 동안은 꾸밀 수 있는 사람이, 방장은 아무 날에나 마스터 판의 "🎆 불꽃놀이" 로 터뜨린다 (master.js)(놀이 소식 { k: 'show', v: 'fire' }, 30초에 한 번).
 //   불꽃: THREE.Points 하나(360개). 내려다볼 때는 화면 위쪽 하늘에, 1인칭에서는 남쪽 하늘과 바라보는 쪽 하늘에 터진다.
 //     3층에서 1인칭이면 불꽃놀이 동안 천장을 걷어 옥상 전망대처럼 하늘이 보인다. 창 그림에도 불꽃이 터지고, 터질 때 방 안이 그 색으로 살짝 물든다.
+//   새해: 12월 31일 하루 동안 위에 "🎆 새해까지 5:12:40" 띠, 23:59:50 부터 큰 숫자 10초, 1월 1일 0시 정각에 "새해 복 많이 받으세요! 🎆" 와 불꽃놀이 60초.
+//     그 뒤 해 뜰 때(7:30)까지는 "🌅 새해 첫 해까지 7:29:20" 띠. 7:29 부터 큰 해가 언덕 너머에서 떠오르고(1인칭 하늘·창·내려다볼 때의 배경),
+//     7:30 에 "새해 첫 해가 떴어요! 🌅". 각자 기기 시계로 움직인다. 0시에 'tree:newyear', 해 뜰 때 'tree:firstsun' 사건을 보낸다.
+//     마스터 판의 "🌅 새해 해돋이"(불꽃놀이 권한)는 아무 날에나 이것을 70초로 줄여 방 모두에게 보여 준다(놀이 소식 { k: 'show', v: 'dawn' }).
 // 시간은 꼭 now() 로 읽는다(검사에서 window.__now 로 날짜·시각을 바꾼다). 시각은 그 기기의 현지 시간.
 // app.js 가 넘겨주는 창구 K 로 조명·방·카메라·소식을 다룬다.
 import { THREE } from './kit.js';
@@ -83,6 +87,26 @@ export function xmasPhase(ts) {
   return { phase: 'show', left };
 }
 
+// 새해: 1월 1일 0시(현지)와 그날 해 뜨는 때. 7월부터는 다음 해의 새해를 본다
+export const NEWYEAR = { band: 86400, count: 10, show: 60, lead: 60, rise: 150, keep: 900, demo: 70 }; // 띠(초 전부터), 큰 숫자, 자정 불꽃, 해가 뜨기 시작하는 때(해 뜨기 몇 초 전), 떠오르는 데 걸리는 초, 큰 해가 남아 있는 초, 미리 보기 길이
+export const nyAt = (ts) => { const d = new Date(ts); return new Date(d.getFullYear() + (d.getMonth() >= 6 ? 1 : 0), 0, 1).getTime(); };
+export const firstSunAt = (ts) => nyAt(ts) + SUN.rise * 60000;
+// 'band' | 'count' | 'show'(자정 불꽃) | 'wait'(첫 해를 기다림) | 'dawn'(해가 떠오르는 중과 그 뒤) | null. left = 0시까지(wait·dawn 은 해 뜰 때까지) 남은 초
+export function nyPhase(ts) {
+  const left = (nyAt(ts) - ts) / 1000, sun = (firstSunAt(ts) - ts) / 1000;
+  if (left > NEWYEAR.band || sun < -NEWYEAR.keep) return { phase: null, left };
+  if (left > NEWYEAR.count) return { phase: 'band', left };
+  if (left > 0) return { phase: 'count', left };
+  if (left > -NEWYEAR.show) return { phase: 'show', left };
+  return { phase: sun > 0 ? 'wait' : 'dawn', left: sun };
+}
+// 떠오르는 큰 해: [높이 0 ~ 1, 진하기 0 ~ 1]. sun = 해 뜰 때까지 남은 초
+export function riseAt(sun) {
+  if (sun > NEWYEAR.lead || sun < -NEWYEAR.keep) return [0, 0];
+  return [smooth((NEWYEAR.lead - sun) / NEWYEAR.rise), 1 - smooth((-sun - NEWYEAR.keep * 0.6) / (NEWYEAR.keep * 0.4))];
+}
+const hms = (s) => { s = Math.max(0, Math.ceil(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), p = (v) => String(v).padStart(2, '0'); return h ? `${h}:${p(m)}:${p(s % 60)}` : `${m}:${p(s % 60)}`; };
+
 /* ───────── 색 ───────── */
 const hex = (h) => new THREE.Color(h);
 const PAL = {
@@ -114,7 +138,7 @@ function paneMaterial(u) {
     uniforms: u,
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
     fragmentShader: `
-      uniform vec3 uTop, uHor, uGround; uniform float uStars, uMoon, uSnow, uTime;
+      uniform vec3 uTop, uHor, uGround; uniform float uStars, uMoon, uSnow, uTime; uniform vec2 uRise;
       uniform vec4 uFw[4]; uniform vec3 uFwC[4];
       varying vec2 vUv;
       ${HASH}
@@ -127,6 +151,9 @@ function paneMaterial(u) {
             c += vec3(1.) * uStars * smoothstep(.12, 0., d) * (.6 + .4 * sin(uTime * 2. + h * 40.)); } }
         // 달
         if (uMoon > 0.) { float d = length(p - vec2(.36, .24)); c = mix(c, vec3(1., .95, .76), uMoon * smoothstep(.135, .12, d)); c += vec3(.5, .45, .3) * uMoon * smoothstep(.32, .12, d) * .25; }
+        // 새해 첫 해: 언덕 너머에서 떠오르는 큰 해
+        if (uRise.y > 0.) { float dd = length(p - vec2(-.16, mix(-.56, -.1, uRise.x)));
+          c += vec3(1., .58, .22) * uRise.y * smoothstep(.95, 0., dd) * .5; c = mix(c, vec3(1., .93, .68), uRise.y * smoothstep(.19, .17, dd)); }
         // 불꽃
         for (int i = 0; i < 4; i++) { float a = uFw[i].z; if (a <= 0. || a >= 1.) continue;
           vec2 o = uFw[i].xy; float r = .26 * sqrt(a), k = pow(1. - a, 1.4);
@@ -152,7 +179,7 @@ function domeMaterial(u) {
     uniforms: u, side: THREE.BackSide, depthWrite: false, fog: false,
     vertexShader: 'varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
     fragmentShader: `
-      uniform vec3 uTop, uHor, uGround, uCloudC; uniform float uStars, uMoon, uSun, uTime, uDusk, uNight, uCover;
+      uniform vec3 uTop, uHor, uGround, uCloudC; uniform float uStars, uMoon, uSun, uTime, uDusk, uNight, uCover; uniform vec2 uRise;
       uniform vec4 uFw[4]; uniform vec3 uFwC[4];
       varying vec3 vDir;
       ${HASH}
@@ -195,6 +222,11 @@ function domeMaterial(u) {
         // 해: 눈부신 원과 넓게 번지는 빛
         float sn = dot(d, sd);
         if (uSun > 0. && sn > 0.) { c += vec3(1., .86, .6) * uSun * (pow(sn, 320.) * .9 + pow(sn, 24.) * .32 + pow(sn, 4.) * .1); c = mix(c, vec3(1., .99, .93), uSun * smoothstep(.9988, .9994, sn)); }
+        // 새해 첫 해: 해 쪽 지평선(언덕 뒤)에서 떠오르는 큰 해와 금빛 하늘
+        if (uRise.y > 0.) { vec3 rd = normalize(vec3(sd.x, mix(-.1, .2, uRise.x), sd.z)); float rn = max(dot(d, rd), 0.);
+          c += vec3(1., .56, .2) * uRise.y * (pow(rn, 5.) * .5 + pow(rn, 40.) * .6) * smoothstep(-.05, .1, y);
+          c += vec3(1., .5, .18) * uRise.y * exp(-max(y, 0.) * 9.) * (.2 + .8 * toSun * toSun) * .3;
+          c = mix(c, vec3(1., .94, .7), uRise.y * smoothstep(.9935, .995, rn)); }
         // 구름: 머리 위 평평한 층이 천천히 흘러간다. 해 쪽 가장자리는 밝게
         if (y > .015) { vec2 cp = d.xz / (y + .16) * .95 + vec2(uTime * .011, uTime * .004); float n = fbm(cp), cov = smoothstep(uCover, uCover + .2, n);
           float lit = smoothstep(uCover + .32, uCover, n) * .5 + .5;
@@ -275,7 +307,7 @@ export function makeSky(K) {
   const U = {
     uTop: { value: new THREE.Color() }, uHor: { value: new THREE.Color() }, uGround: { value: new THREE.Color() },
     uStars: { value: 0 }, uMoon: { value: 0 }, uSun: { value: 0 }, uSnow: { value: 0 }, uTime: { value: 0 },
-    uDusk: { value: 0 }, uNight: { value: 0 }, uCover: { value: 0.56 }, uCloudC: { value: new THREE.Color(0xFFFFFF) },
+    uRise: { value: new THREE.Vector2(0, 0) }, uDusk: { value: 0 }, uNight: { value: 0 }, uCover: { value: 0.56 }, uCloudC: { value: new THREE.Color(0xFFFFFF) },
     uFw: { value: [0, 1, 2, 3].map(() => new THREE.Vector4()) }, uFwC: { value: [0, 1, 2, 3].map(() => new THREE.Color()) },
   };
   const pane = paneMaterial(U);
@@ -363,6 +395,13 @@ export function makeSky(K) {
     if (stars > 0.02) {
       let s = 11; const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
       for (let k = 0; k < 90; k++) { const x = r() * 128, y = r() * 170, b = r(), w = b > 0.9 ? 1.5 : 1; g.fillStyle = `rgba(${b > 0.5 ? '255,244,225' : '220,232,255'},${(0.3 + b * 0.65) * stars})`; g.fillRect(x, y, w, w * 0.6); }
+    }
+    const [rh, ra] = [U.uRise.value.x, U.uRise.value.y];
+    if (ra > 0.01) { // 새해 첫 해 (화면 오른쪽 위 하늘에 떠오른다)
+      const sx = 98, sy = 150 - 100 * rh, glow = g.createRadialGradient(sx, sy, 2, sx, sy, 90);
+      glow.addColorStop(0, `rgba(255,190,110,${0.75 * ra})`); glow.addColorStop(1, 'rgba(255,150,70,0)');
+      g.fillStyle = glow; g.fillRect(0, 0, 128, 256);
+      g.fillStyle = `rgba(255,238,180,${ra})`; g.beginPath(); g.ellipse(sx, sy, 9, 13, 0, 0, Math.PI * 2); g.fill(); // 그림이 화면에 맞춰 옆으로 늘어나서 세로로 긴 타원으로 그린다
     }
     bgTex.needsUpdate = true;
   }
@@ -542,6 +581,7 @@ export function makeSky(K) {
     + '#xmasBig{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);z-index:7;pointer-events:none;white-space:nowrap;font-weight:900;color:#FFF4E0;line-height:1.1;text-align:center;'
     + 'text-shadow:0 4px 18px rgba(0,0,0,.55),0 0 2px rgba(0,0,0,.4);font-size:120px}#xmasBig:empty{display:none}'
     + '#xmasBig.word{font-size:min(10vw,60px);color:#FFE9A8;text-shadow:0 0 18px rgba(255,200,90,.9),0 4px 18px rgba(0,0,0,.5)}'
+    + '#xmasBig.word.long{font-size:min(7.2vw,52px)}'
     + '#xmasBig.on{animation:xpop .9s ease-out}@keyframes xpop{0%{transform:translate(-50%,-50%) scale(1.6);opacity:0}25%{transform:translate(-50%,-50%) scale(1);opacity:1}100%{transform:translate(-50%,-50%) scale(.94);opacity:.95}}';
   document.head.appendChild(style);
   const band = document.createElement('div'); band.id = 'xmasBand'; band.hidden = true; band.setAttribute('role', 'timer');
@@ -668,7 +708,7 @@ export function makeSky(K) {
   /* ───────── 1분마다: 하늘·빛·날씨 ───────── */
   const BRIGHT = K.bright, BASE = [...BRIGHT];
   const cur = { key: '', day: 1, dusk: 0, weather: 0, snow: 0, snowGoal: 0, hemiColor: new THREE.Color(0xFFEFD8), lightKey: '' };
-  let quietAt = -9, checkAt = -9, phaseKey = '', xmasFired = false;
+  let quietAt = -9, checkAt = -9, phaseKey = '', xmasFired = false, nyFired = false, sunFired = false, demo = null, riseKey = '';
   const tmp = new THREE.Color(), tmp2 = new THREE.Color();
   function colors(day, dusk, gray) { // 하늘 [위, 지평선]
     const top = PAL.night[0].clone().lerp(PAL.day[0], day), hor = PAL.night[1].clone().lerp(PAL.day[1], day);
@@ -694,7 +734,7 @@ export function makeSky(K) {
     cur.weather = weather; cur.snowGoal = [0, 0.45, 1][weather];
     if (key !== cur.key || force) {
       cur.key = key;
-      const { day, dusk } = skyAt(forcedTs(t)), gray = weather === 2 ? 0.45 : weather === 1 ? 0.2 : 0;
+      const { day, dusk } = demo ? demoSky() : skyAt(forcedTs(t)), gray = (weather === 2 ? 0.45 : weather === 1 ? 0.2 : 0) * (demo ? 0.3 : 1);
       cur.day = day; cur.dusk = dusk;
       const [top, hor] = colors(day, dusk, gray * Math.max(day, 0.3));
       U.uTop.value.copy(top); U.uHor.value.copy(hor);
@@ -738,9 +778,61 @@ export function makeSky(K) {
     if (K.busy()) quietAt = clock();
   }
 
-  /* ───────── 자정 ───────── */
+  /* ───────── 새해: 자정, 첫 해 ───────── */
+  // 미리 보기(마스터 판): demo = { at(시작한 실제 시각 ms) }. 0~10초 큰 숫자, 10초에 새해 인사와 불꽃 20초, 28~58초에 밤하늘이 밝아 오며 해가 뜨고, 50초에 "첫 해가 떴어요"
+  const demoSec = () => (now() - demo.at) / 1000;
+  function demoSky() { const e = clamp((demoSec() - 28) / 30, 0, 1); return { day: 0.6 * smooth(e), dusk: smooth(e * 1.7) * (1 - 0.35 * smooth((e - 0.7) / 0.3)) }; }
+  function startDawn(mine) {
+    if (demo) return false;
+    if (mine) { if (!K.canFire()) { K.toast('해돋이를 보여 줄 수 없어요'); return false; } K.fx({ k: 'show', v: 'dawn' }); audio(true); }
+    demo = { at: now(), step: 0 }; band.hidden = true; update(true); // 먼저 밤하늘로
+    K.toast('새해 해돋이를 미리 봐요 🌅');
+    return true;
+  }
+  function chime() { [523, 659, 784, 1047].forEach((f, k) => setTimeout(() => tick(f), k * 140)); }
+  function sunUp() { big('새해 첫 해가 떴어요! 🌅', 'word long'); wordAt = clock(); chime(); }
+  let wordAt = -99;
+  function setRise(h, a) {
+    const k = h.toFixed(3) + ':' + a.toFixed(2);
+    if (k === riseKey) return;
+    riseKey = k; U.uRise.value.set(h, a); update(true); // 배경 그림도 다시 그린다
+  }
+  function demoTick() {
+    const s = demoSec();
+    if (s >= NEWYEAR.demo) { demo = null; setRise(0, 0); bigEl.textContent = ''; phaseKey = '?'; update(true); return; }
+    if (s < 10) { const n = Math.ceil(10 - s); if (demo.step !== n) { demo.step = n; big(String(n), 'num'); tick(n <= 3 ? 880 : 620); } }
+    else if (demo.step !== 'ny' && demo.step !== 'sun') { demo.step = 'ny'; big('새해 복 많이 받으세요! 🎆', 'word long'); wordAt = clock(); show = { until: now() + 20000, next: clock() + 0.05, mid: false }; lastFire = now(); }
+    if (s >= 50 && demo.step !== 'sun') { demo.step = 'sun'; sunUp(); }
+    const e = clamp((s - 28) / 30, 0, 1);
+    setRise(smooth((e - 0.2) / 0.65), smooth(e * 5) * (1 - smooth((s - (NEWYEAR.demo - 6)) / 6)));
+    if (s >= 28) update(true);
+  }
+  function newYear(t) { // 크리스마스 띠가 없을 때만 불린다. 화면에 무엇을 띄웠으면 그 열쇠
+    const { phase, left } = nyPhase(t);
+    if (!phase) { if (U.uRise.value.y) setRise(0, 0); return ''; }
+    const pk = 'n' + phase[0] + Math.ceil(left);
+    if (phase === 'wait' || phase === 'dawn') { const [h, a] = riseAt(left); setRise(h, a); } else if (U.uRise.value.y) setRise(0, 0);
+    if (pk === phaseKey) return pk;
+    band.hidden = !(phase === 'band' || phase === 'wait' || (phase === 'dawn' && left > -120));
+    document.body.classList.toggle('xmas-band', !band.hidden);
+    if (phase === 'band') band.textContent = `🎆 새해까지 ${hms(left)}`;
+    if (phase === 'wait') band.textContent = `🌅 새해 첫 해까지 ${hms(left)}`;
+    if (phase === 'dawn') band.textContent = '🌅 새해 첫 해가 떠올랐어요';
+    if (phase === 'count') { const n = Math.ceil(left); big(String(n), 'num'); tick(n <= 3 ? 880 : 620); }
+    if (phase === 'show' && (!show || !show.mid)) {
+      show = { until: nyAt(t) + NEWYEAR.show * 1000, next: clock() + 0.05, mid: true, hi: clock() };
+      big('새해 복 많이 받으세요! 🎆', 'word long');
+      if (!nyFired) { nyFired = true; try { window.dispatchEvent(new CustomEvent('tree:newyear', { detail: { at: nyAt(t) } })); } catch (_) { /* 무시 */ } }
+    }
+    if (phase === 'dawn' && left > -8 && !sunFired) { sunFired = true; sunUp(); try { window.dispatchEvent(new CustomEvent('tree:firstsun', { detail: { at: firstSunAt(t) } })); } catch (_) { /* 무시 */ } }
+    if (phase !== 'count' && phase !== 'show' && bigEl.className.startsWith('num')) bigEl.textContent = '';
+    return pk;
+  }
   function midnight() {
+    if (wordAt > 0 && clock() - wordAt > 7) { wordAt = -99; if (bigEl.className.startsWith('word')) bigEl.textContent = ''; }
+    if (demo) { demoTick(); return; }
     const t = now(), { phase, left } = xmasPhase(t);
+    if (!phase) { const nk = newYear(t); if (nk) { phaseKey = nk; if (plan) paintPlan(); return; } }
     const pk = phase === 'band' ? 'b' + Math.ceil(left) : phase === 'count' ? 'c' + Math.ceil(left) : phase || '';
     if (pk === phaseKey) return;
     const was = phaseKey; phaseKey = pk;
@@ -823,6 +915,7 @@ export function makeSky(K) {
 
   // 친구가 터뜨린 불꽃놀이. 받을 만한 소식이면 true (방장이 다른 사람들에게 전해 준다)
   function peerIn(m, id) {
+    if (m.v === 'dawn') return K.mayLead(id) && startDawn(false); // 새해 해돋이 미리 보기
     if (typeof m.v === 'string' && m.v.startsWith('sky:')) { const v = m.v.slice(4); if (!K.mayLead(id) || v === timeMode) return v === timeMode; timeMine = false; return setTime(v, false); }
     const t = now(), d = new Date(t), o = parseFire(m.v, t);
     if (!o || !K.mayLead(id)) return false;
@@ -836,6 +929,7 @@ export function makeSky(K) {
     peerFx: peerIn,
     get time() { return timeMode; }, setTime: (v) => setTime(v, true),
     // 자동 검사가 쓰는 창구
+    dawn: () => startDawn(true), // 새해 해돋이 미리 보기 (마스터 판)
     openFire: () => { if (K.canFire()) openPop(true); else K.toast('불꽃놀이를 터뜨릴 수 없어요'); },
     test: {
       get state() { return { day: cur.day, dusk: cur.dusk, weather: cur.weather, snow: cur.snow, phase: skyAt(forcedTs(now())).phase, hemi: hemi.intensity, sun: sun.intensity, base: [...BRIGHT], stars: U.uStars.value, moon: U.uMoon.value, glass: glassMat.color.getHex(), pool: poolMat.opacity, top: U.uTop.value.getHex(), hor: U.uHor.value.getHex() }; },
@@ -846,6 +940,7 @@ export function makeSky(K) {
       wordBurst: (w) => wordBurst(w), peer: (v) => peerIn({ k: 'show', v }, 'h'), cancel: () => cancelPlan(true),
       get fire() { let n = 0; const t = clock(); for (let k = 0; k < FN; k++) if (t >= fInfo[k * 4] && t <= fInfo[k * 4] + fInfo[k * 4 + 1]) n++; return { visible: fire.visible, live: n, flashes: flashes.length, tint: hemi.color.getHex() }; },
       get band() { return band.hidden ? null : band.textContent; },
+      get rise() { return [U.uRise.value.x, U.uRise.value.y]; }, get demo() { return demo ? { sec: demoSec(), step: demo.step } : null; },
       get big() { return bigEl.textContent; },
       get dome() { return dome.visible; },
       get snowShown() { return snowPts.visible; },

@@ -42,7 +42,7 @@ const tapArrow = async (p, id, side) => { const a = (await H(p, id)).arrows.find
     await tapArrow(A, 'furnList', 'r');
     check('› 를 누르면 목록이 옆으로 넘어가고 ‹ 도 생김', await until(async () => { const h = await H(A, 'furnList'); return h.left > 100 && h.sides.includes('l'); }, 5000), await H(A, 'furnList'));
     check('띠를 눌러도 가구를 고르거나 판이 닫히지 않음', (await T(A, () => window.__tree.mode)) === 'furn' && (await T(A, () => window.__tree.ghost)) === null);
-    for (let k = 0; k < 14 && (await H(A, 'furnList')).sides.includes('r'); k++) { await tapArrow(A, 'furnList', 'r'); await sleep(700); }
+    for (let k = 0; k < 22 && (await H(A, 'furnList')).sides.includes('r'); k++) { await tapArrow(A, 'furnList', 'r'); await sleep(700); }
     const end = await H(A, 'furnList');
     check('끝까지 넘기면 › 가 사라지고 ‹ 만 남음', end.sides === 'l' && end.over - end.left <= 4, end);
     const last = await T(A, () => { const b = document.querySelector('#furnList > :last-child'); return b ? b.dataset.v || b.textContent : null; });

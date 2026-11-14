@@ -1,12 +1,15 @@
 // 피자 화덕: 도우를 펴고 → 소스를 바르고 → 치즈를 뿌리고 → 토핑을 올리고 → 화덕에 굽고 → 조각으로 같이 먹는다
 //   가구 모양(addShape)과 놀이(play.js 의 play.add)를 여기서 더한다. 만들던 피자는 방 상태(S.pizzas, state.js 의 pz…)라서 모두에게 같게 보이고 저장된다.
 //   굽는 동안(화덕에 넣고 게이지를 보는 것)만 굽는 사람 화면의 일이고, 알맞게 꺼내면 pzBake, 태우면 pzClear 를 보낸다.
+//   들고 가기: 구운 피자는 통째로 들고(pzTake) 탁자에 올려놓을 수 있다(pzDrop). 탁자 위의 피자는 누구나 눌러서 한 조각씩 먹는다.
+//     피자의 id 는 구운 화덕의 id 그대로다(화덕 하나에 피자 하나). 케이크 들고 다니기(app.js)와 같은 규칙.
 //   먹기: pzEat 로 한 조각 줄이고, 손에 피자 조각을 든다(food.js 의 take. 한 입씩 먹는 것은 거기 것 그대로).
 import { THREE, L, put, cbox, rbox, cyl, ball } from './kit.js';
 import { addShape } from './furniture.js';
 import { PIZZA, PIZZA_TOPS } from './catalog.js';
 import { sfx } from './sfx.js';
 
+const HAND = [0, 0.615, 0.43]; // 든 사람 몸 기준 (케이크와 같은 자리)
 const BOARD = [0.23, 0.832, 0], MOUTH = [-0.25, 0.84, 0.02], OVEN_X = -0.25;
 const HEAT = { ok: [0.5, 0.9], best: 0.7, tol: 0.04, max: 1.15, rubs: 4 };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -44,7 +47,7 @@ const TOP = {
 };
 const angOf = (x, z) => { const a = Math.atan2(x, z); return a < 0 ? a + Math.PI * 2 : a; }; // CylinderGeometry 의 각도와 같은 쪽으로 잰다
 
-// K = { play, S(), itemObj(id), op(o), canEdit(), toast, close, setPose, ray(px, py), aspect(), food, busy(), dirty() }
+// K = { play, S(), itemObj(id), op(o), canEdit(), toast, close, setPose, ray(px, py), aspect(), food, busy(), dirty(), me(), avatar(pid), holdsY(탁자 id) }
 export function makePizza(K) {
   const $ = (id) => document.getElementById(id);
   const portrait = () => window.innerWidth < window.innerHeight;
@@ -56,6 +59,7 @@ export function makePizza(K) {
   function drop(id) { const v = views.get(id); if (!v) return; if (v.g.parent) v.g.parent.remove(v.g); v.g.traverse((m) => { if (m.geometry) m.geometry.dispose(); }); views.delete(id); K.dirty(); }
   function build(p) {
     const g = new THREE.Group(), baked = p.st === 4, th = baked ? p.left / PIZZA.slices * Math.PI * 2 : Math.PI * 2;
+    if (p.by || p.on) { put(cyl(0.2, 0.2, 0.012, 26), 0xD9B382, 0, -0.006, 0, g, false); put(rbox(0.09, 0.012, 0.045, 0.006), 0xD9B382, 0.235, -0.006, 0, g, false); } // 들고 가는 나무 판
     const disc = (r, h, y, col) => put(new THREE.CylinderGeometry(r, r, h, 30, 1, false, 0, th), col, 0, y, 0, g, false);
     disc(0.172, 0.014, 0.007, baked ? 0xD9A05B : 0xEED9A8);
     if (p.st >= 2) disc(0.15, 0.004, 0.016, baked ? 0xA92F22 : 0xC4372B);
@@ -71,18 +75,26 @@ export function makePizza(K) {
     return g;
   }
   let cur = null; // 지금 내가 하는 놀이 (play.js 의 cur)
+  // 피자가 지금 있는 곳: 든 사람의 손, 탁자 위, 아니면 화덕의 도마
+  function whereOf(id, p) {
+    const a = p.by ? K.avatar(p.by) : null, t = !p.by && p.on ? K.itemObj(p.on) : null;
+    return a ? { parent: a.root, at: HAND, k: 'h' } : t ? { parent: t, at: [0, K.holdsY(p.on) + 0.014, 0], k: 't' } : { parent: K.itemObj(id), at: BOARD, k: 'b' };
+  }
+  const sigOf = (p) => (p ? `${p.st}:${p.tops.length}:${p.left}` + (p.by ? ':h:' + p.by : p.on ? ':t:' + p.on : '') : '-');
   function sync() {
     const S = K.S();
     for (const id of [...views.keys()]) if (!S.pizzas.has(id) || !K.itemObj(id)) drop(id);
     for (const [id, p] of S.pizzas) {
-      const o = K.itemObj(id); if (!o) continue;
-      const sig = `${p.st}:${p.tops.length}:${p.left}`; let v = views.get(id);
-      if (v && v.sig === sig && v.g.parent === o) continue;
+      if (!K.itemObj(id)) continue;
+      const w = whereOf(id, p), sig = sigOf(p) + (p.by && w.k === 'b' ? ':?' : ''); let v = views.get(id); // 든 사람이 아직 안 보이면 도마에 둔다
+      if (v && v.sig === sig && v.g.parent === w.parent) continue;
       if (v) drop(id);
-      v = { g: build(p), sig }; o.add(v.g); views.set(id, v); K.dirty();
-      v.g.position.set(...BOARD);
+      v = { g: build(p), sig, where: w.k }; w.parent.add(v.g); views.set(id, v); K.dirty();
+      v.g.position.set(...w.at);
     }
   }
+  const mine = () => { for (const [id, p] of K.S().pizzas) if (p.by === K.me()) return id; return null; }; // 내가 든 피자
+  const onTable = (t) => { for (const [id, p] of K.S().pizzas) if (!p.by && p.on === t) return id; return null; };
 
   /* ───────── 놀이 판 ───────── */
   const gauge = document.createElement('div'); gauge.id = 'pzBar'; gauge.hidden = true; gauge.setAttribute('role', 'meter'); gauge.setAttribute('aria-label', '익은 정도');
@@ -100,6 +112,12 @@ export function makePizza(K) {
   const quit = { label: '그만하기', id: 'playQuit', fn: () => K.close() };
   function view(c, low) {
     c.low = low;
+    const p = pz(c), v = views.get(c.id);
+    if (!low && p && p.on && v) { // 탁자 위의 피자: 그 자리에서 내려다본다
+      const [x, y, z] = world(v.g, 0, 0, 0);
+      K.setPose({ pos: [x, y + (portrait() ? 1.05 : 0.8), z + (portrait() ? 0.95 : 0.8)], at: [x, y, z], fov: portrait() ? 58 : 42, inside: true });
+      return;
+    }
     if (low) K.setPose({ pos: world(c.g, OVEN_X, 1.0, portrait() ? 1.5 : 1.2), at: world(c.g, OVEN_X, 0.88, 0), fov: portrait() ? 54 : 40, inside: true });
     else K.setPose({ pos: world(c.g, BOARD[0] - 0.06, BOARD[1] + (portrait() ? 1.05 : 0.75), portrait() ? 0.95 : 0.8), at: world(c.g, BOARD[0] - 0.06, BOARD[1], 0), fov: portrait() ? 58 : 42, inside: true });
   }
@@ -145,8 +163,14 @@ export function makePizza(K) {
   function eat(c) {
     const p = pz(c);
     if (!p || p.st !== 4) return;
-    if (K.busy()) { K.toast('케이크를 내려놓고 먹어요'); return; }
+    if (p.by) { K.toast('들고 가는 피자는 내려놓은 뒤에 먹어요'); return; }
+    if (K.busy()) { K.toast('들고 있는 것을 내려놓고 먹어요'); return; }
     if (K.op({ t: 'pzEat', id: c.id })) { K.close(); K.food.take('pizza'); }
+  }
+  function take(c) {
+    if (K.busy()) { K.toast('케이크나 피자는 한 번에 하나만 들 수 있어요'); return; }
+    if (K.op({ t: 'pzTake', id: c.id, by: K.me() })) { K.close(); K.toast('피자를 들었어요. 탁자를 누르면 올려놓아요. 거기서 다 같이 한 조각씩 먹어요'); }
+    else if (K.canEdit()) K.toast('지금은 들 수 없어요');
   }
   function paint(c) {
     const p = pz(c), st = p ? p.st : 0, edit = K.canEdit();
@@ -162,13 +186,16 @@ export function makePizza(K) {
       else K.play.panel('토핑 올리기', `고른 토핑이 올라가요. 피자를 누르면 그 자리에 (${p.tops.length}/${PIZZA.max})`, [
         ...PIZZA_TOPS.map((t) => ({ label: `${t.icon} ${t.name}`, chip: true, id: 'pzTop-' + t.id, on: c.k === t.id, fn: () => { c.k = t.id; addTop(c, t.id); paint(c); } })),
         { label: '🔥 화덕에 굽기', main: true, id: 'playGo', fn: () => intoOven(c) }, ...wipe, quit]);
-    } else K.play.panel(c.perfect ? '완벽한 피자! ✨' : '따끈한 피자', `남은 조각 ${p.left}/${PIZZA.slices} · 한 조각씩 들고 먹어요`, [{ label: '🍕 한 조각 먹기', main: true, id: 'playEat', fn: () => eat(c) }, ...wipe, quit]);
+    } else if (p.by) K.play.panel('피자 화덕', '누가 피자를 들고 가는 중이에요. 탁자에 올려놓으면 같이 먹을 수 있어요', [quit]);
+    else K.play.panel(c.perfect && !p.on ? '완벽한 피자! ✨' : p.on ? '같이 먹는 피자' : '따끈한 피자', `남은 조각 ${p.left}/${PIZZA.slices} · ${p.on ? '둘러앉아 한 조각씩 먹어요' : '한 조각씩 먹거나, 들고 가서 탁자에 올려놓아요'}`, [
+      { label: '🍕 한 조각 먹기', main: true, id: 'playEat', fn: () => eat(c) },
+      ...(edit ? [{ label: p.on ? '🧤 다시 들기' : '🧤 들고 가기', id: 'pzCarry', fn: () => take(c) }] : []), ...wipe, quit]);
   }
   K.play.add('pizza', {
-    start(c) { cur = c; c.p = 0; c.phase = null; c.k = PIZZA_TOPS[0].id; c.sig = ''; view(c, false); paint(c); },
+    start(c) { cur = c; c.p = 0; c.phase = null; c.k = PIZZA_TOPS[0].id; c.sig = ''; const p = pz(c); c.spot = p && p.on ? p.on : null; view(c, false); paint(c); },
     paint,
     tick(c, dt) {
-      const p = pz(c), v = views.get(c.id), sig = p ? `${p.st}:${p.tops.length}:${p.left}` : '-';
+      const p = pz(c), v = views.get(c.id), sig = sigOf(p);
       if (sig !== c.sig) { c.sig = sig; if (!p || p.st !== 3) { if (c.phase) view(c, false); c.phase = null; } ghost(c); paint(c); } // 친구가 바꿨을 때도 판을 맞춘다
       if (!c.phase || !v) return;
       c.t += dt;
@@ -200,16 +227,19 @@ export function makePizza(K) {
     },
     stop(c) {
       cur = null; gauge.hidden = true; c.p = 0; ghost(c);
-      const v = views.get(c.id); if (v) { v.g.position.set(...BOARD); v.g.scale.setScalar(1); }
+      const v = views.get(c.id), p = pz(c); if (v && p) { v.g.position.set(...whereOf(c.id, p).at); v.g.scale.setScalar(1); }
     },
   });
   return {
     tick() { sync(); },
+    mine, onTable,
+    carriers() { const out = []; for (const p of K.S().pizzas.values()) if (p.by) out.push(p.by); return out; }, // 피자를 든 사람들 (두 팔을 내민 몸짓: app.js 의 seatCakes)
+    drop(on) { const id = mine(); return !!id && K.op({ t: 'pzDrop', id, by: K.me(), on }); }, // on = 탁자 (null 이면 도마로)
     test: {
-      get views() { return [...views].map(([id, v]) => ({ id, sig: v.sig, meshes: (() => { let n = 0; v.g.traverse((m) => { if (m.isMesh) n++; }); return n; })(), at: v.g.position.toArray() })); },
+      get views() { return [...views].map(([id, v]) => ({ id, sig: v.sig, where: v.where, meshes: (() => { let n = 0; v.g.traverse((m) => { if (m.isMesh) n++; }); return n; })(), at: v.g.position.toArray() })); },
       get state() { return cur ? { id: cur.id, phase: cur.phase, p: cur.p, heat: cur.heat, k: cur.k, low: cur.low, perfect: cur.perfect } : null; },
       setHeat(h) { if (cur) cur.heat = h; },
-      list: () => [...K.S().pizzas].map(([id, p]) => ({ id, st: p.st, left: p.left, tops: p.tops.map((t) => [...t]) })),
+      list: () => [...K.S().pizzas].map(([id, p]) => ({ id, st: p.st, left: p.left, tops: p.tops.map((t) => [...t]), ...(p.by ? { by: p.by } : {}), ...(p.on ? { on: p.on } : {}) })),
       spot(id, x, z) { const v = views.get(id); return v ? world(v.g, x, 0.02, z) : null; }, // 피자 위 한 점의 자리 (방 좌표)
     },
   };

@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>새해 소원 쪽지 | 놀자방</title>
+<meta name="description" content="소원을 적어 접어 두면 정한 날에 열려요. 나에게, 친구에게, 연인에게 링크 하나로.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="새해 소원 쪽지 | 놀자방">
+<meta property="og:description" content="소원을 적어 접어 두면 정한 날에 열려요. 링크 하나로 주고받아요.">
+<meta property="og:url" content="https://the-anatomix.github.io/gift/wish/">
+<meta name="theme-color" content="#FFF8EC">
+<meta name="color-scheme" content="light">
+<style>
+  /* 새해 소원 쪽지. 색과 모양은 놀자방 홈(nolja/)에 맞춘다. 글꼴·그림·소리 파일은 쓰지 않는다. */
+  :root {
+    --bg: #FFF8EC; --paper: #FFFDF8; --choc: #5A3824; --choc-soft: #8A6A55;
+    --accent: #D9483B; --accent-soft: #F6D6CF; --dough: #F7D48F; --line: #EADCC6;
+    --mint: #3E9A7E; --mint-soft: #D9F0E7; --shadow: 0 2px 0 #EADCC6, 0 10px 24px rgba(90,56,36,.08);
+    --round: 'Jua', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    background-image: radial-gradient(#F1E2C8 1.2px, transparent 1.2px);
+    background-size: 22px 22px;
+    color: var(--choc);
+    font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%;
+    min-height: 100vh; overflow-x: hidden; word-break: keep-all;
+  }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  .wrap { max-width: 460px; margin: 0 auto; padding: max(12px, env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom)); }
+
+  /* 위쪽: 놀자방 홈, 소리 */
+  .top { display: flex; justify-content: space-between; align-items: center; }
+  .pill {
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 44px; min-width: 44px; padding: 0 14px;
+    border-radius: 999px; background: var(--paper); border: 1.5px solid var(--line);
+    font-size: 14px; font-weight: 700; color: var(--choc); text-decoration: none;
+  }
+  .pill svg { width: 20px; height: 20px; }
+  #snd { padding: 0; }
+  #snd.off .wave { display: none; }
+  #snd:not(.off) .mute { display: none; }
+
+  /* 간판 */
+  .sign { text-align: center; padding: 8px 0 2px; }
+  .board {
+    display: inline-block; position: relative; margin: 0;
+    background: var(--choc); color: #FFF3DA;
+    font-family: var(--round); font-weight: 800; font-size: 26px; letter-spacing: 1px; line-height: 1;
+    padding: 13px 30px 12px; border-radius: 16px;
+    box-shadow: 0 4px 0 #3B2619, 0 14px 28px rgba(59,38,25,.22);
+  }
+  .board::before, .board::after {
+    content: ""; position: absolute; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%;
+    background: var(--dough); box-shadow: 0 0 0 3px rgba(247,212,143,.25);
+  }
+  .board::before { left: 10px; } .board::after { right: 10px; }
+  .tag { margin: 12px 0 0; font-size: 14.5px; font-weight: 700; }
+
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0 14px; }
+  .tabs a {
+    display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 46px; border-radius: 14px;
+    background: var(--paper); border: 1.5px solid var(--line); color: var(--choc-soft);
+    font-weight: 800; font-size: 15px; text-decoration: none;
+  }
+  .tabs a.on { background: var(--choc); border-color: var(--choc); color: #FFF3DA; box-shadow: 0 3px 0 #3B2619; }
+  .tabs b { font-size: 12px; min-width: 20px; padding: 2px 6px; border-radius: 999px; background: var(--accent); color: #fff; }
+  .tabs b:empty { display: none; }
+
+  h2 { font-family: var(--round); font-weight: 800; font-size: 17px; margin: 22px 2px 10px; }
+  h2 small { font-weight: 500; font-size: 12.5px; color: var(--choc-soft); margin-left: 6px; }
+  .notice { background: var(--mint-soft); color: #256B55; border-radius: 14px; padding: 11px 14px; font-size: 13.5px; font-weight: 700; margin-bottom: 12px; line-height: 1.5; }
+
+  /* 편지지 6가지: 그림 파일 없이 색과 무늬만으로 */
+  .pp0 { --pbg: #FFFDF4; --pimg: linear-gradient(#FFFDF4, #FFFDF4); --ink: #5A3824; --pback: #F4E3C3; --seal: #D9483B; --sealink: #FFF3DA; --rule: rgba(90,56,36,.3); --frame: #E9B7AE; }
+  .pp1 { --pbg: #D9483B; --pimg: radial-gradient(circle at 50% 50%, rgba(247,212,143,.5) 1.6px, transparent 2px) 0 0 / 18px 18px; --ink: #FFF6E0; --pback: #C23B30; --seal: #F7D48F; --sealink: #7A2B1F; --rule: rgba(255,246,224,.55); --frame: rgba(247,212,143,.7); }
+  .pp2 { --pbg: #E6F5EE; --pimg: linear-gradient(rgba(62,154,126,.13) 1px, transparent 1px) 0 0 / 16px 16px, linear-gradient(90deg, rgba(62,154,126,.13) 1px, transparent 1px) 0 0 / 16px 16px; --ink: #24503F; --pback: #CDE9DD; --seal: #3E9A7E; --sealink: #FFFDF4; --rule: rgba(36,80,63,.35); --frame: transparent; }
+  .pp3 { --pbg: #2B3A67; --pimg: radial-gradient(circle, #FFF3DA 1px, transparent 1.4px) 7px 9px / 46px 38px, radial-gradient(circle, rgba(255,243,218,.6) .8px, transparent 1.2px) 29px 27px / 34px 46px, linear-gradient(#26335C, #4A3F7A); --ink: #FFF6E0; --pback: #222D52; --seal: #F7D48F; --sealink: #2B3A67; --rule: rgba(255,246,224,.5); --frame: transparent; }
+  .pp4 { --pbg: #F3E9D2; --pimg: radial-gradient(ellipse 5px 1.2px, rgba(138,106,85,.35) 60%, transparent) 11px 7px / 53px 41px, radial-gradient(ellipse 1.2px 4px, rgba(138,106,85,.28) 60%, transparent) 31px 23px / 47px 59px, radial-gradient(circle, rgba(217,72,59,.25) 1px, transparent 1.6px) 3px 31px / 61px 67px; --ink: #4A2F1E; --pback: #E6D8B8; --seal: #8A3B2B; --sealink: #FFF3DA; --rule: rgba(74,47,30,.3); --frame: transparent; }
+  .pp5 { --pbg: #FDE8E6; --pimg: repeating-linear-gradient(135deg, rgba(217,72,59,.09) 0 8px, transparent 8px 20px); --ink: #7A2B3A; --pback: #F8D2CE; --seal: #E0647A; --sealink: #FFF8F2; --rule: rgba(122,43,58,.3); --frame: transparent; }
+
+  .paper {
+    position: relative; background: var(--pimg), var(--pbg); color: var(--ink);
+    border-radius: 6px; padding: 22px 20px 20px;
+    box-shadow: 0 1px 0 rgba(90,56,36,.12), 0 12px 26px rgba(90,56,36,.16);
+    transition: background-color .2s;
+  }
+  .paper::before { content: ""; position: absolute; inset: 7px; border: 1.5px solid var(--frame); border-radius: 3px; pointer-events: none; }
+  .paper label { display: flex; align-items: baseline; gap: 8px; font-family: var(--round); font-weight: 800; font-size: 15px; }
+  .paper label span { flex: none; opacity: .85; }
+  .paper input, .paper textarea {
+    display: block; width: 100%; min-height: 44px; background: transparent; border: 0; border-bottom: 1.5px dashed var(--rule);
+    border-radius: 0; padding: 9px 2px 7px; font-size: 16px; line-height: 1.5; color: var(--ink); outline: none; resize: none; overflow: hidden;
+    scroll-margin: 120px 0;
+  }
+  .paper input:focus, .paper textarea:focus { border-bottom-style: solid; border-bottom-color: var(--ink); }
+  .paper ::placeholder { color: var(--ink); opacity: .45; }
+  .wl { list-style: none; margin: 12px 0 0; padding: 0; }
+  .wl li { display: grid; grid-template-columns: 22px 1fr; align-items: start; }
+  .wl li::before { content: "✦"; padding-top: 11px; font-size: 14px; opacity: .8; }
+  .add { display: block; min-height: 44px; margin: 4px 0 0 18px; padding: 0 6px; background: none; border: 0; font-weight: 700; font-size: 14px; color: var(--ink); opacity: .75; }
+  .msgrow { margin-top: 8px; }
+  .cnt { text-align: right; font-size: 12px; opacity: .6; margin: 4px 0 0; }
+  .paper label.fr { justify-content: flex-end; margin-top: 4px; }
+  .paper label.fr input { width: 9.5em; }
+
+  /* 편지지 고르기 */
+  .papers { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .papers button {
+    aspect-ratio: 1 / 1.15; min-height: 48px; border-radius: 10px; border: 2px solid var(--line); padding: 0;
+    background: var(--pimg), var(--pbg); position: relative;
+  }
+  .papers button[aria-checked="true"] { border-color: var(--choc); box-shadow: 0 3px 0 var(--choc); transform: translateY(-2px); }
+  .papers button[aria-checked="true"]::after {
+    content: "✓"; position: absolute; right: -7px; top: -7px; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff;
+    font-size: 13px; font-weight: 900; line-height: 22px; text-align: center; box-shadow: 0 0 0 2px var(--bg);
+  }
+  .pname { margin: 8px 2px 0; font-size: 13px; color: var(--choc-soft); }
+
+  /* 열리는 날 고르기 */
+  .whens { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .whens button {
+    min-height: 58px; border-radius: 14px; background: var(--paper); border: 1.5px solid var(--line); padding: 8px 10px; text-align: left;
+    font-weight: 800; font-size: 15px; line-height: 1.3;
+  }
+  .whens button small { display: block; font-weight: 500; font-size: 12.5px; color: var(--choc-soft); }
+  .whens button[aria-checked="true"] { border-color: var(--accent); background: #FFF1EE; box-shadow: 0 3px 0 var(--accent); }
+  .whens button:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .custom { display: grid; grid-template-columns: 1.4fr 1fr; gap: 8px; margin-top: 10px; }
+  .custom input { min-height: 48px; width: 100%; min-width: 0; border-radius: 12px; border: 1.5px solid var(--line); background: var(--paper); padding: 0 10px; font-size: 16px; }
+  .sum { margin: 12px 2px 0; font-size: 14px; font-weight: 700; line-height: 1.5; }
+  .sum b { color: var(--accent); }
+
+  .main {
+    display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 54px; margin-top: 18px;
+    border: 0; border-radius: 16px; background: var(--accent); color: #fff;
+    font-family: var(--round); font-weight: 800; font-size: 19px; letter-spacing: .5px; box-shadow: 0 3px 0 #A8352B; text-decoration: none;
+  }
+  .main:active { transform: translateY(2px); box-shadow: 0 1px 0 #A8352B; }
+  .sub2 {
+    display: flex; align-items: center; justify-content: center; width: 100%; min-height: 52px; margin-top: 12px; padding: 0 8px;
+    border: 2px solid var(--choc); border-radius: 16px; background: var(--paper); color: var(--choc);
+    font-family: var(--round); font-weight: 800; font-size: 16.5px; box-shadow: 0 3px 0 var(--choc); text-decoration: none;
+  }
+  .sub2:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--choc); }
+  .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .acts .main, .acts .sub2 { margin-top: 16px; font-size: 16px; line-height: 1.2; }
+  .err { min-height: 20px; margin: 10px 2px 0; text-align: center; font-size: 13.5px; font-weight: 700; color: var(--accent); }
+  .textlink { display: flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 8px; font-size: 14px; font-weight: 700; color: var(--choc-soft); }
+
+  /* 쪽지 보기 */
+  .kicker { text-align: center; font-family: var(--round); font-weight: 800; font-size: 19px; margin: 6px 0 0; }
+  .toline { text-align: center; font-size: 14px; color: var(--choc-soft); margin: 4px 0 0; min-height: 20px; }
+  .stage { position: relative; padding: 4px 0 0; }
+
+  /* 세 번 접는 쪽지: 위·아래 칸이 가운데 칸 위로 접힌다 */
+  .note3 {
+    display: block; position: relative; width: 250px; height: 100px; margin: 116px auto 122px; padding: 0; border: 0; background: none;
+    transition: margin .55s ease; -webkit-user-select: none; user-select: none;
+    filter: drop-shadow(0 6px 10px rgba(90,56,36,.2));
+  }
+  .note3.folded { margin: 34px auto 30px; }
+  .note3 .pane { position: absolute; left: 0; width: 100%; height: 100px; display: block; transition: transform .55s cubic-bezier(.5,0,.3,1); }
+  .note3 .pane i { position: absolute; inset: 0; display: block; }
+  .note3 .f { background: var(--pimg), var(--pbg); }
+  .note3 .f::after { /* 적어 둔 글 자리 */
+    content: ""; position: absolute; left: 26px; right: 44px; top: 24px; height: 54px;
+    background: linear-gradient(var(--rule) 0 3px, transparent 3px 25px, var(--rule) 25px 28px, transparent 28px 50px, var(--rule) 50px 53px, transparent 53px);
+    opacity: .7; border-radius: 2px;
+  }
+  .note3 .b { background: var(--pback); opacity: 0; transition: opacity 0s .27s; box-shadow: inset 0 0 0 1px rgba(0,0,0,.05); }
+  .note3 .mid { top: 0; z-index: 1; }
+  .note3 .mid .f { box-shadow: inset 0 1px 0 rgba(0,0,0,.06), inset 0 -1px 0 rgba(0,0,0,.06); }
+  .note3 .bot { top: 100px; z-index: 2; transform-origin: 50% 0; transform: perspective(900px) rotateX(0deg); border-radius: 0 0 5px 5px; overflow: hidden; }
+  .note3 .topp { top: -100px; z-index: 3; transform-origin: 50% 100%; transform: perspective(900px) rotateX(0deg); border-radius: 5px 5px 0 0; overflow: hidden; }
+  .note3.f1 .bot, .note3.folded .bot { transform: perspective(900px) rotateX(180deg); }
+  .note3.f1 .bot .b, .note3.folded .bot .b { opacity: 1; }
+  .note3.folded .topp { transform: perspective(900px) rotateX(-180deg); }
+  .note3.folded .topp .b { opacity: 1; }
+  .note3::after { /* 접힌 종이의 두께 */
+    content: ""; position: absolute; left: 3px; right: 3px; top: 100%; height: 5px; border-radius: 0 0 6px 6px;
+    background: var(--pback); filter: brightness(.86); opacity: 0; transition: opacity .2s; z-index: 0;
+  }
+  .note3.folded::after { opacity: 1; transition-delay: .5s; }
+  .band, .seal { position: absolute; z-index: 5; opacity: 0; pointer-events: none; }
+  .band { left: 0; right: 0; top: 41px; height: 18px; background: var(--seal); box-shadow: 0 1px 0 rgba(0,0,0,.12); transform: scaleX(0); transition: transform .3s ease, opacity .2s; }
+  .seal {
+    left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%;
+    background: var(--seal); color: var(--sealink); display: grid; place-items: center;
+    font-family: var(--round); font-weight: 900; font-size: 26px; line-height: 1;
+    box-shadow: inset 0 0 0 3px var(--seal), inset 0 0 0 4.5px var(--sealink), 0 3px 8px rgba(0,0,0,.25);
+    transform: scale(2.4) rotate(-18deg); transition: transform .28s cubic-bezier(.3,1.6,.5,1), opacity .15s;
+  }
+  .note3.sealed .band { opacity: 1; transform: scaleX(1); }
+  .note3.sealed .seal { opacity: 1; transform: scale(1) rotate(-8deg); }
+  .note3.nudge { animation: nudge .4s ease; }
+  @keyframes nudge { 20% { transform: rotate(-3deg) } 50% { transform: rotate(3deg) } 80% { transform: rotate(-1.5deg) } }
+  /* 열 수 있게 되면 빛난다 */
+  .glow { position: absolute; left: 50%; top: 88px; width: 380px; height: 230px; margin: -115px 0 0 -190px; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(closest-side, rgba(242,181,68,.95), rgba(247,200,110,.55) 50%, rgba(247,212,143,0)); opacity: 0; transition: opacity .6s; }
+  .stage.ready .glow { opacity: 1; animation: pulse 1.8s ease-in-out infinite; }
+  .stage.ready .note3 { animation: bob 2.2s ease-in-out infinite; cursor: pointer; filter: drop-shadow(0 0 10px rgba(242,165,40,.9)) drop-shadow(0 6px 10px rgba(90,56,36,.2)); }
+  @keyframes pulse { 50% { transform: scale(1.12); opacity: .7; } }
+  @keyframes bob { 50% { transform: translateY(-5px) } }
+  .tw { position: absolute; width: 16px; height: 16px; background: #F2B544; opacity: 0; pointer-events: none;
+    clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); }
+  .stage.ready .tw { animation: tw 1.5s ease-in-out infinite; }
+  .tw.a { left: 12%; top: 30px; } .tw.b { right: 11%; top: 58px; animation-delay: .5s !important; width: 12px; height: 12px; } .tw.c { right: 22%; top: 136px; animation-delay: .9s !important; width: 10px; height: 10px; }
+  @keyframes tw { 0%,100% { opacity: 0; transform: scale(.4) } 50% { opacity: 1; transform: scale(1) } }
+
+  .lock { text-align: center; }
+  .cd { font-family: var(--round); font-weight: 900; font-size: 50px; line-height: 1.05; letter-spacing: 1px; font-variant-numeric: tabular-nums; color: var(--accent); }
+  .cd.clock { font-size: 46px; }
+  .cds { margin: 6px 0 0; font-size: 15px; font-weight: 700; }
+  .cdw { display: inline-block; margin: 10px 0 0; padding: 7px 13px; border-radius: 999px; background: var(--paper); border: 1.5px solid var(--line); font-size: 13.5px; font-weight: 700; color: var(--choc-soft); }
+
+  /* 펼친 쪽지 */
+  .sun { position: relative; height: 112px; margin: 10px 0 -18px; border-radius: 18px 18px 0 0; overflow: hidden; background: linear-gradient(#2B3A67 0%, #8A5C8E 42%, #F2A979 78%, #FBD7A0 100%); }
+  .sun .disc { position: absolute; left: 50%; bottom: 14px; width: 74px; height: 74px; margin-left: -37px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 45%, #FFF3C4, #FFC766 60%, #F59A3E); box-shadow: 0 0 0 10px rgba(255,214,130,.25), 0 0 0 24px rgba(255,214,130,.12);
+    animation: rise 2.6s cubic-bezier(.2,.7,.2,1) both; }
+  @keyframes rise { from { transform: translateY(70px); } to { transform: translateY(0); } }
+  .sun svg { position: absolute; left: 0; bottom: 0; width: 100%; height: 46px; display: block; }
+  .sun p { position: absolute; left: 0; right: 0; top: 10px; margin: 0; text-align: center; color: #FFF3DA; font-family: var(--round); font-weight: 800; font-size: 14px; letter-spacing: 1px; }
+  .letter { margin-top: 10px; padding-bottom: 16px; transform-origin: 50% 40%; }
+  .letter.unfold { animation: unfold .6s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes unfold { from { transform: scaleY(.34); opacity: .2; } to { transform: scaleY(1); opacity: 1; } }
+  .lto, .lfr { font-family: var(--round); font-weight: 800; font-size: 16px; margin: 0; }
+  .lfr { text-align: right; margin-top: 14px; }
+  .lw { list-style: none; margin: 12px 0 0; padding: 0; }
+  .lw li { display: grid; grid-template-columns: 20px 1fr auto; gap: 4px 6px; align-items: center; padding: 6px 0; border-bottom: 1.5px dashed var(--rule); }
+  .lw li::before { content: "✦"; font-size: 13px; opacity: .8; }
+  .lw .tx { font-size: 16.5px; font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; padding: 4px 0; }
+  .lw li.did .tx { text-decoration: line-through; text-decoration-thickness: 1.5px; opacity: .75; }
+  .ok {
+    min-width: 76px; min-height: 44px; padding: 0 10px; border-radius: 999px; border: 1.5px dashed var(--ink); background: transparent;
+    color: var(--ink); font-size: 13px; font-weight: 800; opacity: .8;
+  }
+  .ok[aria-pressed="true"] { border-style: solid; border-color: var(--seal); background: var(--seal); color: var(--sealink); opacity: 1; transform: rotate(-4deg); }
+  .lm { margin: 14px 0 0; font-size: 15.5px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ldate { margin: 14px 0 0; font-size: 12px; opacity: .65; text-align: center; }
+  .tally { margin: 16px 0 0; text-align: center; font-weight: 800; font-size: 15px; }
+  .tally b { color: var(--accent); font-size: 19px; }
+  .manual { width: 100%; min-height: 46px; margin-top: 10px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--paper); padding: 0 10px; font-size: 14px; }
+
+  /* 내 소원함 */
+  .boxsum { background: var(--paper); border: 1.5px solid var(--line); border-radius: 18px; padding: 14px 16px; box-shadow: var(--shadow); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .boxsum p { margin: 0; font-size: 13.5px; color: var(--choc-soft); line-height: 1.5; }
+  .boxsum strong { font-family: var(--round); font-size: 24px; color: var(--accent); white-space: nowrap; }
+  .list { display: grid; gap: 10px; margin-top: 12px; }
+  .item { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: stretch; background: var(--paper); border: 1.5px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
+  .item a { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 12px; align-items: center; padding: 12px 0 12px 12px; color: inherit; text-decoration: none; min-height: 72px; }
+  .mini { position: relative; width: 54px; height: 38px; border-radius: 4px; background: var(--pback); box-shadow: 0 2px 0 rgba(90,56,36,.15); }
+  .mini::before { content: ""; position: absolute; left: 0; right: 0; top: 14px; height: 10px; background: var(--seal); }
+  .mini::after { content: ""; position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px; border-radius: 50%; background: var(--seal); box-shadow: inset 0 0 0 2px var(--seal), inset 0 0 0 3px var(--sealink); }
+  .mini.opened { background: var(--pimg), var(--pbg); height: 46px; }
+  .mini.opened::before { top: 12px; height: 2px; left: 9px; right: 9px; background: var(--rule); box-shadow: 0 9px 0 var(--rule), 0 18px 0 var(--rule); }
+  .mini.opened::after { display: none; }
+  .item .nm { margin: 0; font-weight: 900; font-size: 15.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .st { margin: 3px 0 0; font-size: 12.5px; color: var(--choc-soft); line-height: 1.45; }
+  .item .st b { display: inline-block; padding: 1px 7px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-size: 11.5px; margin-right: 4px; }
+  .item .st b.go { background: var(--dough); color: #7A4B12; }
+  .item .st b.dn { background: var(--mint-soft); color: var(--mint); }
+  .del { border: 0; background: none; color: var(--choc-soft); font-size: 20px; min-height: 44px; }
+  .empty { text-align: center; padding: 34px 10px 10px; color: var(--choc-soft); font-size: 14.5px; line-height: 1.7; }
+
+  .bad { text-align: center; padding: 30px 6px 0; }
+  .bad .torn { width: 120px; height: 84px; margin: 0 auto 14px; display: block; }
+  .bad h2 { font-size: 21px; margin: 0 0 8px; }
+  .bad p { margin: 0; font-size: 14.5px; color: var(--choc-soft); line-height: 1.7; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); z-index: 30;
+    max-width: min(92vw, 420px); padding: 11px 16px; border-radius: 14px; background: rgba(59,38,25,.94); color: #FFF3DA;
+    font-size: 13.5px; font-weight: 700; line-height: 1.5; text-align: center; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+  }
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+  #fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; }
+  footer { margin-top: 30px; text-align: center; font-size: 12px; color: var(--choc-soft); line-height: 1.75; }
+  footer a { color: var(--choc); font-weight: 700; display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; }
+
+  @media (max-width: 374px) {
+    .board { font-size: 23px; padding: 12px 26px 11px; }
+    .papers { gap: 6px; }
+    .acts .main, .acts .sub2 { font-size: 15px; }
+    .cd { font-size: 44px; } .cd.clock { font-size: 40px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="pill" href="../nolja/">‹ 놀자방 홈</a>
+    <button class="pill" id="snd" type="button" aria-label="소리 끄기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor"/>
+        <path class="wave" d="M15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/>
+        <path class="mute" d="M16 9.5l5 5M21 9.5l-5 5"/>
+      </svg>
+    </button>
+  </div>
+
+  <header class="sign">
+    <h1 class="board">새해 소원 쪽지</h1>
+    <p class="tag">소원을 적어 접어 두면 정한 날에 열려요</p>
+  </header>
+
+  <nav class="tabs" aria-label="화면 고르기">
+    <a href="#write" id="tabWrite">쪽지 쓰기</a>
+    <a href="#box" id="tabBox">내 소원함 <b id="boxN"></b></a>
+  </nav>
+
+  <main>
+    <!-- 1. 쓰기 -->
+    <section id="scrWrite">
+      <p class="notice" id="replyNote" hidden></p>
+      <div class="paper pp0" id="sheet">
+        <label><span>To.</span><input id="fTo" type="text" autocomplete="off" enterkeyhint="next" placeholder="받는 사람 (비우면 나에게)"></label>
+        <ul class="wl" id="wishes"></ul>
+        <button class="add" id="addWish" type="button">+ 소원 하나 더 적기</button>
+        <div class="msgrow">
+          <textarea id="fMsg" rows="2" placeholder="덧붙이는 말 (안 적어도 돼요)" aria-label="덧붙이는 말"></textarea>
+          <p class="cnt" id="msgCnt">0 / 120</p>
+        </div>
+        <label class="fr"><span>From.</span><input id="fFr" type="text" autocomplete="off" enterkeyhint="done" placeholder="보내는 사람"></label>
+      </div>
+
+      <h2>편지지<small id="paperName"></small></h2>
+      <div class="papers" id="papers" role="radiogroup" aria-label="편지지 고르기"></div>
+
+      <h2>언제 열까요</h2>
+      <div class="whens" id="whens" role="radiogroup" aria-label="열리는 날 고르기"></div>
+      <div class="custom" id="custom" hidden>
+        <input id="cDate" type="date" aria-label="열리는 날짜">
+        <input id="cTime" type="time" value="00:00" aria-label="열리는 시각">
+      </div>
+      <p class="sum" id="whenSum"></p>
+
+      <button class="main" id="foldBtn" type="button">접어서 봉하기</button>
+      <p class="err" id="wErr" role="alert"></p>
+    </section>
+
+    <!-- 2~4. 접힌 쪽지 · 남은 시간 · 펼친 쪽지 -->
+    <section id="scrNote" hidden>
+      <p class="kicker" id="nKicker"></p>
+      <p class="toline" id="nTo"></p>
+      <div class="stage" id="stage">
+        <div class="glow"></div>
+        <span class="tw a"></span><span class="tw b"></span><span class="tw c"></span>
+        <button class="note3 folded sealed" id="note3" type="button">
+          <span class="pane mid"><i class="f"></i></span>
+          <span class="pane bot"><i class="f"></i><i class="b"></i></span>
+          <span class="pane topp"><i class="f"></i><i class="b"></i></span>
+          <span class="band"></span><span class="seal">복</span>
+        </button>
+        <div class="sun" id="sun" hidden>
+          <p>새해 복 많이 받으세요</p>
+          <div class="disc"></div>
+          <svg viewBox="0 0 400 46" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 46V30q60-26 130-6t120-10q70-22 150 8v24z" fill="#3B2619" opacity=".55"/>
+            <path d="M0 46V38q90-22 190-6t210-8v22z" fill="#3B2619"/>
+          </svg>
+        </div>
+        <div class="paper letter" id="letter" hidden>
+          <p class="lto" id="lTo"></p>
+          <ul class="lw" id="lWishes"></ul>
+          <p class="lm" id="lMsg"></p>
+          <p class="lfr" id="lFr"></p>
+          <p class="ldate" id="lDate"></p>
+        </div>
+      </div>
+      <div class="lock" id="lock">
+        <div class="cd" id="cdBig" aria-live="off"></div>
+        <p class="cds" id="cdSmall"></p>
+        <span class="cdw" id="cdWhen"></span>
+      </div>
+      <button class="main" id="openBtn" type="button" hidden>쪽지 펼치기</button>
+      <p class="tally" id="nTally" hidden></p>
+      <div class="acts" id="mineActs" hidden>
+        <button class="sub2" id="keepBtn" type="button">나에게 보관</button>
+        <button class="main" id="sendBtn" type="button">친구·연인에게<br>보내기</button>
+      </div>
+      <button class="main" id="replyBtn" type="button" hidden>답장 쪽지 쓰기</button>
+      <input class="manual" id="manual" type="text" readonly hidden aria-label="쪽지 링크">
+      <a class="textlink" href="#box" id="toBox">내 소원함 보기</a>
+    </section>
+
+    <!-- 내 소원함 -->
+    <section id="scrBox" hidden>
+      <div class="boxsum">
+        <p id="boxSumText"></p>
+        <strong id="boxTally"></strong>
+      </div>
+      <div class="list" id="boxList"></div>
+      <p class="empty" id="boxEmpty" hidden>아직 담아 둔 쪽지가 없어요.<br>첫 소원을 적어 볼까요?</p>
+      <a class="main" href="#write">새 쪽지 쓰기</a>
+    </section>
+
+    <!-- 읽을 수 없는 링크 -->
+    <section id="scrBad" class="bad" hidden>
+      <svg class="torn" viewBox="0 0 120 84" aria-hidden="true">
+        <path d="M8 8h46l6 12-8 10 9 12-7 12 6 22H8z" fill="#FFFDF4" stroke="#EADCC6" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M66 8h46v68H70l-6-22 7-12-9-12 8-10z" fill="#FFFDF4" stroke="#EADCC6" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M18 26h26M18 40h22M18 54h26M80 26h22M82 40h20M80 54h22" stroke="#D9C3A0" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+      <h2>쪽지를 읽을 수 없어요</h2>
+      <p>링크가 잘렸거나 바뀐 것 같아요.<br>보낸 사람에게 링크를 다시 받아 보세요.</p>
+      <a class="main" href="#write">새 쪽지 쓰기</a>
+    </section>
+  </main>
+
+  <footer>
+    서버가 없어서 잠금은 이 화면 안에서만 지켜져요. 기기 시계를 바꾸거나 링크를 풀어 보면 미리 읽을 수 있으니, 꼭 숨겨야 하는 이야기는 적지 마세요.<br>
+    이름이나 연락처는 받지 않아요. 쪽지는 링크 안과 이 기기에만 담겨요.<br>
+    <a href="../nolja/">놀자방 홈</a>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<canvas id="fx" aria-hidden="true"></canvas>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
