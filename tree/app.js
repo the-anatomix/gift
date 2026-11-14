@@ -703,7 +703,7 @@ const FX = { dart: 'number', fire: 'number', music: 'string', act: 'string', lie
 FX.fly = 'string'; // 비행 슈트·썰매로 나는 높이와 하늘의 자리 (fly.js)
 FX.car = 'string'; // 썰매 기차에 탔다·내렸다 (train.js)
 FX.run = 'string'; // Shift 로 달린다('1')·걷는다('')
-FX.beam = 'string'; // 비행 슈트의 손바닥 빛줄기 (beam.js)
+FX.beam = FX.zap = 'string'; // 비행 슈트의 손바닥 빛줄기, 그 빛줄기에 맞아 쓰러진 사람 id (beam.js)
 FX.snow = FX.hit = 'string'; // 마당 눈싸움 (snow.js)
 FX.prop = FX.climb = FX.heavy = FX.help = 'string'; // 받쳐 주기·별 달기·큰 가구 둘이 들기 (coop.js)
 const duo = makeDuo({
@@ -761,7 +761,7 @@ const duo = makeDuo({
     if (m.k === 'fly') return fly.peerFx(m, id); // 날고 있는 높이와 하늘의 자리 (fly.js)
     if (m.k === 'car') return train.peerFx(m, id); // 썰매 기차 (train.js)
     if (m.k === 'run') { const a = others.get(id); if (!a) return false; a.run = m.v === '1'; return true; } // 달리기
-    if (m.k === 'beam') return beam.peerFx(m, id); // 손바닥 빛줄기 (beam.js)
+    if (m.k === 'beam' || m.k === 'zap') return beam.peerFx(m, id); // 손바닥 빛줄기와 맞아 쓰러지기 (beam.js)
     if (m.k === 'act') { const a = others.get(id); if (a && ACT_SFX[m.v]) sfx(ACT_SFX[m.v], a); return !!(a && a.act(m.v)); } // 그 사람이 한 행동
     if (m.k === 'lie') { // 그 사람이 침대에 누웠거나('침대:자리') 일어났다('')
       const a = others.get(id);
@@ -1129,10 +1129,10 @@ const train = makeTrain({
   scene, me, others: () => others, myId: () => duo.me, online: () => duo.mode === 'on', grid, yard: () => fly.yard, busy: () => flyBusy() || fly.on,
   fx: (m) => duo.fx(m), toast: (m) => toast(m), nameOf: (id) => nameOf(id), dirty: () => { dirty = true; },
 });
-const flyBusy = () => !(mode === null || mode === 'chat' || mode === 'emo') || !!ghost || !!pose || !!me.rest || !!me.hop || me.hold || me.push
+const flyBusy = () => !(mode === null || mode === 'chat' || mode === 'emo') || !!ghost || !!pose || !!me.rest || !!me.hop || me.down > 0 || me.hold || me.push
   || games.on || snow.on || train.on || !!(window.__snow && window.__snow.team && window.__snow.team.on);
 const beam = makeBeam({
-  scene, me, others: () => others, grid, fixed: fixedCell, sky: () => fly.sky,
+  scene, me, others: () => others, myId: () => duo.me, grid, fixed: fixedCell, sky: () => fly.sky, toast: (m) => toast(m),
   show: () => look.outfit === HOST_OUTFIT && isHost() && !fly.ride && !flyBusy(),
   dir: () => (usingEye() ? { yaw: Math.atan2(-Math.sin(fy), -Math.cos(fy)), pitch: clamp(fpitch, -1.2, 1.2) } : { yaw: Math.atan2(Math.sin(me.face), Math.cos(me.face)), pitch: 0 }),
   online: () => duo.mode === 'on', fx: (m) => duo.fx(m), dirty: () => { dirty = true; },
@@ -1545,6 +1545,7 @@ function keyWalk(dt) {
   if (mode === 'tree') return false; // 트리를 꾸미는 동안은 트리 옆에 서 있는다
   if (pose) return false;           // 놀이 중에는 걷지 않는다
   if (me.hop) return false;         // 사다리를 타는 중
+  if (me.down > 0) return false;    // 빛줄기에 맞아 쓰러져 있는 중 (beam.js)
   const f = (keys.has('u') ? 1 : 0) - (keys.has('d') ? 1 : 0) - joy.y, r = (keys.has('r') ? 1 : 0) - (keys.has('l') ? 1 : 0) + joy.x;
   const push = Math.min(1, Math.hypot(f, r)); // 조이스틱을 살짝 밀면 천천히 걷는다
   if (push < 0.15) return false;
@@ -1794,8 +1795,8 @@ function frame(now) {
   { const r = shiftDown && !fly.on && !train.on && !me.rest; if (r !== me.run) { me.run = r; if (duo.mode === 'on') duo.fx({ k: 'run', v: r ? '1' : '' }); } } // Shift: 달리기
   const byKey = keyWalk(dt);
   const moved = byKey ? (me.animate(dt, true), true) : me.step(dt);
-  if (moved || me.blend > 0.01 || me.doing) dirty = true;
-  for (const a of others.values()) if (a.step(dt) || a.blend > 0.01 || a.doing) dirty = true;
+  if (moved || me.blend > 0.01 || me.doing || me.down > 0) dirty = true;
+  for (const a of others.values()) if (a.step(dt) || a.blend > 0.01 || a.doing || a.down > 0) dirty = true;
   { const lv = floorOf(me); if (lv !== myLv) { myLv = lv; if (ghost) ghostCancel(); measure(false); paintLevels(); toast(`${lv + 1}층이에요`); } } // 사다리를 반쯤 올랐을 때 위층으로 바뀐다
   for (const a of others.values()) { const v = seenOn(a); if (a.root.visible !== v) { a.root.visible = v; dirty = true; } } // 같은 층에 있는 사람만 보인다
   if (clock - actAt > 0.15) { actAt = clock; paintAct(); }
@@ -1875,7 +1876,7 @@ window.__duo = {
   get knocks() { return duo.knocks; }, get people() { return duo.people; }, get why() { return duo.why; }, get rang() { return duo.rang; },
   admit: (id) => duo.admit(id), deny: (id) => duo.deny(id), kick: (id) => duo.kick(id),
   get canEdit() { return canEdit; }, get count() { return duo.count; }, get me() { return duo.me; }, get editors() { return duo.editors; }, get slot() { return mySlot; },
-  get others() { return [...others].map(([id, a]) => ({ id, x: a.x, z: a.z, look: a.look, moving: a.moving, acting: a.acting, hold: a.hold, lying: a.rest ? { id: a.rest.id, side: a.rest.side } : null, level: floorOf(a), shown: a.root.visible, climbing: a.climbing })); },
+  get others() { return [...others].map(([id, a]) => ({ id, x: a.x, z: a.z, look: a.look, moving: a.moving, acting: a.acting, hold: a.hold, lying: a.rest ? { id: a.rest.id, side: a.rest.side } : null, down: a.down, level: floorOf(a), shown: a.root.visible, climbing: a.climbing })); },
   say, cleanSay, get bubbles() { return [...bubbles].filter(([, b]) => b.el.style.display !== 'none').map(([who, b]) => { const r = b.el.getBoundingClientRect(); return { who, text: b.el.textContent, x: r.left + r.width / 2, y: r.bottom }; }); },
   get chatLog() { return [...document.querySelectorAll('#chatLog .ln')].map((l) => l.textContent); },
   get other() { const a = others.values().next().value; return a ? { x: a.x, z: a.z, look: a.look, moving: a.moving } : null; },

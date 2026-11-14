@@ -141,6 +141,25 @@ const overlaps = (p) => T(p, () => {
     check('이상한 빔 소식은 받지 않음', (await BM(B)).active.length === 0 && errors.length === 0, (await BM(B)).active);
     await T(A, (who) => window.__duo.feed({ t: 'fx', k: 'beam', v: '1.57;0.00;3.0' }, who), bid); await sleep(300);
     check('비행 슈트를 안 입은 사람이 쐈다는 소식은 받지 않고 전하지도 않음', (await BM(A)).active.length === 0 && (await BM(C)).active.length === 0);
+    /* 빛줄기에 맞으면 1초 동안 쓰러짐 */
+    await sleep(900);
+    await place(B, 8, 12);
+    const seenB = (p) => T(p, (w) => window.__duo.others.find((o) => o.id === w), bid);
+    await until(async () => { const o = await seenB(A); return o && Math.abs(o.x - (-4 + 8.5 * 0.5)) < 0.05 && !o.moving; }, 5000);
+    await sleep(300);
+    await place(A, 4, 12); await face(A, 1, 0);
+    const zapsA = () => T(A, () => window.__beam.zaps), z0 = await zapsA();
+    await T(A, () => window.__beam.fire());
+    const myDown = () => T(B, () => window.__tree.me.down);
+    check('친구를 맞히면 그 친구가 쓰러짐 (내 화면·맞은 친구·구경하는 사람 모두)', (await T(A, () => window.__beam.hitId)) === bid && (await zapsA()) === z0 + 1
+      && await until(async () => (await myDown()) > 0 && ((await seenB(C)) || {}).down > 0 && ((await seenB(A)) || {}).down > 0, 2000)
+      && await until(async () => (await toastOf(B)).includes('쓰러졌어요'), 2000), [await T(A, () => window.__beam.hitId), await myDown(), await seenB(C), (await seenB(A) || {}).down, await toastOf(B), await zapsA(), z0]);
+    await shot(B, 'beam-down.png');
+    const bx = await T(B, () => window.__tree.me.parts.body.rotation.x);
+    check('쓰러진 사람은 뒤로 눕고, 방향키를 눌러도 못 움직임', bx < -1 && await (async () => { const x0 = (await T(B, () => window.__tree.me.x)); await B.keyboard.down('ArrowLeft'); await sleep(250); await B.keyboard.up('ArrowLeft'); return Math.abs((await T(B, () => window.__tree.me.x)) - x0) < 1e-3; })(), bx);
+    check('1초쯤 지나면 일어남', await until(async () => (await myDown()) === 0 && ((await seenB(A)) || {}).down === 0, 2500) && Math.abs(await T(B, () => window.__tree.me.parts.body.rotation.x)) < 0.05);
+    await T(B, (a) => { window.__duo.feed({ t: 'fx', id: 'h', k: 'zap', v: a }); }, bid); await sleep(150);
+    check('빛줄기 없이 온 "맞았다" 소식은 받지 않음', (await myDown()) === 0);
     check('빛줄기 묶음은 돌려 써서 몇 개만 만들어짐', (await BM(A)).made <= 2 && (await BM(B)).made <= 2, [(await BM(A)).made, (await BM(B)).made]);
     check('페이지 오류 없음', errors.length === 0, errors);
   } catch (e) { check('검사가 끝까지 돌았음', false, String(e && e.stack || e).slice(0, 400)); }

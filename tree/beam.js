@@ -1,9 +1,11 @@
 // 비행 슈트의 손바닥 빛줄기: "✋ 빔" 단추(키보드 B)를 누르면 한 손을 뻗어 짧은 빛줄기를 쏘고, 닿은 곳에서 반짝이가 튄다.
-// 장식 효과일 뿐이다: 방의 상태를 바꾸지 않고(가구를 부수거나 밀지 않는다) 사람도 맞지 않는다. 독자 디자인이며 실제 작품의 이름·모양·소리는 쓰지 않았다.
+// 방의 상태는 바꾸지 않는다(가구를 부수거나 밀지 않는다). 사람이 맞으면 그 사람이 1초 동안 뒤로 쓰러진다(avatar.knock). 독자 디자인이며 실제 작품의 이름·모양·소리는 쓰지 않았다.
 // 방향: 내려다볼 때는 아바타가 보는 쪽으로 수평, 1인칭에서는 내가 보는 쪽(위아래 포함). 길이는 쏜 사람이 재서(벽·가구·바닥까지, 길어야 MAX) 같이 보낸다.
-// 동기화: 놀이 소식 { k: 'beam', v: '방향(라디안);위아래 각;길이' }. 보낸 사람이 비행 슈트를 입고 있을 때만 받는다.
+// 동기화: 놀이 소식 { k: 'beam', v: '방향(라디안);위아래 각;길이' }, 사람을 맞혔으면 이어서 { k: 'zap', v: 맞은 사람 id }.
+// 보낸 사람이 비행 슈트를 입고 있을 때만, zap 은 그 사람의 빛줄기를 방금 받았을 때만 받는다. 맞혔는지는 쏜 사람이 정한다.
 import { THREE, soft } from './kit.js';
 import { HOST_OUTFIT } from './costume.js';
+import { BODY_R, HEIGHT } from './avatar.js';
 import { cellOf, zoneOf, YARD, FLOOR_H, FLOOR_DX, CELL, Z0 } from './path.js';
 import { sfx } from './sfx.js';
 
@@ -13,7 +15,7 @@ const RE = /^(-?\d\.\d\d);(-?\d\.\d\d);(\d\.\d)$/;
 const BEAM = new THREE.MeshBasicMaterial({ color: 0x8FE6FF, transparent: true, opacity: 0.92, depthWrite: false }); // 밝은 바닥 위에서도 보이게 더하기 섞기를 쓰지 않는다
 let geo = null, sparkMat = null, glowMat = null;
 
-// K = { scene, me, others(): Map, show(): 단추를 보일 때인지, dir(): { yaw, pitch }, grid, fixed(i, j), sky(): 내가 하늘에 있는지, online(), fx(m), dirty() }
+// K = { scene, me, others(): Map, myId(), toast(m), show(): 단추를 보일 때인지, dir(): { yaw, pitch }, grid, fixed(i, j), sky(): 내가 하늘에 있는지, online(), fx(m), dirty() }
 export function makeBeam(K) {
   const css = document.createElement('style');
   css.textContent = '#beamBtn{position:absolute;left:74px;bottom:246px;z-index:3;width:58px;height:58px;padding:0;border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;'
@@ -25,7 +27,8 @@ export function makeBeam(K) {
   document.body.appendChild(btn);
 
   const slots = [], lastOf = new WeakMap(), o = new THREE.Vector3(), d = new THREE.Vector3(), e = new THREE.Vector3();
-  let clock = 0, firedAt = -9, count = 0, last = null;
+  let clock = 0, firedAt = -9, count = 0, last = null, hitId = null, zaps = 0;
+  const shotOf = new WeakMap(); // 친구가 마지막으로 쏜 빛줄기 { t, yaw } (zap 소식을 확인한다)
   function slot() {
     let s = slots.find((x) => !x.on);
     if (s) return s;
@@ -52,12 +55,20 @@ export function makeBeam(K) {
     return out.set(0, -0.3, 0.03).applyMatrix4(arm.matrixWorld);
   }
   const dirOf = (yaw, pitch, out) => out.set(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
-  // 내 빛줄기가 어디까지 가는지: 바닥·천장·벽·가구에 닿으면 거기까지
+  // 맞을 수 있는 사람: 같은 층에 서 있고(눕거나 사다리·하늘·썰매가 아니고) 보이는 사람
+  const target = (a) => a.root.visible && a.parts && !a.rest && !a.hop && !a.fly && !(a.down > 0) && a.level === K.me.level;
+  // 내 빛줄기가 어디까지 가는지: 사람·바닥·천장·벽·가구에 닿으면 거기까지. 사람에 닿았으면 hitId 에 그 사람
   function trace(yaw, pitch) {
     const me = K.me, lv = me.level, y0 = lv * FLOOR_H, sky = K.sky();
     o.copy(me.root.position); o.y += 0.78; dirOf(yaw, pitch, d);
+    hitId = null;
+    const ppl = sky ? [] : [...K.others()].filter(([, a]) => target(a)), R2 = (BODY_R + 0.12) ** 2;
     for (let t = 0.4; t < MAX; t += 0.1) {
       e.copy(d).multiplyScalar(t).add(o);
+      for (const [id, a] of ppl) {                                           // 사람
+        const p = a.root.position, dx = e.x - p.x, dz = e.z - p.z;
+        if (dx * dx + dz * dz < R2 && e.y > p.y - 0.05 && e.y < p.y + HEIGHT + 0.1) { hitId = id; return t; }
+      }
       if (sky) { if (e.y < 0.05) return t; continue; }                       // 하늘에서는 땅에 닿을 때만
       if (e.y < y0 + 0.04) return t;
       const [i, j] = cellOf(e.x + lv * FLOOR_DX, e.z), zone = zoneOf(i, j);
@@ -86,6 +97,8 @@ export function makeBeam(K) {
     firedAt = clock; count++; last = { yaw, pitch, len };
     sfx('beam');
     if (K.online()) K.fx({ k: 'beam', v: `${yaw.toFixed(2)};${pitch.toFixed(2)};${len.toFixed(1)}` });
+    const v = hitId && K.others().get(hitId);
+    if (v && v.knock(yaw)) { zaps++; K.dirty(); if (K.online()) K.fx({ k: 'zap', v: hitId }); } // 사람을 맞혔다: 그 사람이 쓰러진다
     return true;
   }
   btn.addEventListener('click', fire);
@@ -136,6 +149,7 @@ export function makeBeam(K) {
     tick, fire,
     // 누가 빛줄기를 쐈다는 소식. 비행 슈트를 입은 사람 것만, 너무 잦지 않게 받는다
     peerFx(m, id) {
+      if (m.k === 'zap') return zap(m, id);
       const a = K.others().get(id), x = typeof m.v === 'string' ? RE.exec(m.v) : null;
       if (!a || !x) return false;
       const yaw = Number(x[1]), pitch = Number(x[2]), len = Number(x[3]);
@@ -143,15 +157,26 @@ export function makeBeam(K) {
       if (clock - (lastOf.get(a) ?? -9) < COOL * 0.6) return false;
       lastOf.set(a, clock);
       if (!spawn(a, yaw, pitch, len)) return false;
+      shotOf.set(a, { t: clock, yaw });
       sfx('beam', a);
       return true;
     },
   };
+  // 친구의 빛줄기가 누군가(나일 수도)를 맞혔다는 소식. 방금 받은 그 사람의 빛줄기가 있어야 한다
+  function zap(m, id) {
+    const a = K.others().get(id), shot = a && shotOf.get(a);
+    if (!a || !shot || clock - shot.t > 1.5 || typeof m.v !== 'string' || m.v === id || !/^[a-z0-9]{1,8}$/.test(m.v)) return false;
+    shotOf.delete(a); // 한 번 쏜 빛줄기로 한 사람만
+    const mine = m.v === K.myId(), v = mine ? K.me : K.others().get(m.v);
+    if (!v) return true; // 내가 모르는 사람이어도 다른 사람에게는 전한다
+    if (v.knock(shot.yaw)) { zaps++; K.dirty(); if (mine) K.toast('빔에 맞아 쓰러졌어요! 💫'); }
+    return true;
+  }
   // 자동 검사가 쓰는 창구
   window.__beam = {
     fire, MAX, get shown() { return !btn.hidden; }, get count() { return count; }, get last() { return last; },
     get active() { return slots.filter((s) => s.on).map((s) => ({ mine: s.a === K.me, len: s.len, hit: s.hit, yaw: s.yaw, pitch: s.pitch, t: s.t, seen: s.g.visible, burst: s.burst })); },
-    get made() { return slots.length; },
+    get made() { return slots.length; }, get zaps() { return zaps; }, get hitId() { return hitId; },
   };
   return api;
 }

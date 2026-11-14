@@ -12,6 +12,7 @@ export { OUTFITS }; // 옷 목록과 색·소품은 costume.js
 export const FACES = [
   { id: 'smile', name: '기본', icon: '🙂' }, { id: 'happy', name: '활짝', icon: '😄' }, { id: 'wink', name: '윙크', icon: '😉' },
   { id: 'wow', name: '놀람', icon: '😮' }, { id: 'sad', name: '시무룩', icon: '😢' }, { id: 'angry', name: '뾰로통', icon: '😠' },
+  { id: 'love', name: '반함', icon: '😍' }, { id: 'cool', name: '멋짐', icon: '😎' },
 ];
 // 행동: 누르면 sec 초 동안 그 몸짓을 하고 돌아온다. 걸으면 그만둔다
 export const ACTS = [
@@ -42,11 +43,25 @@ const EYE = new THREE.MeshBasicMaterial({ color: 0x3B2619 });
 const CHEEK = new THREE.MeshBasicMaterial({ color: 0xF2998C, transparent: true, opacity: 0.75 });
 const MOUTH = new THREE.MeshBasicMaterial({ color: 0x8A3B34 });
 const TEAR = new THREE.MeshBasicMaterial({ color: 0x8CCBF2 });
+const HEART = new THREE.MeshBasicMaterial({ color: 0xE8364F, side: THREE.DoubleSide });
+const SHADES = new THREE.MeshStandardMaterial({ color: 0x15171C, roughness: 0.25, metalness: 0.4 });
+let heartGeo = null; // 하트 눈 (반함)
+function heart() {
+  if (heartGeo) return heartGeo;
+  const h = new THREE.Shape(), k = 0.0105; // 아래 끝이 (0,-3k) 인 하트
+  h.moveTo(0, -3 * k);
+  h.bezierCurveTo(-1.2 * k, -1.8 * k, -3.4 * k, -0.6 * k, -3.2 * k, 1.2 * k);
+  h.bezierCurveTo(-3 * k, 3 * k, -0.6 * k, 3.2 * k, 0, 1.4 * k);
+  h.bezierCurveTo(0.6 * k, 3.2 * k, 3 * k, 3 * k, 3.2 * k, 1.2 * k);
+  h.bezierCurveTo(3.4 * k, -0.6 * k, 1.2 * k, -1.8 * k, 0, -3 * k);
+  return (heartGeo = new THREE.ShapeGeometry(h, 8));
+}
 
 const SIZE = 1.25;   // 방 크기에 맞춘 전체 배율
 const SPEED = 2.6;   // 걷는 빠르기 (1초에 가는 거리)
 export const FLY_SPEED = 4.2; // 나는 빠르기 (fly.js)
 export const RUN = 1.9;      // Shift 를 누르고 달릴 때 걷는 빠르기의 몇 배
+export const DOWN = 1.0;     // 손바닥 빛줄기에 맞아 쓰러져 있는 시간(초) (beam.js)
 export const BODY_R = 0.18;
 export const HEIGHT = 1.16 * SIZE; // 머리끝까지 높이 (모자·뿔 제외)
 // 사다리를 오르내리는 길 (세상 좌표). base = 사다리 밑, top = 2층 모서리. 걸리는 시간(초): 다가가기, 오르기, 올라서기
@@ -71,6 +86,11 @@ function buildFace(head, id, deer) {
   for (const s of [-1, 1]) {
     const x = 0.1 * s;
     if (id === 'happy' || (id === 'wink' && s === 1)) on(mesh(arc(0.033), EYE), x, -0.03);  // 웃느라 감은 눈
+    else if (id === 'love') on(mesh(heart(), HEART), x, -0.012, 0.008);                       // 하트 눈
+    else if (id === 'cool') { // 선글라스: 까만 알 두 개와 가운데 다리
+      on(mesh(new THREE.BoxGeometry(0.088, 0.058, 0.016), SHADES), x, -0.008, 0.01);
+      if (s === 1) on(mesh(new THREE.BoxGeometry(0.06, 0.012, 0.01), SHADES), 0, 0.006, 0.012);
+    }
     else {
       const big = id === 'wow', e = put(ball(big ? 0.041 : 0.034, 10, 8), EYE, x, -0.015, 0.243, head, false);
       e.scale.set(1, big ? 1.12 : 1.3, 0.5); e.userData.sy = e.scale.y;
@@ -85,7 +105,8 @@ function buildFace(head, id, deer) {
   }
   if (id === 'sad') on(mesh(ball(0.016, 8, 6), TEAR), 0.118, -0.068, 0.012).scale.set(1, 1.35, 0.6); // 눈물 한 방울
   const my = deer ? -0.152 : -0.108; // 루돌프는 빨간 코 밑에
-  if (id === 'happy') on(mesh(new THREE.CircleGeometry(0.046, 14, Math.PI, Math.PI), MOUTH), 0, my + 0.03, 0.007);   // 활짝 벌린 입
+  if (id === 'happy' || id === 'love') on(mesh(new THREE.CircleGeometry(0.046, 14, Math.PI, Math.PI), MOUTH), 0, my + 0.03, 0.007);   // 활짝 벌린 입
+  else if (id === 'cool') { const m = on(mesh(arc(0.03), MOUTH), 0.022, my + 0.02); m.rotation.z = Math.PI + 0.35; }    // 한쪽만 올린 입꼬리
   else if (id === 'wow') on(mesh(ball(0.024, 10, 8), MOUTH), 0, my + 0.005, 0.002).scale.set(1, 1.3, 0.4);           // 동그란 입
   else if (id === 'sad' || id === 'angry') on(mesh(arc(id === 'sad' ? 0.03 : 0.024), MOUTH), 0, my - 0.012);         // 처진 입
   else on(mesh(arc(0.034), MOUTH), 0, my + 0.024).rotation.z = Math.PI;                                              // 웃는 입
@@ -220,6 +241,7 @@ export function makeAvatar(look) {
     hop: null,   // 사다리를 오르내리는 중 { pts: 세상 좌표 네 점, t, to: [x, z] }
     fly: null,   // 날고 있을 때 { y: 지금 높이(세상 좌표), to: 가려는 높이, mv: 이번에 옆으로 움직였는지, air: 하늘에 있을 때의 세상 좌표 { x, z, tx, tz } | null, sled: 썰매를 탔는지 } (fly.js 가 켜고 끈다)
     aim: 0,      // 손바닥에서 빛줄기를 쏘는 중이면 남은 시간(초), aimP = 위아래 각 (beam.js)
+    down: 0,     // 빛줄기에 맞아 쓰러져 있으면 남은 시간(초). 그동안은 걷지 않는다 (beam.js)
     rest: null,  // 누워 있는 자리 { pos: [x, y, z](발끝, 세상 좌표), ry, head: [x, y, z], id(침대), side }
     get climbing() { return !!A.hop; },
     get acting() { return A.doing ? A.doing.id : null; },
@@ -238,6 +260,13 @@ export function makeAvatar(look) {
     // 눕는다 / 일어난다
     lie(rest) { A.path = []; A.onArrive = null; A.doing = null; A.rest = rest; A.sync(); root.rotation.y = A.face = rest.ry; A.animate(0, false); },
     rise() { if (!A.rest) return false; A.rest = null; A.sync(); A.animate(0, false); return true; },
+    // 빛줄기에 맞아 뒤로 쓰러진다. yaw = 빛줄기가 날아온 방향(쏜 사람이 본 쪽). 쏜 사람을 보며 등 쪽으로 넘어진다
+    knock(yaw) {
+      if (A.rest || A.hop || A.fly) return false;
+      A.down = DOWN; A.doing = null; A.aim = 0;
+      root.rotation.y = A.face = Math.atan2(-Math.sin(yaw), -Math.cos(yaw));
+      return true;
+    },
     mark(on) { ring.visible = on; },
     walk(points) { A.path = points ? points.slice() : []; },
     stop() { A.path = []; },
@@ -260,6 +289,7 @@ export function makeAvatar(look) {
     // dt 초만큼 진행. 움직였으면 true.
     step(dt) {
       let moved = false, left = (A.fly ? FLY_SPEED : SPEED * (A.run ? RUN : 1)) * dt;
+      if (A.down > 0 && !A.hop) { A.animate(dt, false); return false; } // 쓰러져 있는 동안은 가던 길을 멈춘다(일어나면 마저 간다)
       if (A.rest && A.path.length) A.rise(); // 걸으려면 먼저 일어난다
       if (A.hop) { // 사다리를 타는 중: 밑(또는 위)까지 다가가고, 오르내리고, 올라선다
         const h = A.hop, T = LAD_T;
@@ -361,6 +391,12 @@ export function makeAvatar(look) {
         lying = -Math.PI / 2;
         P.lx = [0, 0]; P.ax = [0, 0]; P.az = [-0.16, 0.16]; P.by = 0; P.bx = 0; P.bz = 0; P.hx = 0; P.hz = 0; P.as = 1; spin = 0;
       }
+      if (A.down > 0) { // 빛줄기에 맞았다: 뒤로 털썩 넘어졌다가 일어난다
+        A.down = Math.max(0, A.down - dt);
+        const w = Math.max(0, Math.min(1, (DOWN - A.down) / 0.15, A.down / 0.25)), e = w * w * (3 - 2 * w);
+        lying = -Math.PI / 2 * e;
+        P.lx = [0.25 * e, -0.1 * e]; P.ax = [-0.4 * e, -0.4 * e]; P.az = [-1.1 * e, 1.1 * e]; P.by = 0; P.bx = 0; P.bz = 0; P.hx = 0.15 * e; P.hz = 0.25 * e; P.as = 1; spin = 0;
+      }
       if (A.rest && A.rest.sit) { lying = 0; P.lx = [-1.5, -1.5]; P.ax = [-0.55, -0.55]; P.az = [-0.12, 0.12]; } // 좌석에 앉았다 (cinema.js): 몸은 세우고 다리만 앞으로
       for (const k of [0, 1]) { legs[k].rotation.x = P.lx[k]; arms[k].rotation.x = P.ax[k]; arms[k].rotation.z = P.az[k]; arms[k].scale.y = P.as; }
       // 숙일 때는 엉덩이가 제자리에 있게 몸을 조금 뒤로 뺀다
@@ -369,7 +405,7 @@ export function makeAvatar(look) {
       head.rotation.set(P.hx, 0, P.hz);
       // 눈 깜빡임
       A.blink += dt; if (A.blink > 4.2) A.blink = Math.random() * 1.2;
-      for (const m of eyes) m.scale.y = m.userData.sy * (A.blink < 0.12 || (A.rest && !A.rest.sit) ? 0.15 : 1);
+      for (const m of eyes) m.scale.y = m.userData.sy * (A.blink < 0.12 || (A.rest && !A.rest.sit) || A.down > 0.2 ? 0.15 : 1);
       // 가는 쪽으로 부드럽게 돌아선다
       let d = A.face - root.rotation.y;
       d = Math.atan2(Math.sin(d), Math.cos(d));

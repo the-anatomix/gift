@@ -43,7 +43,7 @@ const audit = (p) => p.evaluate(() => {
     /* 표정과 행동 판 */
     check('도구 단추에 표정·행동 단추(👋)가 있고 화면 안·44px 이상', (await A.isVisible('#emo')) && (await audit(A)).length === 0, await audit(A));
     await A.tap('#emo'); await sleep(400);
-    check('누르면 표정 6가지와 행동 7가지(냠냠 포함)가 한 줄씩 다 보임 (옆으로 넘기지 않아도)', (await A.isVisible('#emoP')) && (await A.locator('#faceList .pick').count()) === 6 && (await A.locator('#actList .pick').count()) === 7 && (await audit(A)).length === 0 && await T(A, () => [...document.querySelectorAll('#emoP .pick')].every((b) => { const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; })), await audit(A));
+    check('누르면 표정 8가지와 행동 7가지(냠냠 포함)가 한 줄씩 다 보임 (옆으로 넘기지 않아도)', (await A.isVisible('#emoP')) && (await A.locator('#faceList .pick').count()) === 8 && (await A.locator('#actList .pick').count()) === 7 && (await audit(A)).length === 0 && await T(A, () => [...document.querySelectorAll('#emoP .pick')].every((b) => { const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; })), await audit(A));
     check('처음 표정은 "기본"이 눌려 있음', (await A.getAttribute('#faceList .pick[data-v="smile"]', 'aria-pressed')) === 'true' && (await me(A)).face === 'smile' && (await me(A)).eyes === 2);
     await T(A, () => window.__tree.snapView());
     await A.screenshot({ path: path.join(__dirname, 'out', 'emote-panel.png') });
