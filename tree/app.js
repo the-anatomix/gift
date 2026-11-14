@@ -1007,6 +1007,7 @@ const play = makePlay({
   },
   // 내가 넣은 TV 영상을 방 사람들에게 보낸다 (null 이면 그만)
   canShare: () => duo.mode === 'on' && media.can,
+  seated: () => !!(me.rest && me.rest.sit), // 영화관 좌석에 앉아 있는지: 앉아 있는 동안은 스크린 영상의 소리가 난다
   shareTv: (stream) => media.setTv(stream),
   cake: (id) => S.cakes.get(id) || newCake(),
   // 케이크가 지금 놓인 곳: g = 작업대나 탁자, top = 그 가구에서 잰 케이크 윗면 높이
@@ -1122,8 +1123,8 @@ const lights = makeLights({
   relight(h, s2) { LAMP[0] = h; LAMP[1] = s2; setBright(BR[0], BR[1]); }, // 하늘 바탕값 × 점등식 배수 × 방 불 배수
 });
 const cinema = makeCinema({
-  S: () => S, kindOf, levelOfCell, op: (o) => dispatch(o), newId, canManage: () => admin.canManage(), canEdit: () => canEdit,
-  approach: (id, then) => approach(id, then), eat: () => doAct('eat'), mode: () => mode, measure: () => measure(false), toast: (m) => toast(m),
+  S: () => S, kindOf, levelOfCell, op: (o) => dispatch(o), newId, isMaster: () => master.on, canEdit: () => canEdit,
+  approach: (id, then) => approach(id, then), popcorn: () => food.take('popcorn'), mode: () => mode, measure: () => measure(false), toast: (m) => toast(m),
   itemObj: (id) => itemObj.get(id), wallShown: (lv, side) => room.floors[lv].walls[side].upper.visible, dirty: () => { dirty = true; },
   photo: (h) => photos.get(h), room, showing: () => play.showing, level: () => myLv,
 });
@@ -1302,7 +1303,7 @@ function lieDown(id) {
     if (fp) { fy = r.ry; fpitch = sit ? 0.04 : 0.45; } // 1인칭: 발치 쪽 천장을 올려다본다 (앉았으면 앞의 스크린을 본다)
     duo.fx({ k: 'lie', v: id + ':' + side });
     paintLie(); dirty = true;
-    toast(sit ? '자리에 앉았어요 💺 걸으면 일어나요' : '침대에 누웠어요 😴 걸으면 일어나요'); sfx('bed');
+    toast(sit ? '자리에 앉았어요 💺 걸으면 일어나요' : '침대에 누웠어요 😴 걸으면 일어나요'); sfx(sit ? 'seat' : 'bed');
   });
   return true;
 }
@@ -1370,6 +1371,7 @@ function climb(L, up) {
 function nearAction() {
   if (mode !== null || ghost || me.hop || fly.on) return null; // 나는 중에는 쉰다 (fly.js)
   { const g = games.action(); if (g) return g; } // 같이 놀기 중에 할 수 있는 일 (찾았다·옷장·슬쩍)
+  if (me.rest && me.rest.sit) { const f = food.action(); if (f) return f; } // 좌석에 앉은 채로 들고 있는 팝콘·음료를 먹는다 (일어나기는 아래 판의 단추나 걷기로)
   if (me.rest) return { label: me.rest.sit ? '💺 일어나기' : '🛏️ 일어나기', run: getUp };
   { const c = cheers.action(); if (c) return c; } // 마실 것을 든 친구가 가까이 있으면 건배 (cheers.js)
   { const f = food.action(); if (f) return f; } // 손에 든 것 먹기·마시기 (food.js)
@@ -1649,7 +1651,7 @@ const wardrobe = makeWardrobe({ $, picks, look: () => look, setLook: (p) => setL
 picks($('faceList'), FACES, 'pick', (v) => setLook({ face: v }));
 picks($('actList'), ACTS, 'pick', (v) => doAct(v));
 $('emo').addEventListener('click', () => setMode('emo'));
-picks($('furnList'), FURNITURE.filter((f) => !f.set), 'pick', (v) => ghostNew(v)); // 영화관 가구(set)는 목록에 넣지 않는다: 폰에서 목록이 판을 넘치지 않게 (cinema.js)
+picks($('furnList'), FURNITURE, 'pick', (v) => ghostNew(v)); // 영화관 소품도 목록에서 골라 직접 놓는다 (cinema.js)
 picks($('ornList'), [...ORNAMENTS, { id: 'cut', name: '떼기', icon: '✂️' }], 'pick', (v) => { tool = v; paintPanels(); if (v === 'cut') toast('뗄 장식을 눌러요'); });
 picks($('lightList'), LIGHT_SETS, 'chip', (v) => dispatch({ t: 'lights', set: v, blink: S.lights.blink }));
 picks($('blinkList'), BLINKS, 'chip', (v) => dispatch({ t: 'lights', set: S.lights.set, blink: v }));

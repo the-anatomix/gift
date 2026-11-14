@@ -73,6 +73,7 @@ button{font:inherit;color:inherit;touch-action:manipulation}
 /* "전체 보기"를 누르면 여러 줄로 펼쳐서 한 번에 보여 준다 */
 .scroll.open{display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));overflow:visible;-webkit-mask-image:none;mask-image:none}
 .scroll.open .pick{width:auto}
+#furnList.open{grid-template-columns:repeat(auto-fill,minmax(50px,1fr))} /* 가구가 많아서(영화관 소품까지) 폰에서 여섯 줄로 */
 .wrap{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
 .wrap .chip{flex:1 0 auto;padding:0 10px}
 .wrap .btn{flex:0 0 auto}

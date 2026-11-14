@@ -45,7 +45,7 @@ for (const f of FURNITURE) if (f.id === 'sofa' || f.id === 'bed') f.heavy = true
 // 3층 영화관 (cinema.js 가 모양을 만든다). 스크린은 TV 와 같은 화면을 크게 비춘다(play: 'tv').
 // sit = 앉을 수 있다(두 자리), rise = 계단식 좌석의 단 높이, munch = 팝콘을 꺼내 먹는다. 그림은 벽에 붙여 두고 밟고 지나갈 수 있다.
 // 그림(play: 'pic')은 그 앞에서 자기 사진으로 바꿀 수 있다 (photo.js)
-// set = 영화관 묶음: 가구 탭의 목록에는 나오지 않고(폰에서 목록이 넘치지 않게) 영화관을 차릴 때만 놓인다. 놓인 뒤에는 보통 가구처럼 옮기고 치운다
+// set = 영화관 묶음(표시일 뿐이다): 가구 탭의 목록에서 누구나 골라 직접 놓는다. 한 번에 차리는 CINEMA 배치는 마스터키를 켠 사람만 쓴다 (cinema.js)
 FURNITURE.push(
   { id: 'screen', name: '영화관 스크린', icon: '🎬', w: 8, d: 1, set: 'cinema', solid: true, play: 'tv' },
   { id: 'seat', name: '영화관 좌석', icon: '💺', w: 4, d: 2, set: 'cinema', solid: true, sit: true, rise: 0 },
@@ -85,7 +85,7 @@ export const STARTER_EAST = [
 export const STARTER_UP = [
   ['snowman', 14, 21, 0], ['giftR', 12, 20, 0], ['giftG', 13, 21, 0],                                   // 마당
   ['rug', 32 + 8, 7, 0], ['sofa', 32 + 8, 4, 0], ['table', 32 + 8, 10, 0], ['shelf', 32 + 3, 0, 0], ['lamp', 32 + 13, 4, 0], // 2층: 쉬는 방
-  ...CINEMA.map(([k, a, j, r]) => [k, 64 + a, j, r]),                                                   // 3층: 영화관 (예전에는 다락방)
+  ['bed', 64 + 3, 1, 0], ['stand', 64 + 6, 1, 0], ['rug', 64 + 9, 8, 0], ['chair', 64 + 13, 8, 3], ['plant', 64 + 0, 17, 0], // 3층: 다락방 (영화관은 가구 탭의 영화관 소품으로 직접 차린다)
   ['guest', 6, 16, 2],                                                                                  // 현관 안쪽 옆의 방명록 (북쪽을 본다)
   ['advent', 14, 0, 0],                                                                                 // 거실 북쪽 벽, 리스와 액자 사이의 어드벤트 달력
 ];

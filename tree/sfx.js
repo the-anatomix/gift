@@ -131,10 +131,13 @@ const S = {
   clap: [(o) => { for (const t of [0, 0.19, 0.38]) { noise(o, t, 0.035, 0.26, 'bandpass', 1500, 0, 0.7, 0.002); noise(o, t, 0.02, 0.1, 'highpass', 4000); } }, 0.45, 0.3],
   jump: [(o) => { tone(o, 0, 300, 0.14, 0.14, 'sine', 620); thud(o, 0.5, 120, 0.25); }, 0.65, 0.3],
   whoosh: [(o) => noise(o, 0, 0.25, 0.1, 'bandpass', 600, 1800, 1.2, 0.08), 0.25, 0.2],
+  seat: [(o) => { noise(o, 0, 0.1, 0.1, 'lowpass', 520, 220, 1, 0.03); tone(o, 0.02, 210, 0.08, 0.08, 'triangle', 150); tone(o, 0.11, 96, 0.13, 0.12, 'sine', 68); }, 0.25, 0.3], // 접이식 의자: 삐걱 하고 내려앉는다
   bed: [(o) => { noise(o, 0, 0.25, 0.14, 'lowpass', 700, 300, 1, 0.05); tone(o, 0.03, 110, 0.14, 0.14, 'sine', 70); }, 0.25, 0.3],
   cloth: [(o) => { noise(o, 0, 0.14, 0.1, 'bandpass', 1800, 900, 1.5, 0.04); noise(o, 0.16, 0.12, 0.08, 'bandpass', 1200, 2200, 1.5, 0.04); }, 0.3, 0.3],
 };
 export const SFX_NAMES = Object.keys(S);
+// 효과음 설정 (다른 소리가 따를 때 쓴다: 좌석에 앉아 듣는 스크린 소리)
+export const sfxHear = () => (conf.on ? conf.vol : 0);
 
 // 소리가 난 곳 → 들리는 크기(0~1). 가까우면 1, 멀수록 작게, 다른 층이면 더 작게
 function nearness(src) {

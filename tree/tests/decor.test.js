@@ -59,7 +59,7 @@ async function walkAndTrace(p, act) {
 
     /* 가구 */
     await A.tap('#tabs button[data-m="furn"]'); await sleep(300);
-    check('가구 탭을 누르면 가구 31가지(어드벤트 달력과 달력으로 풀리는 특별 가구 7가지 포함)가 나옴', (await A.isVisible('#furn')) && (await A.locator('#furnList .pick').count()) === 31 && (await T(A, () => window.__tree.mode)) === 'furn');
+    check('가구 탭을 누르면 가구 42가지(어드벤트 달력과 달력으로 풀리는 특별 가구 7가지, 영화관 소품 포함)가 나옴', (await A.isVisible('#furn')) && (await A.locator('#furnList .pick').count()) === 42 && (await T(A, () => window.__tree.mode)) === 'furn');
     check('가구 판의 단추가 44px 이상', (await audit(A)).length === 0, await audit(A));
     // 목록: 접어 두면 옆으로 넘기고, "전체 보기"를 누르면 한 번에 다 보인다
     const shown = (sel) => A.evaluate((q) => { const box = document.querySelector(q), r = box.getBoundingClientRect();
@@ -67,7 +67,7 @@ async function walkAndTrace(p, act) {
     const n0 = await shown('#furnList');
     check('접어 둔 목록은 일부만 보이고, 더 있다는 표시가 있음', n0 >= 3 && n0 < 21 && (await A.evaluate(() => document.getElementById('furnList').classList.contains('more-right'))), n0);
     await A.tap('.more[data-list="furnList"]'); await sleep(250);
-    check('"전체 보기"를 누르면 가구 31가지가 한 번에 다 보임', (await shown('#furnList')) === 31 && (await A.textContent('.more[data-list="furnList"]')) === '접기' && (await audit(A)).length === 0, { n: await shown('#furnList'), bad: await audit(A) });
+    check('"전체 보기"를 누르면 가구 42가지가 한 번에 다 보임', (await shown('#furnList')) === 42 && (await A.textContent('.more[data-list="furnList"]')) === '접기' && (await audit(A)).length === 0, { n: await shown('#furnList'), bad: await audit(A) });
     await A.screenshot({ path: path.join(__dirname, 'out', 'furn-open.png') });
     const vOpen = await T(A, () => { const W = window.__tree, v = W.view, s = W.screenOf(W.me.x, W.me.z, 0); return s.y < innerHeight - v.bottom; });
     check('목록을 펼쳐도 아바타가 판에 가려지지 않음', vOpen);
@@ -309,9 +309,9 @@ async function walkAndTrace(p, act) {
     await N1.tap('#lookDone'); await sleep(300);
     const st0 = await T(N1, () => window.__tree.serialize());
     const up = st0.items.filter((it) => it[0].startsWith('up')), low = st0.items.filter((it) => !it[0].startsWith('up'));
-    check('처음 시작하는 방에는 놀 수 있는 가구(벽난로·TV·다트판·오르골)와 주방·방 가구(와인 냉장고 포함) 13개, 마당·2층·3층(영화관) 가구와 방명록·어드벤트 달력 28개가 놓여 있음', low.length === 13 && up.length === 28 && ['dart', 'fire', 'music', 'tv', 'cake', 'counter', 'stove', 'fridge', 'wine', 'bed', 'closet', 'stand'].every((k) => low.some((it) => it[1] === k)) && (await T(N1, () => window.__tree.itemObjs)) === 41, st0.items);
+    check('처음 시작하는 방에는 놀 수 있는 가구(벽난로·TV·다트판·오르골)와 주방·방 가구(와인 냉장고 포함) 13개, 마당·2층·3층(다락방) 가구와 방명록·어드벤트 달력 15개가 놓여 있음', low.length === 13 && up.length === 15 && ['dart', 'fire', 'music', 'tv', 'cake', 'counter', 'stove', 'fridge', 'wine', 'bed', 'closet', 'stand'].every((k) => low.some((it) => it[1] === k)) && (await T(N1, () => window.__tree.itemObjs)) === 28, st0.items);
     check('기본 가구는 제 방에 놓여 있음 (주방 가구는 주방, 침대는 방, 마당 가구는 마당, 위층 가구는 위층, 방명록은 현관 옆, 어드벤트 달력은 거실 북쪽 벽)', low.every((it) => (it[0].startsWith('base') ? it[2] < 20 : it[2] > 20 && it[2] < 30)) && low.find((it) => it[1] === 'cake')[3] < 9 && low.find((it) => it[1] === 'bed')[3] > 9
-      && up.filter((it) => it[2] < 30 && it[1] !== 'guest' && it[1] !== 'advent').length === 3 && up.filter((it) => it[2] < 30 && it[1] !== 'guest' && it[1] !== 'advent').every((it) => it[3] >= 19) && up.some((it) => it[1] === 'advent' && it[2] < 20 && it[3] === 0) && up.some((it) => it[1] === 'guest' && it[2] < 30 && it[3] < 18) && up.filter((it) => it[2] >= 32 && it[2] < 62).length === 5 && up.filter((it) => it[2] >= 64).length === 18, st0.items);
+      && up.filter((it) => it[2] < 30 && it[1] !== 'guest' && it[1] !== 'advent').length === 3 && up.filter((it) => it[2] < 30 && it[1] !== 'guest' && it[1] !== 'advent').every((it) => it[3] >= 19) && up.some((it) => it[1] === 'advent' && it[2] < 20 && it[3] === 0) && up.some((it) => it[1] === 'guest' && it[2] < 30 && it[3] < 18) && up.filter((it) => it[2] >= 32 && it[2] < 62).length === 5 && up.filter((it) => it[2] >= 64).length === 5, st0.items);
     check('기본 가구는 꾸민 것으로 치지 않음 (친구 방에 들어갈 때 친구 방을 덮지 않게)', st0.at === 0 && st0.sync === 0);
     check('기본 가구 자리는 걸어 들어갈 수 없고, 내 아바타는 빈칸에 서 있음', await T(N1, () => { const W = window.__tree; return !W.grid.free(6, 0) && !W.grid.free(0, 7) && !W.grid.free(11, 0) && !W.grid.free(15, 12) && W.grid.fits(W.me.x, W.me.z); }));
     await T(N1, () => window.__tree.setZoomMul(0)); await sleep(900);
@@ -334,7 +334,7 @@ async function walkAndTrace(p, act) {
     await T(N1, () => localStorage.setItem('nolja-tree-room', JSON.stringify({ v: 1, at: 1700000000000, sync: 0, items: [['old1', 'sofa', 1, 6, 1], ['old2', 'lamp', 0, 15, 0]], orns: [['o1', 'red', 0.3, 1.2, 0.4]], lights: ['warm', 'on'], wall: 'sage', floor: 'walnut' })));
     await N1.reload(); await ready(N1);
     const mg = await T(N1, () => window.__tree.serialize());
-    check('예전에 꾸민 방을 열면 꾸민 것은 그대로이고 주방·방 가구와 마당·위층 가구가 더해짐', mg.items.length === 39 && mg.items.filter((it) => /^up\d+$/.test(it[0])).length === 28 && mg.items.some((it) => it[0] === 'old1' && it[2] === 1 && it[3] === 6) && mg.items.some((it) => it[1] === 'cake') && !mg.items.some((it) => it[0].startsWith('base')) && mg.orns.length === 1 && mg.wall === 'sage' && mg.at === 1700000000000, mg.items.map((it) => it[0]));
+    check('예전에 꾸민 방을 열면 꾸민 것은 그대로이고 주방·방 가구와 마당·위층 가구가 더해짐', mg.items.length === 26 && mg.items.filter((it) => /^up\d+$/.test(it[0])).length === 15 && mg.items.some((it) => it[0] === 'old1' && it[2] === 1 && it[3] === 6) && mg.items.some((it) => it[1] === 'cake') && !mg.items.some((it) => it[0].startsWith('base')) && mg.orns.length === 1 && mg.wall === 'sage' && mg.at === 1700000000000, mg.items.map((it) => it[0]));
     await ctx3.close();
 
     check('페이지 오류 없음', errors.length === 0, errors);

@@ -1,16 +1,16 @@
 // 3층 영화관: 큰 스크린, 계단식 좌석, 통로 유도등, 팝콘 기계, 벽에 거는 그림.
 //   가구의 종류와 배치는 catalog.js(FURNITURE 의 screen·seat·seat2·seat3·guide·popcorn·art1~5, CINEMA), 여기는 모양과 영화관으로 바꾸기.
 //   스크린은 TV 와 같은 화면 재질(TV_MAT)을 크게 비춘다. 그래서 TV 에 넣은 동영상·같이 보기가 그대로 스크린에도 나온다(놀이는 play.js 의 tv).
-//   새 방(그리고 위층이 없던 때의 방을 처음 열 때)의 3층은 처음부터 영화관이다(catalog.js 의 STARTER_UP).
-//   이미 3층을 꾸며 둔 방은 그대로 두고, 방장이나 공동 관리자가 "벽·바닥" 판의 "🎬 3층을 영화관으로 바꾸기"를 두 번 누르면
-//   3층의 가구를 치우고 영화관을 차린다(가구 치우기·놓기 변화를 하나씩 보내서 모두에게 같게 된다).
+//   새 방의 3층은 다락방이다(catalog.js 의 STARTER_UP). 예전에 영화관으로 열린 방은 그대로다.
+//   영화관 소품은 가구 탭의 목록에서 누구나 골라 직접 놓는다. 한 번에 차리는 "🎬 3층을 영화관으로 바꾸기"는 마스터키를 켠 사람의 마스터 탭에만 있다:
+//   두 번 누르면 3층의 가구를 치우고 영화관을 차린다(가구 치우기·놓기 변화를 하나씩 보내서 모두에게 같게 된다).
 //   그림은 모두 직접 그린 캔버스 그림이다(겨울 언덕, 트리, 추상화, 눈사람, 오로라).
 //
 //   3층에 스크린이 있는 동안은 방도 영화관답게 바뀐다(room.js 의 setTheater: 어두운 벽·카펫 바닥·창과 줄 장식 없이). 여기서는 벽 등·영사실과 빛줄기·비상구 표시를 붙인다.
 //   가구가 아니라 방의 일부라서 가구 수는 그대로이고, 예전에 차린 영화관도 그대로 열린다(가구 종류 이름은 바뀌지 않았다).
 //   그림 앞에서는 자기 사진으로 바꿀 수 있다(photo.js). 여기서는 그 사진을 액자에 비춘다.
 //
-// K = { S() 방 상태, kindOf(k), levelOfCell(i), op(o), newId(), canManage(), canEdit(), approach(id, then), eat(), mode(), measure(), toast(m),
+// K = { S() 방 상태, kindOf(k), levelOfCell(i), op(o), newId(), isMaster() 마스터키를 켰는지, canEdit(), approach(id, then), popcorn() 팝콘 한 통을 꺼내 든다, mode(), measure(), toast(m),
 //       itemObj(id) 가구 모양, wallShown(lv, side) 그 층의 그 벽(n·s·w·e)이 지금 보이는지, dirty(),
 //       photo(h) 그 지문의 사진(data URL), room(room.js), showing() 스크린에 동영상이 나오는지, level() 내가 있는 층 }
 import { THREE, T, L, put, rbox, cyl, ball, bake, soft } from './kit.js';
@@ -273,18 +273,17 @@ function buildFixtures(f) {
 
 export function makeCinema(K) {
   const lv3 = (it) => K.levelOfCell(it.i) === 2;
-  // "벽·바닥" 판의 단추. 방장과 공동 관리자에게만 보인다
+  // 한 번에 영화관을 차리는 단추. 마스터키를 켠 사람의 마스터 탭(master.js 의 #masterP)에만 있다. 다른 사람은 가구 탭의 영화관 소품으로 직접 차린다
   const row = document.createElement('div'), btn = document.createElement('button');
   row.className = 'row'; row.id = 'cineRow'; row.hidden = true;
   btn.type = 'button'; btn.className = 'btn'; btn.id = 'cineBtn'; btn.style.flex = '1';
   row.appendChild(btn);
-  document.getElementById('paint').appendChild(row);
   let armed = 0; // 한 번 누른 때 (5초 안에 한 번 더 누르면 바꾼다)
   const label = () => { btn.textContent = armed ? `한 번 더 누르면 3층 가구 ${[...K.S().items.values()].filter(lv3).length}개를 치우고 영화관을 차려요` : '🎬 3층을 영화관으로 바꾸기'; btn.classList.toggle('main', !!armed); };
   label();
   // 3층의 가구를 모두 치우고 영화관을 차린다. 놓은 가구 수를 돌려준다 (못 했으면 -1)
   function convert() {
-    if (!K.canManage() || !K.canEdit()) { K.toast('방장과 공동 관리자만 바꿀 수 있어요'); return -1; }
+    if (!K.isMaster() || !K.canEdit()) return -1;
     const S = K.S(), old = [...S.items.values()].filter(lv3).map((it) => it.id);
     if (S.items.size - old.length + CINEMA.length > MAX_ITEMS) { K.toast('가구가 너무 많아서 영화관을 차릴 수 없어요. 다른 층의 가구를 조금 치워 주세요'); return -1; }
     for (const id of old) K.op({ t: 'del', id });
@@ -322,12 +321,12 @@ export function makeCinema(K) {
   return {
     convert,
     // 그 가구로 할 수 있는 일의 이름 (영화관 가구가 아니면 null)
-    label(it) { return it.k === 'screen' ? '🎬 영화 보기' : K.kindOf(it.k).munch ? '🍿 팝콘 먹기' : null; },
-    // 가구를 눌렀을 때: 팝콘 기계면 가서 꺼내 먹는다
+    label(it) { return it.k === 'screen' ? '🎬 영화 보기' : K.kindOf(it.k).munch ? '🍿 팝콘 꺼내기' : null; },
+    // 가구를 눌렀을 때: 팝콘 기계면 가서 팝콘 한 통을 꺼내 든다 (들고 다니며 한 입씩 먹는다: food.js)
     use(id) {
       const it = K.S().items.get(id);
       if (!it || !K.kindOf(it.k).munch) return false;
-      K.approach(id, () => { if (K.mode() === null && K.eat()) K.toast('🍿 팝콘을 한 줌 집어 먹었어요'); });
+      K.approach(id, () => { if (K.mode() === null) K.popcorn(); });
       return true;
     },
     // 3층에 영화관(스크린)이 있는지
@@ -337,9 +336,10 @@ export function makeCinema(K) {
     get theater() { return K.room.theater; }, get beam() { return !!(fix && fix.beam.visible); }, get fixtures() { return fix ? fix.parts.filter((p) => p.visible).length : 0; },
     get has() { for (const it of K.S().items.values()) if (it.k === 'screen' && lv3(it)) return true; return false; },
     tick() {
-      const show = K.canManage() && K.canEdit();
+      const show = K.isMaster() && K.canEdit(), panel = document.getElementById('masterP');
+      if (panel && row.parentNode !== panel) panel.insertBefore(row, panel.lastChild); // 마스터 탭이 만들어진 뒤에 그 안에 넣는다 (맨 아래 '마스터키 끄기' 줄 위)
       if (armed && performance.now() - armed >= 5000) { armed = 0; label(); }
-      if (row.hidden !== !show) { row.hidden = !show; if (K.mode() === 'paint') K.measure(); }
+      if (row.hidden !== !show) { row.hidden = !show; if (K.mode() === 'master') K.measure(); }
       const S = K.S();
       let screen = null, live = 0;
       for (const it of S.items.values()) {
