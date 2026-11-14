@@ -1754,7 +1754,7 @@ function edges() {
 }
 for (const b of document.querySelectorAll('.more')) {
   const box = $(b.dataset.list);
-  const paint = () => { const on = opened.has(box.id); box.classList.toggle('open', on); b.textContent = on ? '접기' : '전체 보기'; b.setAttribute('aria-expanded', String(on)); };
+  const paint = () => { const on = opened.has(box.id); box.classList.toggle('open', on); if (on) { box.scrollLeft = 0; box.scrollTop = 0; } /* 펼친 목록은 위아래로만 넘긴다 */ b.textContent = on ? '접기' : '전체 보기'; b.setAttribute('aria-expanded', String(on)); };
   b.addEventListener('click', () => { if (!opened.delete(box.id)) opened.add(box.id); store.set(OPEN_KEY, [...opened]); paint(); measure(false); });
   paint();
 }

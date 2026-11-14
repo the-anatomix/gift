@@ -67,7 +67,7 @@ async function walkAndTrace(p, act) {
     const n0 = await shown('#furnList');
     check('접어 둔 목록은 일부만 보이고, 더 있다는 표시가 있음', n0 >= 3 && n0 < 21 && (await A.evaluate(() => document.getElementById('furnList').classList.contains('more-right'))), n0);
     await A.tap('.more[data-list="furnList"]'); await sleep(250);
-    check('"전체 보기"를 누르면 가구가 아홉 줄(43가지 넘게) 한 번에 보이고 나머지는 목록 안에서 넘김', (await shown('#furnList')) >= 43 && (await A.evaluate(() => { const b = document.getElementById('furnList'); return b.scrollHeight > b.clientHeight; })) && (await A.textContent('.more[data-list="furnList"]')) === '접기' && (await audit(A)).length === 0, { n: await shown('#furnList'), bad: await audit(A) });
+    check('"전체 보기"를 누르면 가구가 43가지 넘게 한 번에 보이고 나머지는 목록 안에서 넘김', (await shown('#furnList')) >= 43 && (await A.evaluate(() => { const b = document.getElementById('furnList'); return b.scrollHeight > b.clientHeight; })) && (await A.textContent('.more[data-list="furnList"]')) === '접기' && (await audit(A)).length === 0, { n: await shown('#furnList'), bad: await audit(A) });
     await A.screenshot({ path: path.join(__dirname, 'out', 'furn-open.png') });
     const vOpen = await T(A, () => { const W = window.__tree, v = W.view, s = W.screenOf(W.me.x, W.me.z, 0); return s.y < innerHeight - v.bottom; });
     check('목록을 펼쳐도 아바타가 판에 가려지지 않음', vOpen);

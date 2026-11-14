@@ -95,7 +95,7 @@ const pov = (p, fp) => T(p, (fp) => { if ((window.__tree.pov === 'fp') !== fp) w
     check('크리스마스(25일) 알아보기', rules.xmas25 && !rules.xmas26);
 
     /* 창: 모든 창이 하늘 그림으로 */
-    check('모든 창(1~3층, 25개)이 하늘을 그리는 창이 됨', (await T(A, () => window.__sky.panes())) === 25, await T(A, () => window.__sky.panes()));
+    check('모든 창(1~4층, 33개)이 하늘을 그리는 창이 됨', (await T(A, () => window.__sky.panes())) === 33, await T(A, () => window.__sky.panes()));
 
     /* 낮 */
     await setNow(A, 2026, 7, 10, 12, 0); await sleep(600);
@@ -176,11 +176,11 @@ const pov = (p, fp) => T(p, (fp) => { if ((window.__tree.pov === 'fp') !== fp) w
     await sleep(500); await shot(A, 'phone-fire-iso');
     await pov(A, true); await place(A, 2.6, 8.4); await look(A, 0.1, 1); await sleep(1600); await shot(A, 'phone-fire-fp-yard');
     await place(A, -1.2, -2.2); await look(A, -0.15, -1); await sleep(1200); await shot(A, 'phone-fire-fp-window');
-    // 3층: 옥상 전망대
-    await place(A, 3.5 + 32, 0.5); await sleep(500);
-    check('3층에 올라감', (await T(A, () => window.__tree.level)) === 2, await T(A, () => window.__tree.level));
+    // 맨 위층(4층): 옥상 전망대
+    await place(A, 3.5 + 48, 0.5); await sleep(500);
+    check('4층에 올라감', (await T(A, () => window.__tree.level)) === 3, await T(A, () => window.__tree.level));
     await look(A, 0.1, 1); await T(A, () => { window.__tree.me.stop(); }); await sleep(400);
-    check('3층 1인칭: 불꽃놀이 동안 천장이 걷힘', !(await T(A, () => window.__sky.ceil)));
+    check('4층 1인칭: 불꽃놀이 동안 천장이 걷힘', !(await T(A, () => window.__sky.ceil)));
     await T(A, () => { const W = window.__tree; W.lookTo(0.1, 1); }); await sleep(200);
     await T(A, () => { window.__sky.burst(true); window.__sky.burst(false); }); await sleep(1300);
     await shot(A, 'phone-fire-fp-3f');

@@ -83,11 +83,11 @@ const overlaps = (p) => T(p, () => {
     await shot(A, 'sleigh-out.png');
     await sleep(1600);
     check('멈추면 꼬리가 사라지고 방울 소리도 멎음', (await SL(A)).sl.trail === 0 && (await sounds(A, 'bells')) === (await (async () => { await sleep(900); return sounds(A, 'bells'); })()), await SL(A));
-    await hold(A, 1); await until(async () => (await SL(A)).alt > 10, 15000); await hold(A, 0);
+    await hold(A, 1); await until(async () => (await SL(A)).alt > 12.6, 25000); await hold(A, 0);
     await T(A, () => window.__fly.airTo(3.5, -2));
     check('높이 올라가면 집 위도 지나감', await until(async () => { const s = await SL(A); return s.air && Math.hypot(s.air.x - 3.5, s.air.z + 2) < 0.1; }, 15000), await SL(A));
-    await hold(A, -1); await sleep(3500);
-    check('집 위에서는 지붕보다 아래로 못 내려감', (await SL(A)).ride && Math.abs((await SL(A)).alt - 9) < 0.05, await SL(A));
+    await hold(A, -1); await sleep(4500);
+    check('집 위에서는 지붕보다 아래로 못 내려감', (await SL(A)).ride && Math.abs((await SL(A)).alt - 11.8) < 0.05, await SL(A));
     await hold(A, 0);
     await A.tap('#sledBtn');
     check('"내리기"를 누르면 마당의 빈칸으로 날아와 내려앉고 썰매가 사라짐', await until(async () => { const s = await SL(A); return !s.on && s.y === 0 && (!s.sl || !s.sl.on); }, 30000) && (await T(A, () => window.__tree.grid.fits(window.__tree.me.x, window.__tree.me.z))) && (await SL(A)).z > 5.5 && Math.abs((await SL(A)).lx) < 0.5, await SL(A));
