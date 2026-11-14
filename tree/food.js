@@ -662,7 +662,7 @@ export function makeFoodPlay(K) {
 
   const rc = new THREE.Raycaster();
   return {
-    tick, peerFx, open, bite, stow, take,
+    tick, peerFx, open, bite, stow, take, // take(kind): 손에 든다 (피자 조각은 pizza.js 가 부른다)
     label: '🧊 냉장고 열기',
     labelOf: (k) => (k === 'wine' ? '🍷 와인 냉장고 열기' : '🧊 냉장고 열기'),
     // 건배(cheers.js)가 쓰는 것: 그 사람이 든 마실 것(없으면 null), 잔 내밀기, 잔의 자리, 반짝이

@@ -43,7 +43,7 @@
 //   { t: 'pic', id, h }                id = 액자 가구(catalog.js 의 play: 'pic'), h = 사진의 지문(영문 소문자·숫자 8~16자), '' 이면 원래 그림으로. S.pics = 액자 → 지문
 import { GX, GZ } from './path.js';
 import { zoneOf } from './path.js';
-import { SNOWMEN } from './catalog.js';
+import { SNOWMEN, PIZZA, PIZZA_TOPS } from './catalog.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, CREAMS, TOPPINGS, CAKE, NOTE, BEST } from './catalog.js';
 import { RANK } from './catalog.js';
 import { GIFT, WRAPS } from './catalog.js';
@@ -149,7 +149,7 @@ export function makeState() {
   // sync = 친구의 방과 똑같다고 마지막으로 확인했을 때의 at (한 번도 맞춘 적 없으면 0). at > sync 면 헤어진 뒤 혼자 꾸민 것이다.
   // notes = 방명록 (id → { id, name, text, at }), best = 이 방 최고 기록 (놀이 → { v, name }), rank = 이름별 순위 (놀이 → Map(이름 → 점수))
   // adv = 어드벤트 달력에서 연 칸 (d → { name, at }), gifts = 트리 밑 선물 (id → { id, to, from, text, wrap, at, cake, open })
-  return { items: new Map(), orns: new Map(), cakes: new Map(), notes: new Map(), best: {}, rank: {}, lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id, at: 0, sync: 0, adv: new Map(), gifts: new Map(), lamps: [1, 1, 1], adm: new Set(), pics: new Map() };
+  return { items: new Map(), orns: new Map(), cakes: new Map(), notes: new Map(), best: {}, rank: {}, lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id, at: 0, sync: 0, adv: new Map(), gifts: new Map(), pizzas: new Map(), lamps: [1, 1, 1], adm: new Set(), pics: new Map() };
 }
 
 // 그 자리에 놓을 수 있는지. fixed(i, j) = 트리처럼 처음부터 막힌 칸. ignoreId = 옮기는 중인 자기 자신.
@@ -218,6 +218,7 @@ export function apply(S, op, fixed) {
       const it = S.items.get(op.id);
       if (!it) return false;
       S.items.delete(op.id);
+      S.pizzas.delete(op.id); // 화덕을 치우면 만들던 피자도 없어진다
       if (S.pics) S.pics.delete(op.id); // 치운 액자의 사진
       if (it.k === 'cake') { S.cakes.delete(op.id); for (const [id, c] of [...S.cakes]) if (c.home === op.id) S.cakes.delete(id); } // 작업대와 거기서 나온 케이크들
       for (const [id, c] of [...S.cakes]) if (c.on === op.id && !c.by) sendHome(S, id); // 치운 탁자 위의 케이크는 작업대로 돌아간다
@@ -296,6 +297,34 @@ export function apply(S, op, fixed) {
       c.left--;
       c.tops = c.tops.filter((t) => !eatenAt(t[1], t[2], c.left)); // 먹은 조각 위의 장식도 같이 먹었다
       if (!c.left) rmCake(S, op.id, c);
+      return true;
+    }
+    // 피자 (pizza.js). S.pizzas: 화덕 id → { st(1 도우, 2 소스, 3 치즈, 4 구움), tops: [[종류, x, z]], left(남은 조각) }
+    case 'pz': { // 도우 펴기 → 소스 바르기 → 치즈 뿌리기 (차례대로만)
+      const it = S.items.get(op.id), p = S.pizzas.get(op.id), want = { dough: 1, sauce: 2, cheese: 3 }[op.a];
+      if (!it || F[it.k].play !== 'pizza' || !want || (p ? p.st : 0) !== want - 1) return false;
+      if (p) p.st = want; else S.pizzas.set(op.id, { st: 1, tops: [], left: PIZZA.slices });
+      return true;
+    }
+    case 'pzTop': { // 치즈를 뿌린 뒤, 굽기 전에만 올린다
+      const p = S.pizzas.get(op.id);
+      if (!p || p.st !== 3 || p.tops.length >= PIZZA.max || !has(PIZZA_TOPS, op.k) || !okNum(op.x, -PIZZA.r, PIZZA.r) || !okNum(op.z, -PIZZA.r, PIZZA.r) || Math.hypot(op.x, op.z) > PIZZA.r) return false;
+      p.tops.push([op.k, op.x, op.z]);
+      return true;
+    }
+    case 'pzBake': { const p = S.pizzas.get(op.id); if (!p || p.st !== 3) return false; p.st = 4; p.left = PIZZA.slices; return true; }
+    case 'pzEat': { // 구운 피자를 한 조각 먹는다. 다 먹으면 도마가 빈다
+      const p = S.pizzas.get(op.id);
+      if (!p || p.st !== 4 || !(p.left > 0)) return false;
+      if (--p.left <= 0) S.pizzas.delete(op.id);
+      return true;
+    }
+    case 'pzClear': return S.pizzas.delete(op.id);
+    case 'pzSet': { // 저장된 방을 풀 때만 쓴다
+      const it = S.items.get(op.id), p = op.p;
+      if (!it || F[it.k].play !== 'pizza' || !p || !isInt(p.st) || p.st < 1 || p.st > 4 || !isInt(p.left) || p.left < 1 || p.left > PIZZA.slices || !Array.isArray(p.tops)) return false;
+      const tops = p.tops.filter((t) => Array.isArray(t) && has(PIZZA_TOPS, t[0]) && okNum(t[1], -PIZZA.r, PIZZA.r) && okNum(t[2], -PIZZA.r, PIZZA.r)).slice(0, PIZZA.max).map((t) => [t[0], t[1], t[2]]);
+      S.pizzas.set(op.id, { st: p.st, tops: p.st >= 3 ? tops : [], left: p.st === 4 ? p.left : PIZZA.slices });
       return true;
     }
     case 'cakeSet': {
@@ -433,6 +462,7 @@ export function serialize(S) {
     adv: [...S.adv].sort((a, b) => a[0] - b[0]).map(([d, o]) => [d, o.name, o.at]), // 어드벤트 달력에서 연 칸 [날, 연 사람, 연 때]. 이 항목이 없으면 달력이 없던 때의 방
     gifts: giftsList(S).map((g) => [g.id, g.to, g.from, g.text, g.wrap, g.at, g.cake ? 1 : 0, g.open ? 1 : 0]), // 트리 밑 선물 [id, 받는 사람, 보낸 사람, 편지, 포장, 둔 때, 케이크, 열림]
     ...(S.lamps.some((v) => !v) ? { lamps: [...S.lamps] } : {}), // 방 불 [1층, 2층, 3층] (모두 켜져 있으면 없다)
+    ...(S.pizzas.size ? { pizzas: [...S.pizzas].map(([id, p]) => [id, p.st, p.left, p.tops.map((t) => [t[0], t[1], t[2]])]) } : {}), // 만들던 피자 [화덕, 단계, 남은 조각, 토핑] (없으면 없다)
     ...(S.adm.size ? { adm: [...S.adm].sort() } : {}),           // 공동 관리자의 표 (없으면 없다)
     ...(S.pics.size ? { pics: [...S.pics].sort((a, b) => (a[0] < b[0] ? -1 : 1)) } : {}), // 액자에 넣은 사진 [액자, 지문] (없으면 없다)
   };
@@ -482,6 +512,7 @@ export function ops(data) {
   out.push(Array.isArray(data.star) ? { t: 'star', on: true, name: data.star[0], help: data.star[1] } : { t: 'star', on: false }); // 꼭대기 별이 없던 때의 방은 안 달린 채로 연다
   for (const [id, to, from, text, wrap, at, cake, open] of rows(data.gifts)) out.push({ t: 'gift', id, to, from, text, wrap, at, cake: cake === 1 || cake === true, open: open === 1 || open === true }); // 선물이 없던 때의 방은 빈 트리 밑
   if (Array.isArray(data.lamps)) data.lamps.slice(0, 3).forEach((v, lv) => { if (!v) out.push({ t: 'lamp', lv, on: false }); }); // 불이 없던 때의 방은 모두 켜진 채로
+  for (const [id, st, left, tops] of rows(data.pizzas)) out.push({ t: 'pzSet', id, p: { st, left, tops } }); // 피자가 없던 때의 방은 빈 도마
   for (const [id, h] of rows(data.pics).slice(0, MAX_ITEMS)) out.push({ t: 'pic', id, h }); // 사진이 없던 때의 방은 모두 원래 그림
   if (Array.isArray(data.adm)) for (const tag of data.adm.slice(0, ADMINS)) out.push({ t: 'adm', tag, on: true });
   return out;

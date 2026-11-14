@@ -10,7 +10,7 @@
 //   가구가 아니라 방의 일부라서 가구 수는 그대로이고, 예전에 차린 영화관도 그대로 열린다(가구 종류 이름은 바뀌지 않았다).
 //   그림 앞에서는 자기 사진으로 바꿀 수 있다(photo.js). 여기서는 그 사진을 액자에 비춘다.
 //
-// K = { S() 방 상태, kindOf(k), levelOfCell(i), op(o), newId(), isMaster() 마스터키를 켰는지, canEdit(), approach(id, then), popcorn() 팝콘 한 통을 꺼내 든다, mode(), measure(), toast(m),
+// K = { S() 방 상태, kindOf(k), levelOfCell(i), op(o), newId(), isMaster() 영화관으로 바꿀 권한이 있는지(마스터키를 켰거나 마스터가 🎬 를 열어 줌: master.js 의 CINE), canEdit(), approach(id, then), popcorn() 팝콘 한 통을 꺼내 든다, mode(), measure(), toast(m),
 //       itemObj(id) 가구 모양, wallShown(lv, side) 그 층의 그 벽(n·s·w·e)이 지금 보이는지, dirty(),
 //       photo(h) 그 지문의 사진(data URL), room(room.js), showing() 스크린에 동영상이 나오는지, level() 내가 있는 층 }
 import { THREE, T, L, put, rbox, cyl, ball, bake, soft } from './kit.js';

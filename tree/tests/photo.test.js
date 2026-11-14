@@ -1,9 +1,9 @@
 // 액자에 내 사진 넣기 검사: 그림 앞의 "사진 바꾸기" · 사진첩에서 고르기(가운데 잘라 작게) · 방의 상태에는 지문만 · 친구·나중에 온 사람·구경하는 사람에게 보이기
 //   · 구경하는 사람은 못 바꿈 · 원래 그림으로 · 이상한 사진 걸러 내기 · 다시 열어도 그대로 · 액자를 치우면 사진도
-// 실행: cd tree/tests && node photo.test.js   (화면 사진은 out/photo-*.png, 포트 8214)
+// 실행: cd tree/tests && node photo.test.js   (화면 사진은 out/photo-*.png, 포트 8217)
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
-const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8214, BASE = `http://localhost:${PORT}/tree/`;
+const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8217, BASE = `http://localhost:${PORT}/tree/`;
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript' };
 const results = [];
 const check = (name, ok, d) => { results.push(!!ok); console.log(`${ok ? '통과' : '실패'}  ${name}${!ok && d !== undefined ? '  → ' + JSON.stringify(d) : ''}`); };

@@ -1,4 +1,4 @@
-// 의상 검사 (옷 12가지 · 색 · 소품 · 고르는 판(폰) · 저장 · 친구에게 보이기 · 방장만 입는 비행 슈트의 잠금). 실행: cd tree/tests && node costume.test.js
+// 의상 검사 (옷 12가지 · 색 · 소품 · 고르는 판(폰) · 저장 · 친구에게 보이기 · 권한이 있는 사람만 입는 비행 슈트). 실행: cd tree/tests && node costume.test.js
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8199, BASE = `http://localhost:${PORT}/tree/`;
@@ -113,11 +113,11 @@ const audit = (p) => p.evaluate(() => {
     const lk3 = await look(A);
     check('소품이 없던 때에 저장한 캐릭터도 그대로 열림', lk3.gender === 'm' && lk3.outfit === 'santa' && lk3.face === 'happy' && lk3.hat === '' && lk3.tint === '', lk3);
 
-    /* 방장만 입는 비행 슈트 (고르는 판) */
+    /* 권한(마스터키)이 있는 사람만 입는 비행 슈트 (고르는 판) */
     await A.tap('#tabs button[data-m="look"]'); await sleep(300);
-    check('내 방(혼자)에서는 비행 슈트가 열려 있음', (await A.getAttribute('#pickOutfit .chip[data-v="jet"]', 'data-lock')) === '' && (await A.textContent('#pickOutfit .chip[data-v="jet"]')).includes('🚀'));
+    check('권한이 있는 사람(마스터키)의 판에는 비행 슈트가 보임', (await A.isVisible('#pickOutfit .chip[data-v="jet"]')) && (await A.textContent('#pickOutfit .chip[data-v="jet"]')).includes('🚀'));
     await A.tap('#pickOutfit .chip[data-v="jet"]'); await sleep(200);
-    check('방장이 누르면 입음', (await look(A)).outfit === 'jet' && (await colors(A)).includes(0xC2261F) && (await colors(A)).includes(0xE2B33C) && (await colors(A)).includes(0xBFF4FF));
+    check('누르면 입음', (await look(A)).outfit === 'jet' && (await colors(A)).includes(0xC2261F) && (await colors(A)).includes(0xE2B33C) && (await colors(A)).includes(0xBFF4FF));
     await shot(A, 'costume-jet.png');
     await T(A, () => window.__tree.setLook({ hat: 'crown', eye: 'sun' }));
     const jetN = await meshes(A);
@@ -142,15 +142,15 @@ const audit = (p) => p.evaluate(() => {
     await T(A, () => window.__tree.setLook({ outfit: 'jet' }));
     check('방장이 비행 슈트를 입으면 친구들에게 보임', await until(async () => (await seen(B, 'h')).outfit === 'jet' && (await seen(C, 'h')).outfit === 'jet'));
     await B.tap('#tabs button[data-m="look"]'); await sleep(300);
-    check('친구(방장이 아님)의 판에서는 비행 슈트가 잠겨 보임 (🔒)', (await B.getAttribute('#pickOutfit .chip[data-v="jet"]', 'data-lock')) === '1' && (await B.textContent('#pickOutfit .chip[data-v="jet"]')).includes('🔒') && (await audit(B)).length === 0, await audit(B));
-    await B.tap('#pickOutfit .chip[data-v="jet"]'); await sleep(250);
-    check('잠긴 옷을 누르면 안 입혀지고 방장만 된다고 알려 줌', (await look(B)).outfit === 'padding' && /방장/.test(await B.textContent('#toast')), await B.textContent('#toast'));
+    check('권한이 없는 친구의 판에는 비행 슈트가 아예 없음 (잠김 표시도 없음)', !(await B.isVisible('#pickOutfit .chip[data-v="jet"]')) && (await B.isVisible('#pickOutfit .chip[data-v="padding"]')) && !(await B.textContent('#pickOutfit')).includes('🔒') && (await audit(B)).length === 0, await audit(B));
+    await T(B, () => window.__tree.setLook({ outfit: 'jet' })); await sleep(250);
+    check('권한 없이 입으려 해도 안 입혀지고, 알림에 방장·마스터 이야기는 없음', (await look(B)).outfit === 'padding' && /입을 수 없는/.test(await B.textContent('#toast')) && !/방장|마스터/.test(await B.textContent('#toast')), await B.textContent('#toast'));
     await shot(B, 'costume-locked.png');
     await B.tap('#lookDone');
     await T(B, () => window.__duo.feed({ t: 'look', id: 'zz', look: { gender: 'f', outfit: 'jet', face: 'smile' } }));
     await T(A, (who) => window.__duo.feed({ t: 'look', look: { gender: 'm', outfit: 'jet', face: 'smile', hat: 'crown' } }, who), bid);
     await sleep(500);
-    check('방장이 아닌 사람이 비행 슈트를 입었다는 소식은 평상복으로 받음', (await seen(A, bid)).outfit === 'basic' && (await seen(A, bid)).hat === 'crown' && (await seen(C, bid)).outfit === 'basic', await seen(A, bid));
+    check('남이 비행 슈트를 입었다는 소식은 누구 것이든 그대로 받음 (권한은 입는 사람 기기에서 판단)', (await seen(A, bid)).outfit === 'jet' && (await seen(A, bid)).hat === 'crown' && (await seen(C, bid)).outfit === 'jet', await seen(A, bid));
     await T(B, () => { for (const lk of [{ gender: 'f', outfit: 'bear', face: 'smile', tint: 'x'.repeat(999), hat: ['a'], neck: null, back: 7 }, { gender: 'f', outfit: 'nope' }, null, 5]) window.__duo.feed({ t: 'look', id: 'h', look: lk }); });
     const h2 = await seen(B, 'h');
     check('이상한 색·소품 소식은 아는 값만 받고, 모르는 옷은 안 받음', h2.outfit === 'bear' && h2.tint === '' && h2.hat === '' && h2.back === '' && errors.length === 0, h2);

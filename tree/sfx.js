@@ -95,6 +95,9 @@ const S = {
   sizzle: [(o) => { noise(o, 0, 0.7, 0.1, 'highpass', 4200, 0, 1, 0.05); for (let i = 0; i < 5; i++) noise(o, Math.random() * 0.6, 0.02, 0.12, 'highpass', 6000); }, 0.7, 0.4],
   cream: [(o) => { noise(o, 0, 0.24, 0.14, 'bandpass', 560, 240, 2.5, 0.04); tone(o, 0, 190, 0.2, 0.1, 'sine', 115, 0.04); }, 0.25, 0.1],
   top: [(o) => { tone(o, 0, 540, 0.08, 0.2, 'sine', 250); noise(o, 0, 0.03, 0.05, 'lowpass', 900); }, 0.09, 0.06],
+  dough: [(o) => { noise(o, 0, 0.16, 0.16, 'lowpass', 320, 140, 1, 0.03); tone(o, 0, 120, 0.14, 0.16, 'sine', 78, 0.02); }, 0.2, 0.12],
+  sauce: [(o) => { noise(o, 0, 0.22, 0.13, 'bandpass', 760, 320, 3, 0.05); tone(o, 0.02, 240, 0.12, 0.05, 'sine', 150, 0.03); }, 0.25, 0.12],
+  sprinkle: [(o) => { for (let i = 0; i < 5; i++) noise(o, i * 0.035, 0.03, 0.09, 'highpass', 3200 + (i % 3) * 600, 0, 1); }, 0.22, 0.12],
   wipe: [(o) => noise(o, 0, 0.3, 0.12, 'bandpass', 1500, 500, 1.5, 0.05), 0.3, 0.2],
   candle: [(o) => { noise(o, 0, 0.13, 0.14, 'highpass', 3200, 5200); noise(o, 0.12, 0.25, 0.05, 'bandpass', 700, 400, 1, 0.05); }, 0.4, 0.1],
   blow: [(o) => { noise(o, 0, 0.45, 0.2, 'bandpass', 1000, 480, 0.9, 0.09); }, 0.45, 0.2],
@@ -134,6 +137,11 @@ const S = {
   seat: [(o) => { noise(o, 0, 0.1, 0.1, 'lowpass', 520, 220, 1, 0.03); tone(o, 0.02, 210, 0.08, 0.08, 'triangle', 150); tone(o, 0.11, 96, 0.13, 0.12, 'sine', 68); }, 0.25, 0.3], // 접이식 의자: 삐걱 하고 내려앉는다
   bed: [(o) => { noise(o, 0, 0.25, 0.14, 'lowpass', 700, 300, 1, 0.05); tone(o, 0.03, 110, 0.14, 0.14, 'sine', 70); }, 0.25, 0.3],
   cloth: [(o) => { noise(o, 0, 0.14, 0.1, 'bandpass', 1800, 900, 1.5, 0.04); noise(o, 0.16, 0.12, 0.08, 'bandpass', 1200, 2200, 1.5, 0.04); }, 0.3, 0.3],
+  // 비행 슈트의 빛줄기 (beam.js), 루돌프 썰매 (sleigh.js)
+  beam: [(o) => { tone(o, 0, 240, 0.09, 0.16, 'triangle', 980); tone(o, 0.07, 1500, 0.3, 0.18, 'sawtooth', 320, 0.004); tone(o, 0.07, 2250, 0.22, 0.07, 'sine', 700); noise(o, 0.07, 0.28, 0.1, 'bandpass', 2600, 800, 2, 0.01); }, 0.45, 0.3],
+  beamHit: [(o) => { noise(o, 0, 0.09, 0.14, 'highpass', 4200); chime(o, 0.01, [N.G7, N.E7, N.C7], 0.045, 0.28, 0.06); }, 0.4, 0.25],
+  bells: [(o) => { for (const [t, f] of [[0, 3520], [0.025, 4186], [0.13, 3729], [0.155, 4435]]) { tone(o, t, f, 0.17, 0.07, 'sine', 0, 0.002); tone(o, t, f * 1.52, 0.09, 0.03, 'sine', 0, 0.002); } noise(o, 0, 0.03, 0.04, 'highpass', 6000); }, 0.35, 0.3],
+  sleighOn: [(o) => { noise(o, 0, 0.4, 0.09, 'bandpass', 500, 1700, 1.2, 0.1); chime(o, 0.05, [N.C6, N.E6, N.G6, N.C7], 0.08, 0.5, 0.1); }, 0.9, 0.6],
 };
 export const SFX_NAMES = Object.keys(S);
 // 효과음 설정 (다른 소리가 따를 때 쓴다: 좌석에 앉아 듣는 스크린 소리)
@@ -195,13 +203,14 @@ Object.defineProperties(sfx, { on: { get: () => conf.on }, vol: { get: () => con
 /* ───────── 방의 변화(dispatch 를 지난 op)에 맞는 소리. app.js 가 한 줄로 부른다 ───────── */
 const OPS = {
   put: 'place', move: 'place', del: 'remove', orn: 'orn', ornDel: 'ornOff', lights: 'lights', wall: 'paint', floor: 'paint',
+  pzTop: 'top', pzBake: 'ovenDing', pzClear: 'wipe',
   cakeCream: 'cream', cakeTop: 'top', cakeClear: 'wipe', cakeLit: 'candle', cakeBlow: 'blow', cakeTake: 'carry', cakeDrop: 'setDown', cakeBake: 'ovenDing', cakeEat: 'bite',
   note: 'note', adv: 'advent', gift: 'gift', giftOpen: 'giftOpen', snowman: 'snowman',
 };
 // from = 'me' 따위(내가 한 일) 또는 'peer'(친구가 한 일). where(op) → 그 일이 일어난 곳(물체나 { x, z }), 모르면 null
 export function sfxOp(op, from, where) {
   if (!op || from === 'load') return;
-  const name = op.t === 'star' ? (op.on ? 'star' : 'starOff') : OPS[op.t];
+  const name = op.t === 'star' ? (op.on ? 'star' : 'starOff') : op.t === 'pz' ? { dough: 'dough', sauce: 'sauce', cheese: 'sprinkle' }[op.a] : OPS[op.t];
   if (!name) return;
   if (from !== 'peer') { sfx(name); return; }
   sfx(name, (where && where(op)) || {});
