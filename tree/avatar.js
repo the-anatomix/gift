@@ -216,7 +216,8 @@ export function makeAvatar(look) {
     hold: false, // 케이크를 들고 있는지 (두 팔을 앞으로 내민다)
     push: false, // 눈 뭉치를 굴리는 중인지 (몸을 숙이고 두 손으로 민다. snowman.js 가 켠다)
     hop: null,   // 사다리를 오르내리는 중 { pts: 세상 좌표 네 점, t, to: [x, z] }
-    fly: null,   // 날고 있을 때 { y: 지금 높이(세상 좌표), to: 가려는 높이, mv: 이번에 옆으로 움직였는지 } (fly.js 가 켜고 끈다)
+    fly: null,   // 날고 있을 때 { y: 지금 높이(세상 좌표), to: 가려는 높이, mv: 이번에 옆으로 움직였는지, air: 하늘에 있을 때의 세상 좌표 { x, z, tx, tz } | null, sled: 썰매를 탔는지 } (fly.js 가 켜고 끈다)
+    aim: 0,      // 손바닥에서 빛줄기를 쏘는 중이면 남은 시간(초), aimP = 위아래 각 (beam.js)
     rest: null,  // 누워 있는 자리 { pos: [x, y, z](발끝, 세상 좌표), ry, head: [x, y, z], id(침대), side }
     get climbing() { return !!A.hop; },
     get acting() { return A.doing ? A.doing.id : null; },
@@ -229,7 +230,8 @@ export function makeAvatar(look) {
     place(x, z) { px = x; pz = z; A.hop = null; A.sync(); },
     sync() {
       if (A.rest) { root.position.set(A.rest.pos[0], A.rest.pos[1], A.rest.pos[2]); return; }
-      const w = toWorld(px, pz); root.position.set(w[0], A.fly ? A.fly.y : w[1], w[2]);
+      const w = toWorld(px, pz), air = A.fly && A.fly.air;
+      if (air) root.position.set(air.x, A.fly.y, air.z); else root.position.set(w[0], A.fly ? A.fly.y : w[1], w[2]); // 하늘에 있으면 격자의 자리가 아니라 세상 좌표에 그린다
     },
     // 눕는다 / 일어난다
     lie(rest) { A.path = []; A.onArrive = null; A.doing = null; A.rest = rest; A.sync(); root.rotation.y = A.face = rest.ry; A.animate(0, false); },
@@ -297,6 +299,11 @@ export function makeAvatar(look) {
 
     // 걷는 몸짓. moved 는 이번에 발을 옮겼는지.
     animate(dt, moved) {
+      if (A.fly && A.fly.air) { // 하늘: 받은 자리(tx, tz)로 부드럽게 따라간다 (내 것은 늘 같은 값이다)
+        const R = A.fly.air, ex = R.tx - R.x, ez = R.tz - R.z, k = Math.min(1, dt * 10);
+        if (ex * ex + ez * ez > 1e-3) { A.face = Math.atan2(ex, ez); moved = true; }
+        R.x += ex * k; R.z += ez * k; root.position.x = R.x; root.position.z = R.z;
+      }
       if (A.fly && A.fly.mv) moved = true;
       A.moving = moved;
       A.blend += ((moved ? 1 : 0) - A.blend) * Math.min(1, dt * 12);
@@ -340,9 +347,11 @@ export function makeAvatar(look) {
         const k = A.blend, b = Math.sin(fl.t * 2.6);
         P.lx = [0.12 + 0.45 * k + 0.05 * b, 0.02 + 0.4 * k - 0.05 * b]; P.ax = [0.75 * k, 0.75 * k]; P.az = [-0.55 + 0.3 * k, 0.55 - 0.3 * k];
         P.by = b * 0.025; P.bx = 0.08 + 0.62 * k; P.bz = 0; P.hx = -0.4 * k; P.hz = 0; P.as = 1; spin = 0;
+        if (fl.sled) { P.lx = [-1.38, -1.38]; P.ax = [-0.95 + 0.06 * b, -0.95 - 0.06 * b]; P.az = [0.12, -0.12]; P.by = 0; P.bx = -0.04; P.hx = 0.03 * b; } // 썰매에 앉아 고삐를 쥔다 (sleigh.js)
         root.position.y = fl.y;
       }
-      if (parts.jets) for (const m of parts.jets) { m.visible = !!fl; if (fl) m.scale.y = 0.75 + 0.5 * Math.abs(Math.sin(fl.t * 31 + m.id)) + 0.5 * A.blend; }
+      if (A.aim > 0) { A.aim -= dt; P.ax[0] = -Math.PI / 2 - (A.aimP || 0) - P.bx; P.az[0] = 0; P.as = 1.15; } // 한 손을 앞으로 뻗어 빛줄기를 쏜다 (beam.js)
+      if (parts.jets) for (const m of parts.jets) { m.visible = !!fl && !fl.sled; if (fl) m.scale.y = 0.75 + 0.5 * Math.abs(Math.sin(fl.t * 31 + m.id)) + 0.5 * A.blend; }
       let lying = 0;
       if (A.rest) { // 누웠다: 등을 대고 반듯이, 눈을 감는다
         lying = -Math.PI / 2;

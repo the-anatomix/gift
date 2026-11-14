@@ -3,7 +3,7 @@
 // avatar.js 의 build 가 suitOf(색과 큰 모양)와 dressUp(꾸밈과 소품)을 부른다. 새 옷을 더하려면 OUTFITS 에 한 줄, SUITS 에 색, EXTRA 에 꾸밈.
 import { THREE, M, put, ball, cyl, rbox } from './kit.js';
 
-export const HOST_OUTFIT = 'jet'; // 방장만 입을 수 있는 비행 슈트 (fly.js)
+export const HOST_OUTFIT = 'jet'; // 권한(master.js 의 SUIT)이 있는 사람만 입는 비행 슈트 (fly.js)
 export const OUTFITS = [
   { id: 'basic', name: '평상복' }, { id: 'santa', name: '🎅 산타' }, { id: 'rudolph', name: '🦌 루돌프' },
   { id: 'snowman', name: '⛄ 눈사람' }, { id: 'elf', name: '🧝 엘프' }, { id: 'penguin', name: '🐧 펭귄' }, { id: 'bear', name: '🐻 곰 잠옷' },
