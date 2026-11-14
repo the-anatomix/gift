@@ -38,6 +38,7 @@ import { makeAdmin } from './admin.js';
 import { ADMINS } from './catalog.js';
 import { makeCheers } from './cheers.js';
 import { makePizza } from './pizza.js';
+import { makeGameroom } from './gameroom.js';
 import { sfx, sfxOp, sfxWalk, mountSfxUI } from './sfx.js';
 import { makeCakeView, dressCake, flicker, pickTop, disposeCakeView } from './cake.js';
 
@@ -1203,6 +1204,20 @@ const pizza = makePizza({
   setPose: (p) => { pose = p; applyPov(); dirty = true; }, ray(px, py) { aimRay(px, py); return ray.ray; }, food, busy: () => !!carried() || !!pizza.mine(), dirty: () => { dirty = true; },
   me: () => duo.me, avatar: (pid) => avatarOf(pid), holdsY: (id) => kindOf(S.items.get(id).k).holds,
 });
+// 4층 게임방 (gameroom.js): 오락기·인형뽑기 놀이, 마스터 판의 "4층을 게임방으로 꾸미기"
+const gameroom = makeGameroom({
+  play, S: () => S, itemObj: (id) => itemObj.get(id), op: (o) => dispatch(o), newId, canEdit: () => canEdit, isMaster: () => can(CINE), toast: (m) => toast(m), close: () => setMode(null),
+  setPose: (p) => { pose = p; applyPov(); dirty = true; }, levelOfCell, mode: () => mode, measure: () => measure(false), dirty: () => { dirty = true; },
+  record: (k, v) => rank.record(k, v), bestLine: (k) => book.bestLine(k),
+  // 인형뽑기에서 뽑은 토끼 인형을 내 옆 빈자리에 놓는다 (꾸밀 수 있는 사람만, 방에 열두 개까지)
+  prize() {
+    if (!canEdit) return false;
+    let n = 0; for (const it of S.items.values()) if (it.k.startsWith('bunny')) n++;
+    if (n >= 12) return false;
+    const k = ['bunny', 'bunny2', 'bunny3'][Math.floor(Math.random() * 3)], spot = findSpot(k, 0);
+    return !!spot && dispatch({ t: 'put', id: newId(), k, i: spot[0], j: spot[1], r: 0 });
+  },
+});
 sfx.listen(() => me); mountSfxUI($('duoP'));
 const ACT_SFX = { clap: 'clap', jump: 'jump', cheer: 'whoosh', dance: 'whoosh' };
 // 놀 수 있는 가구를 누르면: 그 앞으로 걸어가서 놀이를 연다
@@ -1392,6 +1407,7 @@ const PLAY_LABEL = { dart: '🎯 다트 하기', tv: '📺 TV 보기', fire: '�
   $('tools').insertBefore(b, $('snap') || null);
 }
 PLAY_LABEL.advent = '🗓️ 어드벤트 달력'; // advent.js
+PLAY_LABEL.arcade = '🕹️ 오락기 하기'; PLAY_LABEL.claw = '🧸 인형 뽑기'; // gameroom.js
 PLAY_LABEL.pic = '🖼️ 사진 바꾸기'; // photo.js (꾸밀 수 있는 사람만)
 // 냉장고: 앞으로 가서 문을 열고 먹을 것을 고른다 (food.js)
 function snack(id) {
@@ -1845,7 +1861,7 @@ function frame(now) {
   names.tick();
   sky.tick(dt);
   advent.tick(dt); gift.tick(dt); food.tick(dt); cheers.tick(dt); pizza.tick(dt); sfxWalk(dt, me, others.values());
-  lights.tick(dt); cinema.tick(); photos.tick(dt);
+  lights.tick(dt); cinema.tick(); gameroom.tick(); photos.tick(dt);
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
   renderer.render(scene, cam());
@@ -1907,7 +1923,7 @@ window.__play = Object.assign(play.test, {
 Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose }, id: { get: () => play.id }, spot: { get: () => play.spot } });
 window.__sky = sky.test;
 window.__master = { get on() { return master.on; }, get given() { return master.test.given; }, key: master.test.key };
-window.__food = food.test; window.__pizza = pizza.test;
+window.__food = food.test; window.__pizza = pizza.test; window.__game4 = gameroom.test; window.__game4.convert = () => gameroom.convert();
 window.__cheers = cheers.test;
 window.__lights = Object.assign(lights.test, { toggle: (lv) => lights.toggle(lv), near: () => { const a = lights.near(); return a ? a.label : null; }, lamp: () => [...LAMP] });
 window.__photo = { choose: (id, f) => photos.choose(id, f), reset: (id) => photos.reset(id), get: (h) => photos.get(h), get count() { return photos.count; }, of: (id) => S.pics.get(id) || '', shown: (id) => cinema.picShown(id), tidy: () => photos.tidy() };

@@ -503,7 +503,7 @@ function garlands(walls) {
     put(new THREE.PlaneGeometry(0.08, 0.08), C.pot, len / 2, y0, z + 0.006, w.upper, false).rotation.z = Math.PI / 4;
   }
 }
-// 위층 하나(lv = 1: 2층, 2: 3층): 마루, 바깥 벽 네 면과 창, 아래층에서 올라오는 구멍, 다음 층으로 가는 사다리, 천장
+// 위층 하나(lv = 1: 2층, 2: 3층, 3: 4층 게임방): 마루, 바깥 벽 네 면과 창, 아래층에서 올라오는 구멍, 다음 층으로 가는 사다리, 천장
 function buildUpper(scene, lv, mats, floorMat) {
   const W = X1 - X0, D = Z1 - Z0, cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2;
   const g = new THREE.Group();
@@ -512,7 +512,7 @@ function buildUpper(scene, lv, mats, floorMat) {
   put(cbox(W + 0.5, 0.24, D + 0.5, 0.08), C.slab, cx, -0.13, cz, g);
   put(new THREE.BoxGeometry(W, 0.02, D), floorMat, cx, -0.005, cz, g, false);
   const walls = { n: wall(g, 'n', mats), s: wall(g, 's', mats), w: wall(g, 'w', mats), e: wall(g, 'e', mats) };
-  const cur = lv === 1 ? 0x5E8F6E : 0x5B7BC4; // 층마다 커튼 색이 다르다
+  const cur = lv === 1 ? 0x5E8F6E : lv === 3 ? 0xE0569A : 0x5B7BC4; // 층마다 커튼 색이 다르다
   // 3층의 창·리스·액자·줄 장식은 벽마다 따로 묶어 둔다(deco): 영화관일 때는 숨긴다 (setTheater)
   const deco = lv !== 2 ? walls : Object.fromEntries(Object.entries(walls).map(([k, w]) => { const d = new THREE.Group(); d.userData.own = true; d.userData.deco = true; w.upper.add(d); return [k, { ...w, upper: d }]; }));
   for (const v of lv === 1 ? [-2.4, 1.2, 4.8, 8.6] : [-1.2, 3.6, 8.4]) windowOn(deco.n, v, cur);
@@ -538,7 +538,7 @@ function buildUpper(scene, lv, mats, floorMat) {
   garlands(deco);
   for (const k of ['n', 's', 'w', 'e']) bake(walls[k].g, 5, false);
   if (lv < LEVELS - 1) ladder(g, LADDERS[lv]);
-  const ceil = put(new THREE.PlaneGeometry(W + 0.3, D + 0.3), new THREE.MeshLambertMaterial({ color: 0xFFF6E6 }), cx, WALL_H, cz, g, false);
+  const ceil = put(new THREE.PlaneGeometry(W + 0.3, D + 0.3), new THREE.MeshLambertMaterial({ color: lv === 3 ? GAMEROOM.ceil : 0xFFF6E6 }), cx, WALL_H, cz, g, false);
   ceil.rotation.x = Math.PI / 2; ceil.receiveShadow = false; ceil.visible = false;
   return { g, walls, ceil, deco: lv === 2 ? Object.values(deco).map((d) => d.upper) : [] };
 }
@@ -562,6 +562,16 @@ function carpetTexture(rx, rz) {
   }
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, rz); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+// 4층 게임방: 늘 짙은 남보라 벽과 바둑판 카펫이다 (벽지·바닥을 바꿔도 그대로)
+const GAMEROOM = { wall: 0x3A2F7A, panel: 0x231C52, ceil: 0x1A1740 };
+function checkerTexture(rx, rz) {
+  const S = 128, c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d');
+  for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) { g.fillStyle = (i + j) % 2 ? '#2B2463' : '#4A3C9C'; g.fillRect(i * 64, j * 64, 64, 64); }
+  g.fillStyle = 'rgba(255,214,102,.5)'; for (const [x, y] of [[32, 32], [96, 96]]) { g.beginPath(); g.arc(x, y, 5, 0, 7); g.fill(); } // 칸 가운데의 작은 금빛 점
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, rz);
   return t;
 }
 const THEATER = { wall: 0x54202E, panel: 0x2C1722, ceil: 0x1D1722 }; // 영화관의 벽(짙은 자주)·아랫단·천장
@@ -620,9 +630,11 @@ export function buildRoom(world) {
   const floors = [{ g: scene, walls, ceil }];
   // 3층은 벽·바닥 재질을 따로 둔다: 보통은 다른 층과 같은 색이고, 영화관일 때만 어두운 벽과 카펫이 된다 (setTheater)
   const mats3 = { wall: mats.wall.clone(), panel: mats.panel.clone() }, upMat3 = upMat.clone();
+  const mats4 = { wall: mats.wall.clone(), panel: mats.panel.clone() }, upMat4 = new THREE.MeshLambertMaterial({ map: checkerTexture(W / 2, D / 2) }); // 4층 게임방
+  mats4.wall.color.setHex(GAMEROOM.wall); mats4.panel.color.setHex(GAMEROOM.panel);
   let theater = false, carpet = null, wallId = WALLS[0].id;
   for (let lv = 1; lv < LEVELS; lv++) {
-    const f = buildUpper(world, lv, lv === 2 ? mats3 : mats, lv === 2 ? upMat3 : upMat);
+    const f = buildUpper(world, lv, lv === 2 ? mats3 : lv === 3 ? mats4 : mats, lv === 2 ? upMat3 : lv === 3 ? upMat4 : upMat);
     if (lv < LEVELS - 1) { const h = hole(), L = LADDERS[lv]; h.position.x = X0 + (L.foot[0] + 0.5) * CELL - cx; h.position.y = Z0 + (L.foot[1] + 0.5) * CELL - cz; f.ceil.add(h); }
     floors.push(f);
   }
@@ -654,7 +666,7 @@ export function buildRoom(world) {
     setTheater(on) {
       if (!!on === theater) return false;
       theater = !!on;
-      const top = floors[LEVELS - 1];
+      const top = floors[2]; // 3층
       if (theater && !carpet) carpet = carpetTexture(W / 1.5, D / 1.5);
       upMat3.map = theater ? carpet : upMat.map; upMat3.needsUpdate = true;
       top.ceil.material.color.setHex(theater ? THEATER.ceil : 0xFFF6E6);

@@ -6,7 +6,7 @@
 //     SKY  하늘을 낮·노을·밤으로 바꾼다 (방 사람 모두에게)
 //     GIFT 트리 밑 선물을 12월 25일 전에도 연다
 //     SUIT 비행 슈트를 입고 난다 (costume.js, fly.js),  SLED 마당에서 루돌프 썰매를 타고 하늘을 난다 (fly.js, sleigh.js)
-//     CINE 3층을 한 번에 영화관으로 바꾸는 단추 (cinema.js)
+//     CINE 3층을 한 번에 영화관으로 바꾸는 단추 (cinema.js), 4층을 한 번에 게임방으로 꾸미는 단추 (gameroom.js)
 //   마스터 탭에서 방에 있는 사람마다 이 권한들을 따로 켜고 끌 수 있다. 받은 권한은 그 사람 기기에 남아 다음에도 그대로다.
 //   소식: { k: 'mk', v: '<받는 사람 id>:<권한 숫자>' } 주기, { k: 'mk', v: '?' } 지금 권한 묻기, { k: 'mk', v: '=<권한 숫자>' } 답.
 // 암호는 코드에 해시(SHA-256)로만 둔다. 사이트 코드는 누구나 볼 수 있고 소식도 흉내 낼 수 있으니 완벽한 보안은 아니고, 모르는 사람이 우연히 켜지 못하게 하는 정도다.
@@ -48,7 +48,7 @@ export function makeMaster(K) {
   // 방 불: 층마다 켜고 끈다 (lights.js). 걸어가서 스위치를 누르지 않아도 된다
   const lampRow = el('div', 'row'), lampBox = el('div', 'row'); lampRow.id = 'mkLamp';
   lampRow.appendChild(el('span', 'lab', '방 불')); lampBox.style.flex = '1'; lampBox.setAttribute('role', 'group'); lampBox.setAttribute('aria-label', '방 불');
-  for (let lv = 0; lv < 3; lv++) {
+  for (let lv = 0; lv < 4; lv++) {
     const b = el('button', 'chip', `💡 ${lv + 1}층`); b.type = 'button'; b.dataset.lv = lv; b.style.flex = '1';
     b.addEventListener('click', () => { K.lamp.toggle(lv); paint(); });
     lampBox.appendChild(b);
@@ -66,7 +66,7 @@ export function makeMaster(K) {
   }
   panel.append(h, skyRow, lampRow, fireRow, people, foot);
   $('tabs').parentNode.insertBefore(panel, $('tabs'));
-  const BITS = [[LOCK, '🔓', '달력 잠금 없이 쓰기'], [FIRE, '🎆', '불꽃놀이'], [SKY, '🌙', '하늘 바꾸기'], [GIFT, '🎁', '선물 미리 열기'], [SUIT, '🚀', '비행 슈트'], [SLED, '🦌', '루돌프 썰매'], [CINE, '🎬', '3층을 영화관으로 바꾸기']];
+  const BITS = [[LOCK, '🔓', '달력 잠금 없이 쓰기'], [FIRE, '🎆', '불꽃놀이'], [SKY, '🌙', '하늘 바꾸기'], [GIFT, '🎁', '선물 미리 열기'], [SUIT, '🚀', '비행 슈트'], [SLED, '🦌', '루돌프 썰매'], [CINE, '🎬', '3층 영화관·4층 게임방 차리기']];
   let listKey = '';
   function paint() {
     const m = isMaster(), show = m || can(SKY) || can(FIRE) || can(CINE);

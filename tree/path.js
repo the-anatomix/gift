@@ -4,7 +4,7 @@
 //
 // 격자 전체(GX × GZ)에는 1층 집 말고도 마당과 위층들이 있다.
 //   마당: 집 남쪽. j = YARD.wall 줄은 집의 남쪽 벽(현관문 칸만 뚫려 있다), 그 아래 j0 ~ j1 이 마당.
-//   위층(2층, 3층): 1층과 같은 크기의 한 층. 격자에서는 층마다 동쪽으로 FLOOR_DI 칸씩 밀어서 나란히 펼쳐 놓고,
+//   위층(2층, 3층, 4층): 1층과 같은 크기의 한 층. 격자에서는 층마다 동쪽으로 FLOOR_DI 칸씩 밀어서 나란히 펼쳐 놓고,
 //        그릴 때만 제자리(위)로 옮긴다. 그래서 자리 (x, z) 와 칸 (i, j) 는 모든 곳에서 그대로 쓰고, 화면에 놓을 때만 toWorld 를 지난다.
 //   층 사이는 사다리(LADDERS)로만 이어진다. 길찾기는 사다리의 두 칸을 이웃으로 친다.
 export const CELL = 0.5;
@@ -12,7 +12,7 @@ export const NX = 30, NZ = 18;
 export const X0 = -4, Z0 = -4;
 export const X1 = X0 + NX * CELL, Z1 = Z0 + NZ * CELL;
 export const YARD = { wall: 18, j0: 19, j1: 26, i0: 0, i1: 29, door: [3, 4] }; // door = 현관문이 뚫린 칸(i)
-export const LEVELS = 3;          // 층 수
+export const LEVELS = 4;          // 층 수 (4층은 게임방: gameroom.js)
 export const FLOOR_DI = 32;       // 격자에서 층마다 옆으로 밀어 둔 칸 수 (집 30칸 + 빈 2칸)
 export const FLOOR_H = 2.8;       // 한 층의 높이 (바닥에서 위층 바닥까지)
 export const FLOOR_DX = FLOOR_DI * CELL;
@@ -41,7 +41,7 @@ export function toWorld(x, z) { const lv = levelOf(x); return [x - lv * FLOOR_DX
 // 사다리: 층 lv 에서 lv + 1 로. foot = 아래층에서 사다리 앞 칸, top = 위층에서 올라선 칸(둘 다 집 기준 칸).
 // 위층에서 foot 과 같은 자리는 사다리가 올라오는 구멍이라 막혀 있다. a, b = 격자에서의 두 칸
 export const LADDER_COST = 5;
-export const LADDERS = [{ lv: 0, foot: [19, 8], top: [20, 8] }, { lv: 1, foot: [24, 8], top: [25, 8] }]
+export const LADDERS = [{ lv: 0, foot: [19, 8], top: [20, 8] }, { lv: 1, foot: [24, 8], top: [25, 8] }, { lv: 2, foot: [27, 13], top: [28, 13] }]
   .map((L) => ({ ...L, a: cellOn(L.lv, L.foot[0], L.foot[1]), b: cellOn(L.lv + 1, L.top[0], L.top[1]) }));
 // 위층의 그 칸이 사다리가 올라오는 구멍인지
 export function hatchCell(i, j) {
