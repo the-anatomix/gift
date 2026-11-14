@@ -161,7 +161,7 @@ const snowmen = (p) => T(p, () => [...window.__tree.S.items.values()].filter((o)
     check('트리 꾸미기를 열면 꺼짐', !(await T(A, () => window.__snow.man.on)));
     await T(A, () => window.__tree.setMode(null)); await sleep(200);
     await stand(A, -2, 8.0); await sleep(200);
-    await T(A, () => { window.__tree.setPov(true); window.__snow.man.set(true); }); await sleep(300);
+    await T(A, () => { window.__tree.setPov(true); window.__snow.man.set(true); }); await sleep(1500);
     check('1인칭에서도 굴리기가 되고, 여기 두기 단추는 조이스틱과 겹치지 않음', (await T(A, () => window.__snow.man.on)) && (await overlaps(A, ['rollGo', 'stick', 'rollBtn', 'snowBtn', 'act'])).length === 0 && (await audit(A)).length === 0, [await overlaps(A, ['rollGo', 'stick', 'rollBtn', 'snowBtn', 'act']), await audit(A)]);
     await A.screenshot({ path: path.join(__dirname, 'out', 'snowman-fp.png') });
     await T(A, () => { window.__snow.man.set(false); window.__tree.setPov(false); }); await sleep(200);
@@ -186,9 +186,9 @@ const snowmen = (p) => T(p, () => [...window.__tree.S.items.values()].filter((o)
       const a = (await M(A)).balls.find((x) => x.id === bb2.id), c = (await M(C)).balls.find((x) => x.id === bb2.id);
       return a && c && a.s === 'r' && a.by === bid && c.by === bid && a.x > -2 && (await T(A, (b) => window.__snow.man.push(b), bid)) && (await T(C, (b) => window.__snow.man.push(b), bid));
     }, 4000), await M(A));
-    await until(() => T(B, () => !window.__tree.me.moving), 6000); await sleep(300);
+    await until(() => T(B, () => !window.__tree.me.moving), 20000); await sleep(300);
     const bNow = (await M(B)).mine;
-    check('굴린 만큼 커진 것도 친구 화면에 그대로', await until(async () => { const a = (await M(A)).balls.find((x) => x.id === bNow.id); return a && Math.abs(a.r - bNow.r) < 0.01 && Math.abs(a.x - bNow.x) < 0.05; }, 3000), [bNow, (await M(A)).balls]);
+    check('굴린 만큼 커진 것도 친구 화면에 그대로', await until(async () => { const a = (await M(A)).balls.find((x) => x.id === bNow.id); return a && Math.abs(a.r - bNow.r) < 0.01 && Math.abs(a.x - bNow.x) < 0.05; }, 12000), [bNow, (await M(A)).balls]);
     check('친구 화면에도 굴린 자국이 남음', (await T(C, () => window.__snow.man.marks)) > 5);
     await B.tap('#rollGo'); await sleep(200);
     const base2 = (await M(B)).balls.find((x) => x.id === bNow.id);

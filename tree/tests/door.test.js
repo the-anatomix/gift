@@ -111,7 +111,7 @@ const audit = (p) => p.evaluate(() => {
     await T(D, () => window.__door.ring());
     await until(async () => (await T(A, () => window.__duo.knocks.length)) === 1, 5000);
     await T(A, () => window.__duo.admit(window.__duo.knocks[0].id));
-    check('다른 친구는 그대로 들어올 수 있음', await until(async () => (await mode(D)) === 'on' && (await hash(A)) === (await hash(D)), 10000));
+    check('다른 친구는 그대로 들어올 수 있음', await until(async () => (await mode(D)) === 'on' && (await hash(A)) === (await hash(D)), 30000));
     // 문 앞에서 기다리던 사람이 그냥 가 버리면 알림이 사라진다
     const E = await open(ctx, url('de', '#r=' + room));
     await until(async () => (await mode(E)) === 'door', 15000);

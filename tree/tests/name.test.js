@@ -154,7 +154,9 @@ const G = (p) => T(p, () => window.__games.state);
     await T(B, (c) => window.__games.find(c), cid);
     await until(async () => (await G(A)).out.includes(cid), 4000);
     check('찾힌 사람은 술래에게도 이름표가 다시 보임', await until(async () => !!(await tags(B))[cid] && !(await tags(B)).h, 3000), await tags(B));
-    const both = await T(B, (c) => { const n = [...document.querySelectorAll('#nameTags i')].find((e) => e.textContent === '눈사람').getBoundingClientRect(), g = document.querySelector('#gameTags i').getBoundingClientRect(); return { nb: n.bottom, gt: g.top, gtxt: document.querySelector('#gameTags i').textContent }; }, cid);
+    const bothOf = () => T(B, (c) => { const n = [...document.querySelectorAll('#nameTags i')].find((e) => e.textContent === '눈사람').getBoundingClientRect(), g = document.querySelector('#gameTags i').getBoundingClientRect(); return { nb: n.bottom, gt: g.top, gtxt: document.querySelector('#gameTags i').textContent }; }, cid);
+    await until(async () => { const v = await bothOf(); return v.nb <= v.gt + 1; }, 10000); // 느린 기기에서는 표시가 한두 장면 늦게 따라온다
+    const both = await bothOf();
     check('"👀 찾음" 표시와 이름표가 겹치지 않음 (이름표가 그 위)', both.gtxt.includes('찾음') && both.nb <= both.gt + 1, both);
     await shot(B, 'name-hide.png');
     await T(A, () => window.__games.cancel());

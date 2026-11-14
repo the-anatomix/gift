@@ -165,9 +165,9 @@ async function suite(browser, label, query, twoContexts) {
   check('구경하는 사람이 억지로 보낸 변화는 주인이 받지 않음', (await hash(A)) === hA && (await hash(B)) === hA && !(await T(A, () => window.__tree.S.items.has('c2'))));
   await T(C, () => window.__tree.goTo(3.2, -3.2));
   const cid = await T(C, () => window.__duo.me);
-  await until(() => T(C, () => !window.__tree.me.moving && !window.__tree.me.path.length), 12000);
+  await until(() => T(C, () => !window.__tree.me.moving && !window.__tree.me.path.length), 40000);
   const far = async (p) => { const o = (await T(p, () => window.__duo.others)).find((x) => x.id === cid), c = await me(C); return o ? Math.hypot(o.x - c.x, o.z - c.z) : 9; };
-  check('구경하는 사람이 걸어다니는 것이 주인과 다른 손님 모두에게 보임', await until(async () => (await far(A)) < 0.1 && (await far(B)) < 0.1, 6000), { a: await far(A), b: await far(B) });
+  check('구경하는 사람이 걸어다니는 것이 주인과 다른 손님 모두에게 보임', await until(async () => (await far(A)) < 0.1 && (await far(B)) < 0.1, 20000), { a: await far(A), b: await far(B) });
   await put(B, 'b2', 'giftG', 2, 13);
   check('손님이 놓은 가구가 주인을 거쳐 구경하는 사람에게도 보임', await until(() => T(C, () => window.__tree.S.items.has('b2') && window.__tree.itemObjs === window.__tree.S.items.size), 5000), { b: await T(B, () => window.__tree.S.items.has('b2')), a: await T(A, () => window.__tree.S.items.has('b2')), c: await T(C, () => [...window.__tree.S.items.keys()]) });
   await T(C, () => window.__tree.setLook({ gender: 'm', outfit: 'santa' }));

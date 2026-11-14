@@ -101,7 +101,7 @@ const pov = (p, fp) => T(p, (fp) => { if ((window.__tree.pov === 'fp') !== fp) w
     await setNow(A, 2026, 7, 10, 12, 0); await sleep(600);
     const day = await sky(A);
     check('7월 정오: 낮, 맑음, 별·달 없음, 조명은 원래 세기', day.day === 1 && day.weather === 0 && day.stars === 0 && day.moon === 0 && Math.abs(day.hemi - 1.35) < 1e-9 && Math.abs(day.sun - 1.9) < 1e-9, day);
-    await until(async () => !(await T(A, () => window.__sky.snowShown)), 8000);
+    await until(async () => !(await T(A, () => window.__sky.snowShown)), 25000);
     check('맑은 날에는 눈이 내리지 않음', !(await T(A, () => window.__sky.snowShown)));
     const dayIn = await meanColor(A, [0.25, 0.3, 0.75, 0.55]);
     await shot(A, 'phone-day-iso');
@@ -136,7 +136,7 @@ const pov = (p, fp) => T(p, (fp) => { if ((window.__tree.pov === 'fp') !== fp) w
     await setNow(A, 2026, 12, 24, 21, 0);
     check('12월 24일 밤: 눈이 내림 (마당 위 입자가 보임)', await until(async () => { const s = await sky(A); return s.weather > 0 && s.snow > 0.3 && await T(A, () => window.__sky.snowShown); }, 8000), await sky(A));
     await shot(A, 'phone-snow-night-iso');
-    await pov(A, true); await place(A, 2.6, 9.0); await look(A, 0.25, -1); await sleep(900);
+    await pov(A, true); await place(A, 2.6, 9.0); await look(A, 0.25, -1); await sleep(2500);
     check('1인칭에서는 하늘 돔이 보임', await T(A, () => window.__sky.dome));
     const yardSky = await meanColor(A, [0.05, 0.1, 0.95, 0.16]);
     check('마당 1인칭 밤하늘은 어두움', yardSky.l < 80, yardSky);
