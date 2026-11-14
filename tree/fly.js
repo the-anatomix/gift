@@ -232,14 +232,21 @@ export function makeFly(K) {
       if (c.dir > 0 ? f.y >= edge + 0.3 : f.y <= edge - FLOOR_H + CEIL) { if (!c.done) me.place(c.x, c.z); cross = null; pushT = 0; }
     } else if (landing) { // 내려앉는 중: 내려설 자리 위로 날아가며 내려온다 (집이나 나무를 넘어야 하면 먼저 올라간다)
       const A = f.air, [cx, cz] = here(), dx = landing[0] - cx, dz = landing[1] - cz, d = Math.hypot(dx, dz), s = Math.min(d, speed() * dt);
-      const nx = d > 1e-4 ? cx + dx / d * s : cx, nz = d > 1e-4 ? cz + dz / d * s : cz;
-      const need = A ? (d - s < 0.05 ? 0 : lowAt(nx, nz)) : 0, a = f.y - lvY();
+      let nx = d > 1e-4 ? cx + dx / d * s : cx, nz = d > 1e-4 ? cz + dz / d * s : cz;
+      // 집 옆에서 곧장 가면 집 모서리를 스칠 때: 지붕 위로 올라가지 않고 벽을 따라 돌아간다 (한 축씩)
+      if (A && !inHouse(cx, cz) && inHouse(nx, nz)) {
+        const sx = Math.sign(dx) * Math.min(Math.abs(dx), s), sz = Math.sign(dz) * Math.min(Math.abs(dz), s);
+        const ways = [[cx + sx, cz, Math.abs(sx)], [cx, cz + sz, Math.abs(sz)]].filter((w) => w[2] > 1e-4 && !inHouse(w[0], w[1])).sort((p, q) => q[2] - p[2]);
+        if (ways.length) [nx, nz] = ways[0];
+      }
+      const left = Math.hypot(landing[0] - nx, landing[1] - nz); // 이번에 옮기고 나서 남은 거리
+      const need = A ? (left < 0.05 ? 0 : lowAt(nx, nz)) : 0, a = f.y - lvY();
       if (a < need - 1e-3) setY(Math.min(lvY() + need, f.y + VS * 2 * dt));
       else {
-        if (d > 1e-4) { me.turnTo(dx, dz); if (A) setAir(nx, nz); else me.place(nx, nz); }
+        if (d > 1e-4) { me.turnTo(nx - cx, nz - cz); if (A) setAir(nx, nz); else me.place(nx, nz); }
         setY(Math.max(lvY() + need, f.y - VS * 1.3 * dt));
       }
-      if (d - s < 0.03 && f.y <= lvY() + 1e-3) { dropAir(); me.place(landing[0], landing[1]); end(); return true; }
+      if (left < 0.03 && f.y <= lvY() + 1e-3) { dropAir(); me.place(landing[0], landing[1]); end(); return true; }
     } else {
       if (target) { // 누른 자리로 날아간다
         const [cx, cz] = here(), dx = target[0] - cx, dz = target[1] - cz, d = Math.hypot(dx, dz);
