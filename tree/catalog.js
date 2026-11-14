@@ -22,6 +22,7 @@ export const FURNITURE = [
   { id: 'stove', name: '오븐', icon: '🍳', w: 2, d: 1, solid: true, play: 'bake' }, // 새 케이크를 굽는다
   { id: 'fridge', name: '냉장고', icon: '🧊', w: 2, d: 1, solid: true, snack: true },
   { id: 'wine', name: '와인 냉장고', icon: '🍷', w: 1, d: 1, solid: true, snack: true }, // 유리문 와인 셀러. 모양과 꺼내 마시기는 food.js
+  { id: 'pizza', name: '피자 화덕', icon: '🍕', w: 2, d: 1, solid: true, play: 'pizza' }, // 도마에서 피자를 만들고 화덕에 굽는다. 모양과 놀이는 pizza.js
   // 방
   { id: 'bed', name: '침대', icon: '🛏️', w: 3, d: 4, solid: true, lie: true },
   { id: 'closet', name: '옷장', icon: '🚪', w: 3, d: 1, solid: true, dress: true }, // 열면 옷을 갈아입는다
@@ -220,4 +221,11 @@ export const WRAPS = [
   { id: 'gold', name: '금빛', box: 0xE0AE3A, band: 0xC8332B },
   { id: 'pink', name: '분홍', box: 0xF19BB6, band: 0xFFFFFF },
   { id: 'white', name: '눈빛', box: 0xF6F2EA, band: 0x3E9A7E },
+];
+
+// 피자 (pizza.js). r = 토핑을 올릴 수 있는 반지름, slices = 구운 피자의 조각 수, max = 토핑 수 제한
+export const PIZZA = { r: 0.15, slices: 8, max: 24 };
+export const PIZZA_TOPS = [
+  { id: 'pep', name: '페퍼로니', icon: '🔴' }, { id: 'mush', name: '버섯', icon: '🍄' }, { id: 'bell', name: '피망', icon: '🫑' }, { id: 'olive', name: '올리브', icon: '🫒' },
+  { id: 'pine', name: '파인애플', icon: '🍍' }, { id: 'shrimp', name: '새우', icon: '🍤' }, { id: 'bacon', name: '베이컨', icon: '🥓' }, { id: 'corn', name: '옥수수', icon: '🌽' },
 ];

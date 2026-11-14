@@ -121,8 +121,8 @@ const D = (p, op) => T(p, (op) => window.__tree.dispatch(op), op);
     check('케이크 들기 = carry, 탁자에 놓기 = setDown', (await names(A)).includes('carry') && (await names(A)).includes('setDown'), await names(A));
     await hush(A);
     await T(A, () => window.__play.open('ov')); await sleep(400);
-    await A.tap('#playGo');
-    check('굽기 시작: 반죽 붓기(pour) → 휘젓기(whisk) → 오븐 켜기(ovenOn) 순서', await until(async () => { const n = (await names(A)).filter((x) => ['pour', 'whisk', 'ovenOn'].includes(x)); return n.join() === 'pour,whisk,ovenOn'; }, 4000), await names(A));
+    for (let k = 0; k < 60 && (await T(A, () => window.__play.state.phase)) !== 'bake'; k++) { if (await A.isVisible('#playGo')) await A.tap('#playGo').catch(() => {}); await sleep(200); }
+    check('굽기: 휘젓기(whisk) → 반죽 붓기(pour) → 오븐 켜기(ovenOn) 순서', await until(async () => { const n = (await names(A)).filter((x) => ['pour', 'whisk', 'ovenOn'].includes(x)); return n[0] === 'whisk' && n.indexOf('pour') > 0 && n.indexOf('ovenOn') > n.indexOf('pour'); }, 4000), await names(A));
     await T(A, () => window.__play.setHeat(0.7)); await A.tap('#playGo');
     check('잘 구워 꺼내면 오븐 "땡"(ovenDing)', await until(async () => (await heard(A, 'ovenDing')).length === 1, 3000), await names(A));
     await T(A, () => window.__tree.setMode(null)); await sleep(200);

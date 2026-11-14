@@ -312,55 +312,169 @@ export function makePlay(K) {
   /* ───────── 오븐: 새 케이크 굽기 ───────── */
   // 빈 작업대가 있어야 구울 수 있다. 알맞게 구워 꺼내면 새 케이크가 그 작업대에 나온다.
   const BATTER = [[0, 0xF6E7A8], [0.45, 0xF2D27A], [0.7, 0xD9A24E], [0.9, 0xA8692E], [1.15, 0x3B2619]];
+  // 케이크 굽기: 그릇의 반죽을 젓고 → 틀에 붓고 → 오븐 앞에 숙여 넣고 → 게이지를 보며 굽다가 → 꺼내서 들고 간다
+  //   phase: idle(젓기) → pour(붓는 중) → ready(오븐에 넣기) → load(넣는 중) → bake → done | burnt
+  const BAKE = { ok: [0.5, 0.9], best: 0.7, tol: 0.04, max: 1.15, stirs: 6 };
+  const TIN0 = [0.24, 0.885, 0], BOWL0 = [0.24, 0.885, 0]; // 오른쪽 화구 (왼쪽에는 냄비가 있다). 틀은 반죽을 부을 때 그릇 자리에 놓인다
+  const FRONT = [0, 0.262, 0.52], INSIDE = [0, 0.262, 0.05];
+  const ease = (k) => k * k * (3 - 2 * k), mix3 = (o, a, b, k) => o.position.set(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k);
+  // 굽기 게이지: 알맞은 구간(짙은 띠)과 가운데 선, 익은 만큼 차오르는 막대
+  const gauge = document.createElement('div'); gauge.id = 'bakeBar'; gauge.hidden = true; gauge.setAttribute('role', 'meter'); gauge.setAttribute('aria-label', '익은 정도');
+  gauge.style.cssText = 'position:relative;height:18px;border-radius:9px;background:#F3E3C8;overflow:hidden;flex:none';
+  gauge.innerHTML = `<div style="position:absolute;top:0;bottom:0;left:${BAKE.ok[0] / BAKE.max * 100}%;width:${(BAKE.ok[1] - BAKE.ok[0]) / BAKE.max * 100}%;background:#D9A05B"></div>`
+    + `<div style="position:absolute;top:0;bottom:0;left:calc(${BAKE.best / BAKE.max * 100}% - 1.5px);width:3px;background:#FFF6E2"></div>`
+    + '<div id="bakeFill" style="position:absolute;top:0;bottom:0;left:0;width:0;background:rgba(90,56,36,.55);border-right:3px solid #5A3824"></div>';
+  $('playBtns').parentNode.insertBefore(gauge, $('playBtns'));
   const bake = {
     start(c) {
       if (!K.canEdit()) { K.toast('구경하는 중에는 케이크를 구울 수 없어요'); return false; }
       if (!K.bakeTarget()) { K.toast('작업대가 비어 있어야 새 케이크를 구울 수 있어요'); return false; }
-      c.m = new THREE.Group(); // 오른쪽 화구 위의 둥근 케이크 틀
-      c.tin = new THREE.MeshLambertMaterial({ color: 0xA9B0B6, side: THREE.DoubleSide });
-      c.mat = new THREE.MeshLambertMaterial({ color: BATTER[0][1] });
-      put(new THREE.CylinderGeometry(0.135, 0.125, 0.075, 24, 1, true), c.tin, 0, 0.0375, 0, c.m, false);
-      put(cyl(0.125, 0.125, 0.008, 24), c.tin, 0, 0.004, 0, c.m, false);
-      c.batter = put(cyl(0.126, 0.126, 0.03, 24), c.mat, 0, 0, 0, c.m, false);
-      c.m.position.set(0.24, 0.885, 0);
-      c.g.add(c.m);
-      K.setPose({ pos: world(c.g, 0.1, 1.5, portrait() ? 1.7 : 1.4), at: world(c.g, 0.15, 0.9, 0), fov: portrait() ? 56 : 42, inside: true });
+      c.m = new THREE.Group(); c.g.add(c.m);
+      c.mats = [];
+      const mat = (col, o) => { const m = new THREE.MeshLambertMaterial({ color: col, ...o }); c.mats.push(m); return m; };
+      // 둥근 케이크 틀
+      c.tin = mat(0xA9B0B6, { side: THREE.DoubleSide }); c.mat = mat(BATTER[0][1]);
+      c.pan = new THREE.Group(); c.m.add(c.pan);
+      put(new THREE.CylinderGeometry(0.135, 0.125, 0.075, 24, 1, true), c.tin, 0, 0.0375, 0, c.pan, false);
+      put(cyl(0.125, 0.125, 0.008, 24), c.tin, 0, 0.004, 0, c.pan, false);
+      c.batter = put(cyl(0.126, 0.126, 0.03, 24), c.mat, 0, 0, 0, c.pan, false);
+      // 반죽 그릇 (오른쪽 화구 위): 밀가루 더미, 달걀 노른자, 버터 덩어리가 저을수록 매끈한 반죽이 된다
+      c.bowl = new THREE.Group(); c.m.add(c.bowl);
+      const white = mat(0xFFF8EC, { side: THREE.DoubleSide }), goo = mat(BATTER[0][1]);
+      put(new THREE.CylinderGeometry(0.17, 0.1, 0.13, 22, 1, true), white, 0, 0.065, 0, c.bowl, false);
+      put(cyl(0.1, 0.1, 0.01, 22), white, 0, 0.005, 0, c.bowl, false);
+      c.goo = put(cyl(0.15, 0.11, 0.07, 22), goo, 0, 0.05, 0, c.bowl, false);
+      c.flour = put(new THREE.SphereGeometry(0.1, 14, 8), mat(0xFFFDF6), 0, 0.085, 0, c.bowl, false); c.flour.scale.y = 0.5;
+      c.lumps = [[0xF6B93B, 0.05, 0.4, 0.034], [0xF6B93B, 0.06, 2.6, 0.03], [0xFBE7A1, 0.07, 4.4, 0.036], [0xFBE7A1, 0.04, 5.6, 0.028]].map(([col, r, a, s]) => { const m = put(new THREE.SphereGeometry(s, 10, 8), mat(col), 0, 0.1, 0, c.bowl, false); m.userData = { r, a }; return m; });
+      c.whisk = new THREE.Group(); c.bowl.add(c.whisk);
+      const steel = mat(0x8C8F94);
+      put(cyl(0.008, 0.008, 0.2, 6), steel, 0, 0.13, 0, c.whisk, false);
+      put(new THREE.SphereGeometry(0.03, 8, 6), steel, 0, 0.03, 0, c.whisk, false).scale.y = 1.5;
+      c.whisk.rotation.z = -0.45;
+      // 오븐 속과 문 (오븐 앞에 숙였을 때만 보인다). 몸통 속에 있어서 깊이를 보지 않고 차례대로 그린다
+      c.oven = new THREE.Group(); c.oven.visible = false; c.m.add(c.oven);
+      const deep = (m, order) => { m.material.depthTest = false; m.material.depthWrite = false; m.renderOrder = order; return m; };
+      c.cave = new THREE.MeshBasicMaterial({ color: 0x3A2418, side: THREE.BackSide }); c.mats.push(c.cave);
+      deep(put(new THREE.BoxGeometry(0.66, 0.36, 0.38), c.cave, 0, 0.36, 0.05, c.oven, false), 10);
+      c.back = new THREE.MeshBasicMaterial({ color: 0x24160F }); c.mats.push(c.back);
+      deep(put(new THREE.PlaneGeometry(0.66, 0.36), c.back, 0, 0.36, -0.135, c.oven, false), 10.5); // 안쪽 벽은 더 어둡게 (깊이가 느껴지게)
+      c.coil = new THREE.MeshBasicMaterial({ color: 0x5A2A18 }); c.mats.push(c.coil);
+      for (const z of [-0.05, 0.1]) deep(put(new THREE.BoxGeometry(0.56, 0.012, 0.012), c.coil, 0, 0.515, z, c.oven, false), 10.7); // 위쪽 열선
+      deep(put(new THREE.BoxGeometry(0.64, 0.008, 0.34), mat(0x6B5A4A), 0, 0.256, 0.05, c.oven, false), 11);
+      c.door = new THREE.Group(); c.door.position.set(0, 0.16, 0.262); c.oven.add(c.door);
+      const dark = mat(0x2B2420);
+      for (const [w, h, x, y] of [[0.7, 0.05, 0, 0.025], [0.7, 0.05, 0, 0.375], [0.05, 0.4, -0.325, 0.2], [0.05, 0.4, 0.325, 0.2]]) deep(put(new THREE.BoxGeometry(w, h, 0.02), dark, x, y, 0, c.door, false), 20);
+      deep(put(cyl(0.012, 0.012, 0.56, 6), mat(0xC9C0B2), 0, 0.375, 0.03, c.door, false), 21).rotation.z = Math.PI / 2;
+      deep(put(new THREE.PlaneGeometry(0.6, 0.3), mat(0xFFD9A0, { transparent: true, opacity: 0.22 }), 0, 0.2, 0, c.door, false), 22);
       bake.reset(c);
     },
-    reset(c) { c.heat = 0; c.phase = 'idle'; c.t = 0; c.batter.visible = true; bake.color(c); bake.paint(c); },
+    view(c, low) { // 위에서 조리대를 보거나, 숙여서 오븐 속을 들여다본다
+      c.low = low;
+      if (low) K.setPose({ pos: world(c.g, 0, 0.5, portrait() ? 1.55 : 1.25), at: world(c.g, 0, 0.36, 0), fov: portrait() ? 56 : 42, inside: true });
+      else K.setPose({ pos: world(c.g, 0.24, portrait() ? 1.95 : 1.7, portrait() ? 0.8 : 0.7), at: world(c.g, 0.24, 0.84, 0.04), fov: portrait() ? 56 : 42, inside: true }); // 그릇을 내려다본다
+    },
+    reset(c) {
+      c.heat = 0; c.mix = 0; c.phase = 'idle'; c.t = 0; c.an = null; c.perfect = false; c.spin = 0; c.last = null; c.newId = null;
+      for (const m of [c.tin, c.mat]) { m.depthTest = true; m.depthWrite = true; }
+      c.pan.traverse((m) => { m.renderOrder = 0; });
+      c.pan.position.set(...TIN0); c.bowl.position.set(...BOWL0); c.bowl.rotation.z = 0; c.bowl.visible = true;
+      c.oven.visible = false; c.door.rotation.x = 0; c.batter.visible = false; c.pan.visible = false; c.pan.scale.setScalar(1); c.goo.scale.setScalar(1);
+      bake.view(c, false); bake.stirred(c); bake.color(c); bake.paint(c);
+    },
     color(c) { // 색이 짙어지고 조금 부풀어 오른다
       grade(BATTER, c.heat, c.mat.color);
-      const s = 1 + 0.9 * clamp(c.heat / 0.8, 0, 1);
-      c.batter.scale.y = s; c.batter.position.y = 0.008 + 0.015 * s;
+      const s = (1 + 0.9 * clamp(c.heat / 0.8, 0, 1)) * (c.fill == null ? 1 : c.fill);
+      c.batter.scale.y = Math.max(0.01, s); c.batter.position.y = 0.008 + 0.015 * s;
+      c.cave.color.setHex(0x3A2418).lerp(ca.setHex(c.heat > BAKE.ok[1] ? 0xC8431E : 0xE8862E), c.phase === 'bake' ? 0.45 + 0.12 * Math.sin(c.t * 5) : 0.12);
+      c.back.color.setHex(0x24160F).lerp(ca.setHex(0xB5521E), c.phase === 'bake' ? 0.3 : 0.05); c.coil.color.setHex(0x5A2A18).lerp(ca.setHex(0xFFB03A), c.phase === 'bake' ? 0.85 + 0.15 * Math.sin(c.t * 5) : 0);
+      $('bakeFill').style.width = (clamp(c.heat / BAKE.max, 0, 1) * 100).toFixed(1) + '%';
+    },
+    stirred(c) { // 저은 만큼: 밀가루가 꺼지고 덩어리가 풀린다
+      const k = clamp(c.mix, 0, 1);
+      c.flour.scale.set(1 - 0.75 * k, 0.5 * (1 - k) + 0.02, 1 - 0.75 * k); c.flour.visible = k < 0.98;
+      for (const m of c.lumps) { const u = m.userData, a = u.a + c.spin; m.position.set(Math.cos(a) * u.r, 0.1 - 0.02 * k, Math.sin(a) * u.r); m.scale.setScalar(1 - k); m.visible = k < 0.98; }
+      c.whisk.position.set(Math.cos(c.spin * 1.7) * 0.06, 0.04, Math.sin(c.spin * 1.7) * 0.06);
+    },
+    stir(c, amt) {
+      if (c.phase !== 'idle') return;
+      c.mix = Math.min(1, c.mix + amt); c.spin += amt * 9; sfx('whisk');
+      bake.stirred(c);
+      if (c.mix >= 1) { c.phase = 'pour'; c.an = { k: 'pour', t: 0, d: 1.1 }; c.fill = 0; c.batter.visible = true; c.pan.visible = true; sfx('pour'); }
+      bake.paint(c);
+    },
+    load(c) {
+      if (c.phase !== 'ready') return;
+      c.phase = 'load'; c.an = { k: 'load', t: 0, d: 1.5 }; c.oven.visible = true; c.bowl.visible = false;
+      for (const m of [c.tin, c.mat]) { m.depthTest = false; m.depthWrite = false; }
+      c.pan.children.forEach((m, n) => { m.renderOrder = 12 + n; });
+      bake.view(c, true); sfx('fridgeOpen'); bake.paint(c);
     },
     paint(c) {
-      if (c.phase === 'idle') panel('케이크 굽기', '반죽을 틀에 붓고 오븐에 넣어요', [{ label: '굽기 시작', main: true, id: 'playGo', fn: () => { c.phase = 'bake'; sfx('pour'); setTimeout(() => sfx('whisk'), 550); setTimeout(() => sfx('ovenOn'), 1150); bake.paint(c); } }, quit]);
-      else if (c.phase === 'bake') panel('굽는 중…', '노릇노릇해지면 꺼내요. 너무 오래 두면 타요.', [{ label: '꺼내기', main: true, id: 'playGo', fn: () => bake.out(c) }]);
-      else if (c.phase === 'burnt') panel('새까맣게 탔어요', '다시 구워 봐요', [{ label: '다시 굽기', main: true, id: 'playGo', fn: () => bake.reset(c) }, quit]);
-      else panel('새 케이크가 작업대에 나왔어요', '작업대에 가서 크림과 장식으로 꾸며 보세요.', [quit]);
+      const p = c.phase;
+      gauge.hidden = !(p === 'load' || p === 'bake' || p === 'burnt' || p === 'done');
+      if (p === 'idle') panel('케이크 굽기', `그릇을 문지르거나 단추를 눌러 반죽을 저어요 (${Math.round(c.mix * 100)}%)`, [{ label: '🥣 반죽 젓기', main: true, id: 'playGo', fn: () => bake.stir(c, 1 / BAKE.stirs + 1e-6) }, quit]);
+      else if (p === 'pour') panel('반죽을 틀에 부어요', '매끈하게 잘 섞였어요', [quit]);
+      else if (p === 'ready') panel('반죽 준비 끝!', '오븐 앞에 숙여서 틀을 넣어요', [{ label: '오븐에 넣기', main: true, id: 'playGo', fn: () => bake.load(c) }, quit]);
+      else if (p === 'load') panel('오븐에 넣는 중…', '문을 닫으면 굽기 시작해요', []);
+      else if (p === 'bake') panel('굽는 중…', '막대가 짙은 띠 안에 들어오면 꺼내요. 가운데 선에 맞추면 완벽!', [{ label: '꺼내기', main: true, id: 'playGo', fn: () => bake.out(c) }]);
+      else if (p === 'burnt') panel('새까맣게 탔어요', '다시 구워 봐요', [{ label: '다시 굽기', main: true, id: 'playGo', fn: () => bake.reset(c) }, quit]);
+      else panel(c.perfect ? '완벽하게 구워졌어요! ✨' : '잘 구워졌어요!', '들고 가서 탁자에 놓거나, 작업대에 두고 크림과 장식으로 꾸며요.',
+        [...(c.newId ? [{ label: '🧤 들고 가기', main: true, id: 'playCarryOut', fn: () => { const id = c.newId; K.close(); K.carry(id); } }] : []), { label: '작업대에 두기', id: 'playQuit', fn: () => K.close() }]);
     },
-    burn(c) { c.phase = 'burnt'; sfx('sizzle'); K.toast('새까맣게 탔어요. 다시 구워 봐요'); bake.paint(c); },
+    pull(c) { if (!c.an || c.an.k !== 'pull') c.an = { k: 'pull', t: 0, d: 0.9 }; sfx('fridgeOpen'); },
+    burn(c) { c.phase = 'burnt'; sfx('sizzle'); K.toast('새까맣게 탔어요. 다시 구워 봐요'); bake.pull(c); bake.paint(c); },
     out(c) {
       if (c.phase !== 'bake') return;
-      if (c.heat < 0.5) { K.toast('아직 덜 익었어요. 조금 더 구워요'); return; } // 그대로 계속 굽는다
-      if (c.heat > 0.9) { bake.burn(c); return; }
-      if (!K.bake()) { K.toast('작업대가 비어 있지 않아요'); bake.reset(c); return; }
-      c.phase = 'done'; c.batter.visible = false; // 빵은 작업대로 옮겨 갔다
-      K.toast('케이크 빵이 잘 구워졌어요! 작업대에 올려 뒀어요 🎂');
+      if (c.heat < BAKE.ok[0]) { K.toast('아직 덜 익었어요. 조금 더 구워요'); return; } // 그대로 계속 굽는다
+      if (c.heat > BAKE.ok[1]) { bake.burn(c); return; }
+      const id = K.bake();
+      if (!id) { K.toast('작업대가 비어 있지 않아요'); bake.reset(c); return; }
+      c.phase = 'done'; c.newId = typeof id === 'string' ? id : null; c.perfect = Math.abs(c.heat - BAKE.best) <= BAKE.tol;
+      bake.pull(c);
+      K.toast(c.perfect ? '완벽해요! 케이크 빵이 잘 구워졌어요 ✨' : '케이크 빵이 잘 구워졌어요! 🎂');
       bake.paint(c);
     },
     tick(c, dt) {
       c.t += dt;
+      const a = c.an;
+      if (a) {
+        a.t += dt;
+        const k = clamp(a.t / a.d, 0, 1);
+        if (a.k === 'pour') { // 그릇을 틀 위로 기울여 붓는다
+          const up = ease(clamp(k / 0.3, 0, 1));
+          mix3(c.bowl, BOWL0, [0.47, 1.1, 0], up); c.bowl.rotation.z = 1.2 * up; c.pan.scale.setScalar(ease(clamp(k / 0.2, 0, 1))); // 그릇을 들어 올리면 그 자리에 틀이 놓인다
+          c.fill = ease(clamp((k - 0.25) / 0.55, 0, 1)); c.goo.scale.setScalar(Math.max(0.05, 1 - c.fill));
+          bake.color(c);
+          if (k >= 1) { c.an = null; c.fill = null; c.bowl.visible = false; c.phase = 'ready'; bake.color(c); bake.paint(c); }
+        } else if (a.k === 'load') { // 문을 열고 → 틀을 밀어 넣고 → 문을 닫는다
+          c.door.rotation.x = 1.45 * (ease(clamp(k / 0.22, 0, 1)) - ease(clamp((k - 0.8) / 0.2, 0, 1)));
+          const s = ease(clamp((k - 0.2) / 0.6, 0, 1));
+          if (s < 0.5) mix3(c.pan, TIN0, FRONT, s * 2); else mix3(c.pan, FRONT, INSIDE, s * 2 - 1);
+          if (k >= 1) { c.an = null; c.phase = 'bake'; sfx('fridgeShut'); sfx('ovenOn'); bake.paint(c); }
+        } else { // 문을 열고 틀을 앞으로 꺼낸다
+          c.door.rotation.x = 1.45 * ease(clamp(k / 0.35, 0, 1));
+          mix3(c.pan, INSIDE, FRONT, ease(clamp((k - 0.3) / 0.7, 0, 1)));
+          if (k >= 1) c.an = null;
+        }
+      }
       if (c.phase !== 'bake') return;
       c.heat += dt * (0.16 + 0.04 * Math.sin(c.t * 2.7) + 0.025 * Math.sin(c.t * 6.3)); // 불 세기가 조금씩 달라진다
       bake.color(c);
-      if (c.heat >= 1.15) bake.burn(c);
+      if (c.heat >= BAKE.max) bake.burn(c);
     },
     tap() {},
+    move(c, px, py) { // 그릇 위를 문지르면 저어진다 (화면 폭의 여섯 배쯤)
+      if (c.phase !== 'idle') { c.last = null; return; }
+      const l = c.last; c.last = [px, py, performance.now()];
+      if (!l || c.last[2] - l[2] > 250) return;
+      const d = Math.hypot(px - l[0], py - l[1]);
+      if (d > 1) bake.stir(c, d / (6 * Math.max(320, window.innerWidth)));
+    },
     stop(c) {
+      gauge.hidden = true;
       c.g.remove(c.m);
       c.m.traverse((m) => { if (m.geometry) m.geometry.dispose(); });
-      c.mat.dispose(); c.tin.dispose();
+      for (const m of c.mats) m.dispose();
     },
   };
 
@@ -522,7 +636,7 @@ export function makePlay(K) {
     },
     // 자동 검사가 쓰는 창구
     test: {
-      get state() { return cur ? { kind: cur.kind, phase: cur.phase, left: cur.left, score: cur.score, heat: cur.heat, pts: cur.pts, say: cur.say, last: cur.last, darts: cur.darts ? cur.darts.length : 0 } : null; },
+      get state() { return cur ? { kind: cur.kind, phase: cur.phase, left: cur.left, score: cur.score, heat: cur.heat, mix: cur.mix, perfect: cur.perfect, low: cur.low, pts: cur.pts, say: cur.say, last: cur.last, darts: cur.darts ? cur.darts.length : 0 } : null; },
       get topping() { return topping; }, set topping(v) { topping = v; if (cur && cur.kind === 'cake') cake.paint(cur); },
       get song() { return song ? song.id : null; }, get audio() { return ac ? ac.state : null; },
       get video() { return video ? { ready: video.readyState, w: video.videoWidth, muted: video.muted, paused: video.paused } : null; },
