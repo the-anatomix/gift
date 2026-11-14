@@ -59,6 +59,11 @@ export function makeMaster(K) {
   fireBtn.type = 'button'; fireBtn.id = 'fireShow'; fireBtn.style.flex = '1';
   fireBtn.addEventListener('click', () => K.fire());
   fireRow.appendChild(fireBtn);
+  { // 새해 해돋이 미리 보기: 카운트다운 → 불꽃 → 밝아 오는 하늘과 첫 해 (sky.js). 방 모두에게 보인다
+    const b = el('button', 'btn', '🌅 새해 해돋이'); b.type = 'button'; b.id = 'dawnShow'; b.style.flex = '1';
+    b.addEventListener('click', () => { if (K.dawn()) K.setMode(null); });
+    fireRow.appendChild(b);
+  }
   panel.append(h, skyRow, lampRow, fireRow, people, foot);
   $('tabs').parentNode.insertBefore(panel, $('tabs'));
   const BITS = [[LOCK, '🔓', '달력 잠금 없이 쓰기'], [FIRE, '🎆', '불꽃놀이'], [SKY, '🌙', '하늘 바꾸기'], [GIFT, '🎁', '선물 미리 열기'], [SUIT, '🚀', '비행 슈트'], [SLED, '🦌', '루돌프 썰매'], [CINE, '🎬', '3층을 영화관으로 바꾸기']];

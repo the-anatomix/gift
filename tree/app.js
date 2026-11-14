@@ -772,7 +772,7 @@ const duo = makeDuo({
       a.lie(r); dirty = true;
       return true;
     }
-    if (m.k === 'show' && m.v === 'fire') return sky.peerFx(m, id); // 크리스마스 불꽃놀이 (sky.js)
+    if (m.k === 'show' && (m.v === 'fire' || m.v === 'dawn')) return sky.peerFx(m, id); // 불꽃놀이, 새해 해돋이 미리 보기 (sky.js)
     if (m.k === 'show') return party.peerFx(m, id); // 점등식·단체 사진
     if (m.k === 'snow' || m.k === 'hit') return snow.peerFx(m, id); // 마당 눈싸움
     if (m.k === 'prop' || m.k === 'climb' || m.k === 'heavy' || m.k === 'help') return coop.peerFx(m, id); // 협동 놀이
@@ -1170,7 +1170,7 @@ const advent = makeAdvent({
 });
 // 숨은 마스터키 (master.js): 제목을 일곱 번 누른다
 const master = makeMaster({
-  toast: (m) => toast(m), sky: { time: () => sky.time, setTime: (v) => sky.setTime(v) }, fire: () => sky.openFire(), lamp: { on: (lv) => lights.isOn(lv), toggle: (lv) => lights.toggle(lv) }, changed: () => { advent.repaint(); wardrobe.paint(); dirty = true; },
+  toast: (m) => toast(m), sky: { time: () => sky.time, setTime: (v) => sky.setTime(v) }, fire: () => sky.openFire(), dawn: () => sky.dawn(), lamp: { on: (lv) => lights.isOn(lv), toggle: (lv) => lights.toggle(lv) }, changed: () => { advent.repaint(); wardrobe.paint(); dirty = true; },
   scene, ray(px, py) { aimRay(px, py); return ray.ray; }, shown: () => myLv === 0,
   fx: (m) => duo.fx(m), myId: () => duo.me, others: () => [...others.keys()], nameOf: (id) => nameOf(id), setMode: (m) => setMode(m), mode: () => mode,
   resized: () => { if (mode === 'master') measure(false); },
@@ -1923,6 +1923,7 @@ window.__tree = {
   NX, NZ, GX, GZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, LEVELS, FLOOR_H, FLOOR_DX, LADDERS, FRONT, toWorld, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
   ghostNew, ghostPick, ghostMoveTo, ghostTurn, ghostDone, ghostCancel, ghostRemove, surfaceR, serialize: () => serialize(S),
   setZoomMul(m) { setZoomMul(m); },
+  dawn: () => sky.dawn(), aim(y, p) { fy = y; fpitch = p; applyPov(); dirty = true; }, // 새해 해돋이 미리 보기, 1인칭에서 바라보는 쪽
   doAct, carried, putDown, cakeTap, useItem, lieDown, getUp, climb, pressSpace, nearAction: () => { const a = nearAction(); return a ? a.label : null; },
   get level() { return myLv; }, get lying() { return me.rest ? { id: me.rest.id, side: me.rest.side } : null; },
   itemShown: (id) => { const g = itemObj.get(id); return !!g && g.visible; }, cakes: () => cakesList(S).map(([id, c]) => ({ id, ...c })), freeBench,
