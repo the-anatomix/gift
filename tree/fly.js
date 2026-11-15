@@ -2,7 +2,7 @@
 //
 // 규칙
 //   - 방장(혼자 노는 내 방 포함)이 비행 슈트를 입었을 때만 "🚀 날기" 단추가 보인다. 누르면 떠오르고, 다시 누르면("🛬 착지") 내려앉는다.
-//   - 나는 동안: 바닥을 누르거나 방향키·조이스틱으로 그쪽으로 날아간다. ▲▼ 단추(키보드 R / F, PageUp / PageDown)로 오르내린다.
+//   - 나는 동안: 바닥을 누르거나 방향키·조이스틱으로 그쪽으로 날아간다. ▲▼ 단추(키보드 U / I, R / F, PageUp / PageDown)로 오르내린다. 썰매를 탔을 때도 같다.
 //   - 집 안에서는 천장 밑(CEIL)까지. 가구와 벽은 걸을 때와 같이 막힌다. 천장에서 ▲를, 바닥에서 ▼를 잠깐 더 누르고 있으면 위층·아래층으로 넘어간다
 //     (넘어간 자리에 가구가 있으면 가장 가까운 빈칸으로). 1층 바닥에서 ▼를 더 누르면 착지한다.
 //   - 마당에서는 SKY_TOP 까지 높이 오른다. HI 보다 높이 뜨면 "하늘"이다(me.fly.air = 세상 좌표 { x, z }): 마당의 가구(눈사람 등) 위를 지나고,
@@ -56,7 +56,8 @@ export function makeFly(K) {
     document.body.appendChild(b);
     return b;
   };
-  const btn = mk('flyBtn', '🚀', '날기', '날기'), up = mk('flyUp', '▲', '위로', '위로 날기'), down = mk('flyDown', '▼', '아래로', '아래로 날기');
+  const PC = !!(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches); // 키보드가 있는 기기에는 단추에 키 이름을 같이 적는다
+  const btn = mk('flyBtn', '🚀', '날기', '날기'), up = mk('flyUp', '▲', PC ? '위로 U' : '위로', '위로 날기 (U 키)'), down = mk('flyDown', '▼', PC ? '아래로 I' : '아래로', '아래로 날기 (I 키)');
   const sled = mk('sledBtn', '🦌', '썰매', '루돌프 썰매 타기');
   btn.setAttribute('aria-pressed', 'false'); sled.setAttribute('aria-pressed', 'false');
 
@@ -207,7 +208,7 @@ export function makeFly(K) {
     for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, () => { if (held === v) { held = 0; paint(); } });
     b.addEventListener('contextmenu', (e) => e.preventDefault());
   }
-  const KEYV = { KeyR: 1, PageUp: 1, KeyF: -1, PageDown: -1 };
+  const KEYV = { KeyR: 1, PageUp: 1, KeyU: 1, KeyF: -1, PageDown: -1, KeyI: -1 }; // 오르기 U·R·PageUp, 내리기 I·F·PageDown
   addEventListener('keydown', (e) => {
     if (!on || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.ctrlKey || e.metaKey || e.altKey) return;
     if (KEYV[e.code]) { keyV = KEYV[e.code]; e.preventDefault(); paint(); }

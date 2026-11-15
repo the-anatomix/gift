@@ -261,9 +261,9 @@ export function makeAvatar(look) {
     lie(rest) { A.path = []; A.onArrive = null; A.doing = null; A.rest = rest; A.sync(); root.rotation.y = A.face = rest.ry; A.animate(0, false); },
     rise() { if (!A.rest) return false; A.rest = null; A.sync(); A.animate(0, false); return true; },
     // 빛줄기에 맞아 뒤로 쓰러진다. yaw = 빛줄기가 날아온 방향(쏜 사람이 본 쪽). 쏜 사람을 보며 등 쪽으로 넘어진다
-    knock(yaw) {
+    knock(yaw, sec = DOWN) { // sec = 쓰러져 있는 시간(초). 유도탄은 더 길다 (beam.js 의 STUN)
       if (A.rest || A.hop || A.fly) return false;
-      A.down = DOWN; A.doing = null; A.aim = 0;
+      A.down = A.downT = sec; A.doing = null; A.aim = 0;
       root.rotation.y = A.face = Math.atan2(-Math.sin(yaw), -Math.cos(yaw));
       return true;
     },
@@ -393,7 +393,7 @@ export function makeAvatar(look) {
       }
       if (A.down > 0) { // 빛줄기에 맞았다: 뒤로 털썩 넘어졌다가 일어난다
         A.down = Math.max(0, A.down - dt);
-        const w = Math.max(0, Math.min(1, (DOWN - A.down) / 0.15, A.down / 0.25)), e = w * w * (3 - 2 * w);
+        const w = Math.max(0, Math.min(1, ((A.downT || DOWN) - A.down) / 0.15, A.down / 0.25)), e = w * w * (3 - 2 * w);
         lying = -Math.PI / 2 * e;
         P.lx = [0.25 * e, -0.1 * e]; P.ax = [-0.4 * e, -0.4 * e]; P.az = [-1.1 * e, 1.1 * e]; P.by = 0; P.bx = 0; P.bz = 0; P.hx = 0.15 * e; P.hz = 0.25 * e; P.as = 1; spin = 0;
       }

@@ -822,6 +822,7 @@ const duo = makeDuo({
     if (m && m.k === 'cheers') return cheers.peerFx(m, id); // 건배 (cheers.js)
     if (m && (m.k === 'team' || m.k === 'ball' || m.k === 'made')) return snow.peerFx(m, id); // 눈싸움 팀전·눈사람 (소식이 길어서 snow.js 가 따로 살핀다)
     if (m && m.k === 'mk') return master.peerFx(m, id); // 마스터가 나눠 주는 권한 (master.js)
+    if (m && (m.k === 'mis' || m.k === 'boom')) return beam.peerFx(m, id); // 비행 슈트의 유도탄과 맞았다는 소식 (beam.js. 소식이 길어서 아래의 20자 검사보다 먼저)
     if (m && m.k === 'show' && typeof m.v === 'string' && /^sky:(auto|day|dusk|night)$/.test(m.v)) return sky.peerFx(m, id); // 하늘을 낮·노을·밤으로 (마스터 판)
     if (m && m.k === 'show' && typeof m.v === 'string' && m.v.startsWith('fire:') && m.v.length <= 64) return sky.peerFx(m, id); // 글자·길이·예약이 붙은 불꽃놀이 (값이 길어서 아래의 20자 검사보다 먼저)
     if (!m || typeof m.v !== FX[m.k] || String(m.v).length > 20) return false;
@@ -1208,6 +1209,8 @@ const flyBusy = () => !(mode === null || mode === 'chat' || mode === 'emo') || !
   || games.on || snow.on || train.on || !!(window.__snow && window.__snow.team && window.__snow.team.on);
 const beam = makeBeam({
   scene, me, others: () => others, myId: () => duo.me, grid, fixed: fixedCell, sky: () => fly.sky, toast: (m) => toast(m),
+  nameOf: (id) => nameOf(id), eye: () => usingEye(),
+  screen(v) { const q = v.clone().project(cam()); return q.z > 1 ? { x: -1e4, y: -1e4 } : { x: (q.x + 1) / 2 * window.innerWidth, y: (1 - q.y) / 2 * window.innerHeight }; }, // 세상의 한 점이 화면에서 어디인지 (뒤쪽이면 화면 밖)
   show: () => look.outfit === HOST_OUTFIT && isHost() && !fly.ride && !flyBusy(),
   dir: () => (usingEye() ? { yaw: Math.atan2(-Math.sin(fy), -Math.cos(fy)), pitch: clamp(fpitch, -1.2, 1.2) } : { yaw: Math.atan2(Math.sin(me.face), Math.cos(me.face)), pitch: 0 }),
   online: () => duo.mode === 'on', fx: (m) => duo.fx(m), dirty: () => { dirty = true; },
@@ -1634,6 +1637,7 @@ function lift(e, ok) {
   if (mode === 'play') { play.tap(e.clientX, e.clientY); return; }
   if (snow.tap(e.clientX, e.clientY)) return; // 눈싸움 모드: 걸어가는 대신 눈덩이를 던진다
   if (games.tap(e.clientX, e.clientY)) return; // 숨바꼭질: 술래가 숨은 사람을 누름
+  if (beam.tap(e.clientX, e.clientY)) return; // 비행 슈트: 사람을 누르면 빔·유도탄의 목표로 삼는다 (beam.js)
   if ((mode === null || mode === 'gift') && gift.tap(e.clientX, e.clientY)) return; // 트리 밑 선물 상자
   if (mode === 'fridge' && food.tap(e.clientX, e.clientY)) return; // 열린 냉장고 안의 음식
   if (mode === null && !fly.on && !train.on) { const id = pickItem(e.clientX, e.clientY); if (id && useItem(id)) return; } // 케이크 내려놓기, 놀 수 있는 가구, 침대, 냉장고
@@ -1680,7 +1684,7 @@ function keyWalk(dt) {
   if (mode === 'tree') return false; // 트리를 꾸미는 동안은 트리 옆에 서 있는다
   if (pose) return false;           // 놀이 중에는 걷지 않는다
   if (me.hop) return false;         // 사다리를 타는 중
-  if (me.down > 0) return false;    // 빛줄기에 맞아 쓰러져 있는 중 (beam.js)
+  if (me.down > 0) return false;    // 빛줄기·유도탄에 맞아 쓰러져 있는 중 (beam.js)
   const f = (keys.has('u') ? 1 : 0) - (keys.has('d') ? 1 : 0) - joy.y, r = (keys.has('r') ? 1 : 0) - (keys.has('l') ? 1 : 0) + joy.x;
   const push = Math.min(1, Math.hypot(f, r)); // 조이스틱을 살짝 밀면 천천히 걷는다
   if (push < 0.15) return false;
