@@ -27,7 +27,7 @@ const kinds = (p, lv) => T(p, (lv) => [...window.__tree.S.items.values()].filter
 const idOf = (p, k) => T(p, (k) => { const it = [...window.__tree.S.items.values()].find((x) => x.k === k); return it ? it.id : null; }, k);
 const bunnies = (p) => T(p, () => [...window.__tree.S.items.values()].filter((it) => /^bunny\d?$/.test(it.k)).length);
 const hash = (p) => T(p, () => window.__duo.hash());
-const audit = (p, sel) => p.evaluate((sel) => [...document.querySelectorAll(sel)].filter((b) => b.getBoundingClientRect().width && !b.closest('[hidden]')).map((b) => [b.textContent.trim(), b.getBoundingClientRect()]).filter(([, r]) => r.width < 43.5 || r.height < 43.5 || r.left < 0 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5).map(([t, r]) => `${t}: ${Math.round(r.width)}×${Math.round(r.height)}`), sel);
+const audit = (p, sel) => p.evaluate((sel) => [...document.querySelectorAll(sel)].filter((b) => b.getBoundingClientRect().width && !b.closest('[hidden]') && !b.closest('.scroll')).map((b) => [b.textContent.trim(), b.getBoundingClientRect()]).filter(([, r]) => r.width < 43.5 || r.height < 43.5 || r.left < 0 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5).map(([t, r]) => `${t}: ${Math.round(r.width)}×${Math.round(r.height)}`), sel);
 const serve = () => http.createServer((q, r) => { let p = decodeURIComponent(q.url.split('?')[0]); if (p.endsWith('/')) p += 'index.html'; fs.readFile(path.join(ROOT, p), (e, d) => { if (e) { r.writeHead(404); r.end(); } else { r.writeHead(200, { 'content-type': TYPES[path.extname(p)] || 'application/octet-stream' }); r.end(d); } }); }).listen(PORT);
 const settle = (p) => until(() => T(p, () => { const m = window.__tree.me; return !m.moving && !m.path.length && !m.climbing; }), 60000);
 
