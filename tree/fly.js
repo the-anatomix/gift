@@ -20,14 +20,16 @@
 //   보낸 사람이 비행 슈트를 입고 있거나 썰매 표시가 있을 때만 받는다(권한은 보낸 사람 기기에서 판단한다).
 import { BODY_R, FLY_SPEED } from './avatar.js';
 import { HOST_OUTFIT } from './costume.js';
-import { cellOf, centerOf, zoneOf, levelOf, YARD, FLOOR_H, FLOOR_DX, LEVELS, CELL, X0, X1, Z0, GX1, GZ1 } from './path.js';
+import { cellOf, centerOf, zoneOf, levelOf, levelCount, YARD, FLOOR_H, FLOOR_DX, LEVELS, CELL, X0, X1, Z0, GX1, GZ1 } from './path.js';
 
 export const CEIL = 1.2;      // 집 안에서 뜰 수 있는 높이 (머리가 천장에 닿지 않게)
 export const SKY_TOP = 16;    // 마당과 집 밖 하늘에서 오를 수 있는 높이
 export const YARD_TOP = SKY_TOP;
 export const HI = 1.5;        // 이보다 높으면 하늘이다: 마당의 가구 위를 지나고 울타리 밖으로 나간다
 export const OVER = 4.5;      // 이보다 높으면 마당의 나무·가로등 위를 지난다
-export const ROOF = LEVELS * FLOOR_H + 0.6; // 이보다 높으면 집 위를 지난다
+export const ROOF = LEVELS * FLOOR_H + 0.6; // 이보다 높으면 집 위를 지난다 (처음 4층일 때. 층을 더하면 roof() 가 따라 높아진다)
+const roof = () => levelCount() * FLOOR_H + 0.6;
+const skyTop = () => Math.max(SKY_TOP, roof() + 2.4); // 층을 많이 더해도 집 위로 날아 넘을 수 있게
 export const FAR = [15, 20];  // 집 한가운데에서 이만큼 멀어지면 느려지기 시작하고, 이만큼보다 멀리는 못 간다
 export const WX = (X0 + X1) / 2, WZ = (Z0 + GZ1) / 2; // 세상의 한가운데(집과 마당의 가운데)
 const VS = 2.4;               // 오르내리는 빠르기
@@ -83,12 +85,12 @@ export function makeFly(K) {
   // 하늘에서 세상 좌표 (x, z), 세상 높이 y 에 있을 수 있는지
   function airFits(x, z, y) {
     if (Math.hypot(x - WX, z - WZ) > FAR[1]) return false;
-    if (y < ROOF && inHouse(x, z)) return false;
+    if (y < roof() && inHouse(x, z)) return false;
     return y >= OVER || !yardFixed(x, z);
   }
   // 하늘의 그 자리에서 내려갈 수 있는 가장 낮은 높이
   function lowAt(x, z) {
-    if (inHouse(x, z)) return ROOF;
+    if (inHouse(x, z)) return roof();
     if (!inRect(x, z)) return HI;
     return K.grid.fits(x, z, BODY_R) ? 0 : yardFixed(x, z) ? OVER : HI;
   }
@@ -175,7 +177,7 @@ export function makeFly(K) {
   // 위층·아래층으로 넘어가기 시작한다
   function startCross(dir) {
     const lv = me.level + dir;
-    if (lv < 0 || lv >= LEVELS || inYard()) return false;
+    if (lv < 0 || lv >= levelCount() || inYard()) return false;
     let x = me.x + dir * FLOOR_DX, z = me.z;
     if (!K.grid.fits(x, z, BODY_R)) {
       const [i, j] = cellOf(x, z), c = K.grid.nearestFree(i, j, x, z);
@@ -253,7 +255,7 @@ export function makeFly(K) {
         if (d < 0.04) target = null;
         else { me.turnTo(dx, dz); if (!slide(dx / d, dz / d, Math.min(d, speed() * dt))) target = null; }
       }
-      const a = alt(), A = f.air, sky = !!A || openYard(), top = sky ? SKY_TOP : CEIL;
+      const a = alt(), A = f.air, sky = !!A || openYard(), top = sky ? skyTop() : CEIL;
       const low = A ? Math.max(lowAt(A.x, A.z), ride ? HI : 0) : 0;
       if (v) rise = 0; else if (rise) { v = a < Math.min(rise, top) ? 1 : 0; if (!v) rise = 0; }
       let na = a + v * VS * (A ? 1.5 : 1) * dt;
@@ -266,7 +268,7 @@ export function makeFly(K) {
       pushT = pushing ? pushT + dt : 0;
       if (pushT >= HOLD) {
         pushT = 0;
-        if ((held || keyV) > 0) { if (me.level < LEVELS - 1) startCross(1); }
+        if ((held || keyV) > 0) { if (me.level < levelCount() - 1) startCross(1); }
         else if (me.level > 0 && !sky) startCross(-1); else land(false);
       }
     }
@@ -318,8 +320,8 @@ export function makeFly(K) {
       const x = FLY_RE.exec(m.v);
       if (!x) return false;
       const y = Number(x[2]), isSled = x[1] === 's', ax = x[3] === undefined ? null : Number(x[3]), az = x[3] === undefined ? null : Number(x[4]);
-      if (!(y >= 0 && y <= LEVELS * FLOOR_H + CEIL + SKY_TOP) || (!isSled && a.look.outfit !== HOST_OUTFIT) || a.rest || a.hop) return false;
-      if (ax !== null && (Math.hypot(ax - WX, az - WZ) > FAR[1] + 0.5 || y < HI - 0.01 || y > SKY_TOP + 0.01)) return false;
+      if (!(y >= 0 && y <= levelCount() * FLOOR_H + CEIL + skyTop()) || (!isSled && a.look.outfit !== HOST_OUTFIT) || a.rest || a.hop) return false;
+      if (ax !== null && (Math.hypot(ax - WX, az - WZ) > FAR[1] + 0.5 || y < HI - 0.01 || y > skyTop() + 0.01)) return false;
       if (a.fly) a.fly.to = y; else a.fly = { y: a.root.position.y, to: y, mv: false, t: 0, air: null, sled: false };
       a.fly.sled = isSled;
       if (ax === null) { if (a.fly.air) { a.fly.air = null; a.sync(); } }
@@ -334,7 +336,8 @@ export function makeFly(K) {
     get on() { return on; }, get ride() { return ride; }, get alt() { return alt(); }, get y() { return me.fly ? me.fly.y : null; }, get shown() { return !btn.hidden; }, get arrows() { return !up.hidden; },
     get sledShown() { return !sled.hidden; }, get air() { const A = air(); return A ? { x: A.x, z: A.z } : null; }, get wide() { return api.wide; },
     get crossing() { return !!cross; }, get landing() { return !!landing; }, get target() { return target; },
-    start, land, mount, airTo: api.airTo, hold(v) { held = v; paint(); }, CEIL, YARD_TOP, SKY_TOP, HI, OVER, ROOF, FAR, WX, WZ,
+    start, land, mount, airTo: api.airTo, hold(v) { held = v; paint(); }, CEIL, YARD_TOP, HI, OVER, FAR, WX, WZ,
+    get ROOF() { return roof(); }, get SKY_TOP() { return skyTop(); }, // 층 수를 따른다 (처음 4층이면 예전 값 그대로)
     peer: (id) => { const a = K.others().get(id); return a && a.fly ? { y: a.fly.y, to: a.fly.to, jets: !!(a.parts.jets && a.parts.jets[0].visible), sled: !!a.fly.sled,
       air: a.fly.air ? { x: a.fly.air.x, z: a.fly.air.z, tx: a.fly.air.tx, tz: a.fly.air.tz } : null, wx: a.root.position.x, wz: a.root.position.z, seen: a.root.visible } : null; },
   };

@@ -43,8 +43,17 @@
 //   { t: 'adm', tag, on }              tag = 그 기기의 이 방 전용 표(비밀값의 지문, 16진 20자). S.adm = 표의 모음, ADMINS 개까지
 // 액자에 넣은 사진 (photo.js). 방의 상태에는 사진의 지문만 둔다. 사진 자체는 따로 주고받고 기기마다 따로 기억한다. 꾸밀 수 있는 사람만
 //   { t: 'pic', id, h }                id = 액자 가구(catalog.js 의 play: 'pic'), h = 사진의 지문(영문 소문자·숫자 8~16자), '' 이면 원래 그림으로. S.pics = 액자 → 지문
-import { GX, GZ } from './path.js';
+// 층 더하기·지우기와 층 테마 (build.js. 마스터키의 BUILD 권한. 영화관 단추처럼 화면에서만 막고, 구경하는 사람이 보낸 것은 방장이 받지 않는다)
+//   { t: 'levels', n }                 집의 층 수를 n 으로 (BASE_LEVELS ~ MAX_LEVELS). S.levels (저장값에 없으면 4층).
+//                                      늘리면 맨 위에 빈 층이 생기고(새 사다리 앞에 놓여 있던 가구는 같은 층의 가까운 빈자리로 옮긴다),
+//                                      줄이면 그 위의 층이 그 층의 가구·테마·불과 함께 없어진다. 처음부터 있는 4층까지는 지울 수 없다
+//   { t: 'theme', lv, id }             층 lv 에 테마 id(catalog.js 의 THEMES)를 입힌다. '' 이면 테마 지우기. 2층과 더한 층(5층부터)만.
+//                                      그 층의 지난 테마 가구를 치우고, 테마 가구를 빈 칸에만 놓는다. 가구 id 는 정해진 모양(themeItemId)이라 모두에게 같다.
+//                                      사람이 직접 놓은 가구는 건드리지 않는다. S.themes = 층 → 테마 id
+//   { t: 'themeSet', lv, id }          저장된 방을 풀 때만: 테마 표시만 (테마 가구는 보통 가구처럼 따로 저장되어 있다)
+import { GX, GZ, NX, FLOOR_DI, BASE_LEVELS, MAX_LEVELS, LADDERS, levelOfCell } from './path.js';
 import { zoneOf } from './path.js';
+import { THEMES } from './catalog.js';
 import { SNOWMEN, PIZZA, PIZZA_TOPS } from './catalog.js';
 import { FURNITURE, ORNAMENTS, LIGHT_SETS, BLINKS, WALLS, FLOORS, MAX_ITEMS, MAX_ORNS, CREAMS, TOPPINGS, CAKE, NOTE, BEST } from './catalog.js';
 import { RANK } from './catalog.js';
@@ -164,7 +173,25 @@ export function makeState() {
   // sync = 친구의 방과 똑같다고 마지막으로 확인했을 때의 at (한 번도 맞춘 적 없으면 0). at > sync 면 헤어진 뒤 혼자 꾸민 것이다.
   // notes = 방명록 (id → { id, name, text, at }), best = 이 방 최고 기록 (놀이 → { v, name }), rank = 이름별 순위 (놀이 → Map(이름 → 점수))
   // adv = 어드벤트 달력에서 연 칸 (d → { name, at }), gifts = 트리 밑 선물 (id → { id, to, from, text, wrap, at, cake, open })
-  return { items: new Map(), orns: new Map(), cakes: new Map(), notes: new Map(), best: {}, rank: {}, lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id, at: 0, sync: 0, adv: new Map(), gifts: new Map(), pizzas: new Map(), lamps: [1, 1, 1, 1], adm: new Set(), pics: new Map() };
+  // levels = 층 수, themes = 층 테마 (lv → 테마 id)
+  return { items: new Map(), orns: new Map(), cakes: new Map(), notes: new Map(), best: {}, rank: {}, lights: { set: 'off', blink: 'on' }, wall: WALLS[0].id, floor: FLOORS[0].id, at: 0, sync: 0, adv: new Map(), gifts: new Map(), pizzas: new Map(), lamps: [1, 1, 1, 1], adm: new Set(), pics: new Map(), levels: BASE_LEVELS, themes: new Map() };
+}
+
+// 층 테마: 테마를 입힐 수 있는 층인지 (2층과 더한 층. 1층은 트리와 마당, 3층·4층은 영화관·게임방이라서)
+export const canTheme = (S, lv) => isInt(lv) && lv < S.levels && (lv === 1 || lv >= BASE_LEVELS);
+// 층 lv 의 테마 가구 n 번째의 id (예: '5t0'). 보통 가구의 id(newId)는 네 글자 이상이라 겹치지 않는다
+export const themeItemId = (lv, n) => `${lv}t${n.toString(36)}`;
+export const isThemeItem = (id, lv) => typeof id === 'string' && id.length === 3 && id[0] === String(lv) && id[1] === 't';
+// 가구를 같은 층의 가까운 빈자리로 옮긴다 (자리가 없으면 치운다). 늘 같은 차례로 찾아서 모두에게 같다
+function relocate(S, it, fixed) {
+  const lv = levelOfCell(it.i), [w, d] = footprint(it.k, it.r);
+  let best = null, bestD = Infinity;
+  for (let j = 0; j <= GZ - d; j++) for (let i = lv * FLOOR_DI; i <= lv * FLOOR_DI + NX - w; i++) {
+    const dist = Math.hypot(i - it.i, j - it.j);
+    if (dist < bestD && canPlace(S, { k: it.k, i, j, r: it.r }, fixed, it.id)) { bestD = dist; best = [i, j]; }
+  }
+  if (best) S.items.set(it.id, { ...it, i: best[0], j: best[1] });
+  else apply(S, { t: 'del', id: it.id }, fixed);
 }
 
 // 그 자리에 놓을 수 있는지. fixed(i, j) = 트리처럼 처음부터 막힌 칸. ignoreId = 옮기는 중인 자기 자신.
@@ -452,7 +479,7 @@ export function apply(S, op, fixed) {
       return true;
     }
     case 'lamp': { // 방 불: 층마다 (lights.js)
-      if (![0, 1, 2, 3].includes(op.lv) || typeof op.on !== 'boolean' || !!S.lamps[op.lv] === op.on) return false;
+      if (!isInt(op.lv) || op.lv < 0 || op.lv >= S.levels || typeof op.on !== 'boolean' || !!S.lamps[op.lv] === op.on) return false;
       S.lamps[op.lv] = op.on ? 1 : 0;
       return true;
     }
@@ -467,6 +494,40 @@ export function apply(S, op, fixed) {
       const it = S.items.get(op.id);
       if (!it || F[it.k].play !== 'pic' || typeof op.h !== 'string' || !/^[a-z0-9]{8,16}$|^$/.test(op.h) || (S.pics.get(op.id) || '') === op.h) return false;
       if (op.h) S.pics.set(op.id, op.h); else S.pics.delete(op.id);
+      return true;
+    }
+    case 'levels': { // 층 수 (build.js)
+      const n = op.n, was = S.levels;
+      if (!isInt(n) || n < BASE_LEVELS || n > MAX_LEVELS || n === was) return false;
+      if (n < was) { // 위층부터 없앤다: 그 층의 가구, 테마, 불
+        for (const it of [...S.items.values()]) if (levelOfCell(it.i) >= n) apply(S, { t: 'del', id: it.id }, fixed);
+        for (const lv of [...S.themes.keys()]) if (lv >= n) S.themes.delete(lv);
+        S.lamps.length = n;
+        S.levels = n;
+        return true;
+      }
+      S.levels = n;
+      while (S.lamps.length < n) S.lamps.push(1);
+      // 새로 생긴 사다리 앞(지금까지 맨 위층이던 층)에 놓여 있던 가구는 가까운 빈자리로
+      const [ai, aj] = LADDERS[was - 1].a;
+      for (const it of [...S.items.values()]) if (cellsOf(it).some(([i, j]) => i === ai && j === aj)) relocate(S, it, fixed);
+      return true;
+    }
+    case 'theme': { // 층 테마 (build.js)
+      const th = op.id === '' ? null : THEMES.find((t) => t.id === op.id);
+      if (!canTheme(S, op.lv) || (op.id !== '' && !th) || (!th && !S.themes.has(op.lv))) return false;
+      for (const it of [...S.items.values()]) if (isThemeItem(it.id, op.lv)) apply(S, { t: 'del', id: it.id }, fixed); // 지난 테마 가구
+      if (!th) { S.themes.delete(op.lv); return true; }
+      S.themes.set(op.lv, th.id);
+      th.items.forEach(([k, a, j, r], n) => { // 목록에 없는 종류, 막힌 자리는 건너뛴다
+        const it = { id: themeItemId(op.lv, n), k, i: op.lv * FLOOR_DI + a, j, r };
+        if (F[k] && S.items.size < MAX_ITEMS && !S.items.has(it.id) && canPlace(S, it, fixed)) S.items.set(it.id, it);
+      });
+      return true;
+    }
+    case 'themeSet': { // 저장된 방을 풀 때만 (가구는 따로 들어온다)
+      if (!canTheme(S, op.lv) || !THEMES.some((t) => t.id === op.id)) return false;
+      S.themes.set(op.lv, op.id);
       return true;
     }
     case 'wall': if (!has(WALLS, op.v)) return false; S.wall = op.v; return true;
@@ -500,7 +561,9 @@ export function serialize(S) {
     ...(S.star ? { star: [S.star.name, S.star.help] } : {}), // 꼭대기 별 [단 사람, 받친 사람] (안 달렸으면 없다)
     adv: [...S.adv].sort((a, b) => a[0] - b[0]).map(([d, o]) => [d, o.name, o.at]), // 어드벤트 달력에서 연 칸 [날, 연 사람, 연 때]. 이 항목이 없으면 달력이 없던 때의 방
     gifts: giftsList(S).map((g) => [g.id, g.to, g.from, g.text, g.wrap, g.at, g.cake ? 1 : 0, g.open ? 1 : 0]), // 트리 밑 선물 [id, 받는 사람, 보낸 사람, 편지, 포장, 둔 때, 케이크, 열림]
-    ...(S.lamps.some((v) => !v) ? { lamps: [...S.lamps] } : {}), // 방 불 [1층, 2층, 3층, 4층] (모두 켜져 있으면 없다)
+    ...(S.lamps.some((v) => !v) ? { lamps: [...S.lamps] } : {}), // 방 불 [1층, 2층, 3층, 4층, …] (모두 켜져 있으면 없다)
+    ...(S.levels !== BASE_LEVELS ? { levels: S.levels } : {}),  // 층 수 (처음 그대로 4층이면 없다)
+    ...(S.themes.size ? { themes: [...S.themes].sort((a, b) => a[0] - b[0]) } : {}), // 층 테마 [층, 테마] (없으면 없다)
     ...(S.pizzas.size ? { pizzas: [...S.pizzas].map(([id, p]) => [id, p.st, p.left, p.tops.map((t) => [t[0], t[1], t[2]]), ...(p.by || p.on ? [p.by || '', p.on || ''] : [])]) } : {}), // 만들던 피자 [화덕, 단계, 남은 조각, 토핑] (없으면 없다). 들었거나 탁자에 올렸으면 [든 사람, 탁자] 가 붙는다
     ...(S.adm.size ? { adm: [...S.adm].sort() } : {}),           // 공동 관리자의 표 (없으면 없다)
     ...(S.pics.size ? { pics: [...S.pics].sort((a, b) => (a[0] < b[0] ? -1 : 1)) } : {}), // 액자에 넣은 사진 [액자, 지문] (없으면 없다)
@@ -532,6 +595,7 @@ export function ops(data) {
   const out = [];
   if (!data || typeof data !== 'object' || (data.v !== 1 && data.v !== 2)) return out;
   const rows = (a) => (Array.isArray(a) ? a.filter(Array.isArray) : []);
+  if (data.levels !== undefined) out.push({ t: 'levels', n: data.levels }); // 층 수를 먼저: 위층의 가구를 놓을 수 있게 (없던 때의 방은 4층)
   for (const [d, name, at] of rows(data.adv)) out.push({ t: 'adv', d, name, at }); // 연 칸을 먼저: 거기서 풀린 가구·장식을 놓을 수 있게
   for (const [id, k, i, j, r] of rows(data.items)) out.push({ t: 'put', id, k, i, j, r });
   for (const [id, k, x, y, z] of rows(data.orns)) out.push({ t: 'orn', id, k, x, y, z });
@@ -550,7 +614,8 @@ export function ops(data) {
   if (data.rank && typeof data.rank === 'object' && !Array.isArray(data.rank)) for (const k of Object.keys(BEST)) for (const [name, v] of rows(data.rank[k]).slice(0, RANK.keep)) out.push({ t: 'score', k, v, name });
   out.push(Array.isArray(data.star) ? { t: 'star', on: true, name: data.star[0], help: data.star[1] } : { t: 'star', on: false }); // 꼭대기 별이 없던 때의 방은 안 달린 채로 연다
   for (const [id, to, from, text, wrap, at, cake, open] of rows(data.gifts)) out.push({ t: 'gift', id, to, from, text, wrap, at, cake: cake === 1 || cake === true, open: open === 1 || open === true }); // 선물이 없던 때의 방은 빈 트리 밑
-  if (Array.isArray(data.lamps)) data.lamps.slice(0, 4).forEach((v, lv) => { if (!v) out.push({ t: 'lamp', lv, on: false }); }); // 불이 없던 때의 방은 모두 켜진 채로
+  if (Array.isArray(data.lamps)) data.lamps.slice(0, MAX_LEVELS).forEach((v, lv) => { if (!v) out.push({ t: 'lamp', lv, on: false }); }); // 불이 없던 때의 방은 모두 켜진 채로
+  for (const [lv, id] of rows(data.themes).slice(0, MAX_LEVELS)) out.push({ t: 'themeSet', lv, id }); // 테마가 없던 때의 방은 테마 없이
   for (const [id, st, left, tops, by, on] of rows(data.pizzas)) out.push({ t: 'pzSet', id, p: { st, left, tops, by: by || null, on: on || null } }); // 피자가 없던 때의 방은 빈 도마
   for (const [id, h] of rows(data.pics).slice(0, MAX_ITEMS)) out.push({ t: 'pic', id, h }); // 사진이 없던 때의 방은 모두 원래 그림
   if (Array.isArray(data.adm)) for (const tag of data.adm.slice(0, ADMINS)) out.push({ t: 'adm', tag, on: true });

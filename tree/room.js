@@ -1,11 +1,12 @@
 // 집: 넓은 거실(가운데 트리), 동쪽에 주방과 방 한 칸. 바닥, 바깥 벽 네 면, 방 사이 벽, 창과 문.
 // 남쪽 벽의 현관문을 나서면 눈 쌓인 마당이고, 위로는 사다리로 올라가는 2층과 3층이 있다(1층과 같은 넓이의 한 칸짜리 층).
-// 층마다 묶음이 따로 있어서, 내가 있는 층만 보이게 한다(showFloor).
+// 층마다 묶음이 따로 있어서, 내가 있는 층만 보이게 한다(showFloor). 마스터키로 더한 층(5층부터)은 처음 필요할 때 만든다(setLevels).
+// 2층과 더한 층은 테마(catalog.js 의 THEMES)를 입으면 벽·바닥·천장 색이 바뀐다(setTheme).
 // 방(침실)으로 들어가는 두 곳에는 미닫이문이, 현관에는 여닫이문이 달려 있어서 사람이 다가오면 열리고 지나가면 닫힌다.
 // 바깥 벽은 카메라 쪽 두 면을 숨길 수 있게 따로 묶는다. 방 사이 벽은 내려다볼 때 낮게만 보이고, 1인칭에서는 천장까지 보인다.
 import { THREE, M, T as TX, L, E, F, flameGeo, tex, put, rbox, cbox, cyl, ball, bake, uvw, SN } from './kit.js';
-import { NX, NZ, CELL, X0, Z0, X1, Z1, GZ1, YARD, LEVELS, FLOOR_H, LADDERS, zoneOf, centerOf, hatchCell } from './path.js';
-import { WALLS, FLOORS } from './catalog.js';
+import { NX, NZ, CELL, X0, Z0, X1, Z1, GZ1, YARD, BASE_LEVELS, MAX_LEVELS, FLOOR_H, LADDERS, liveLadders, zoneOf, centerOf, hatchCell } from './path.js';
+import { WALLS, FLOORS, THEMES } from './catalog.js';
 
 export const WALL_H = 2.7;
 export const LOW_H = 0.95; // 방 사이 벽이 내려다볼 때 보이는 높이
@@ -240,9 +241,9 @@ export function treeBlocked(i, j) {
 }
 // 처음부터 막혀 있는 칸(걸어갈 수 없다): 아무것도 없는 곳, 트리 자리, 방 사이 벽, 마당의 나무와 가로등, 위층의 사다리 구멍
 export const fixedCell = (i, j) => zoneOf(i, j) === null || treeBlocked(i, j) || wallCell(i, j) || yardSolid(i, j) || hatchCell(i, j);
-// 가구를 놓을 수 없는 칸: 막힌 칸, 그리고 늘 비워 둬야 하는 칸(사다리 앞과 올라선 자리, 현관 문턱)
+// 가구를 놓을 수 없는 칸: 막힌 칸, 그리고 늘 비워 둬야 하는 칸(사다리 앞과 올라선 자리, 현관 문턱). 사다리는 지금 있는 층끼리 잇는 것만
 export const noBuild = (i, j) => fixedCell(i, j) || j === YARD.wall
-  || LADDERS.some((L) => (i === L.a[0] && j === L.a[1]) || (i === L.b[0] && j === L.b[1]));
+  || liveLadders().some((L) => (i === L.a[0] && j === L.a[1]) || (i === L.b[0] && j === L.b[1]));
 // 높이 y 에서 트리 겉면까지의 반지름 (층이 겹치는 곳은 바깥쪽 층)
 export function surfaceR(y) {
   let r = 0;
@@ -544,7 +545,9 @@ function garlands(walls) {
     put(new THREE.PlaneGeometry(0.08, 0.08), C.pot, len / 2, y0, z + 0.006, w.upper, false).rotation.z = Math.PI / 4;
   }
 }
-// 위층 하나(lv = 1: 2층, 2: 3층, 3: 4층 게임방): 마루, 바깥 벽 네 면과 창, 아래층에서 올라오는 구멍, 다음 층으로 가는 사다리, 천장
+// 위층 하나(lv = 1: 2층, 2: 3층, 3: 4층 게임방, 4~: 마스터키로 더한 층): 마루, 바깥 벽 네 면과 창, 아래층에서 올라오는 구멍, 다음 층으로 가는 사다리, 천장
+// 4층부터는 다음 층으로 가는 사다리를 여기서 만들지 않는다(층을 더할 때 setLevels 가 붙인다)
+const CURTAINS = [0xC0473C, 0x8E6CC8, 0x3E9A7E, 0xE09A3E]; // 더한 층(5층부터)의 커튼 색
 function buildUpper(scene, lv, mats, floorMat) {
   const W = X1 - X0, D = Z1 - Z0, cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2;
   const g = new THREE.Group();
@@ -553,7 +556,7 @@ function buildUpper(scene, lv, mats, floorMat) {
   put(cbox(W + 0.5, 0.24, D + 0.5, 0.08), C.slab, cx, -0.13, cz, g);
   put(new THREE.BoxGeometry(W, 0.02, D), floorMat, cx, -0.005, cz, g, false);
   const walls = { n: wall(g, 'n', mats), s: wall(g, 's', mats), w: wall(g, 'w', mats), e: wall(g, 'e', mats) };
-  const cur = lv === 1 ? 0x5E8F6E : lv === 3 ? 0xE0569A : 0x5B7BC4; // 층마다 커튼 색이 다르다
+  const cur = lv === 1 ? 0x5E8F6E : lv === 3 ? 0xE0569A : lv >= BASE_LEVELS ? CURTAINS[(lv - BASE_LEVELS) % CURTAINS.length] : 0x5B7BC4; // 층마다 커튼 색이 다르다
   // 3층의 창·리스·액자·줄 장식은 벽마다 따로 묶어 둔다(deco): 영화관일 때는 숨긴다 (setTheater)
   const deco = lv !== 2 ? walls : Object.fromEntries(Object.entries(walls).map(([k, w]) => { const d = new THREE.Group(); d.userData.own = true; d.userData.deco = true; w.upper.add(d); return [k, { ...w, upper: d }]; }));
   for (const v of lv === 1 ? [-2.4, 1.2, 4.8, 8.6] : [-1.2, 3.6, 8.4]) windowOn(deco.n, v, cur);
@@ -578,7 +581,7 @@ function buildUpper(scene, lv, mats, floorMat) {
   bake(rails, 0, false);
   garlands(deco);
   for (const k of ['n', 's', 'w', 'e']) bake(walls[k].g, 5, false);
-  if (lv < LEVELS - 1) ladder(g, LADDERS[lv]);
+  if (lv < BASE_LEVELS - 1) ladder(g, LADDERS[lv]); // 2층·3층의 사다리 (4층부터는 setLevels)
   const ceil = put(new THREE.PlaneGeometry(W + 0.3, D + 0.3), new THREE.MeshLambertMaterial({ color: lv === 3 ? GAMEROOM.ceil : 0xFFF6E6 }), cx, WALL_H, cz, g, false);
   ceil.rotation.x = Math.PI / 2; ceil.receiveShadow = false; ceil.visible = false;
   return { g, walls, ceil, deco: lv === 2 ? Object.values(deco).map((d) => d.upper) : [] };
@@ -616,6 +619,17 @@ function checkerTexture(rx, rz) {
   return t;
 }
 const THEATER = { wall: 0x54202E, panel: 0x2C1722, ceil: 0x1D1722 }; // 영화관의 벽(짙은 자주)·아랫단·천장
+// 테마 바닥: 한 가지 바탕색에 작은 점이 흩어진 카펫 (직접 그린 그림)
+function speckTexture(base, dots, rx, rz) {
+  const S = 128, c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d');
+  g.fillStyle = base; g.fillRect(0, 0, S, S);
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let k = 0; k < 500; k++) { g.fillStyle = `rgba(${rnd() < 0.5 ? '0,0,0' : '255,255,255'},${0.03 + rnd() * 0.05})`; g.fillRect(rnd() * S, rnd() * S, 2, 2); } // 보풀
+  for (let k = 0; k < 18; k++) { g.fillStyle = dots[k % dots.length]; g.beginPath(); g.arc(rnd() * S, rnd() * S, 2 + rnd() * 2.5, 0, 7); g.fill(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, rz);
+  return t;
+}
 
 export function buildRoom(world) {
   const scene = new THREE.Group(); // 1층과 마당의 묶음
@@ -674,15 +688,71 @@ export function buildRoom(world) {
   const mats4 = { wall: mats.wall.clone(), panel: mats.panel.clone() }, upMat4 = new THREE.MeshLambertMaterial({ map: checkerTexture(W / 2, D / 2) }); // 4층 게임방
   mats4.wall.color.setHex(GAMEROOM.wall); mats4.panel.color.setHex(GAMEROOM.panel);
   let theater = false, carpet = null, wallId = WALLS[0].id;
-  for (let lv = 1; lv < LEVELS; lv++) {
-    const f = buildUpper(world, lv, lv === 2 ? mats3 : lv === 3 ? mats4 : mats, lv === 2 ? upMat3 : lv === 3 ? upMat4 : upMat);
-    if (lv < LEVELS - 1) { const h = hole(), L = LADDERS[lv]; h.position.x = X0 + (L.foot[0] + 0.5) * CELL - cx; h.position.y = Z0 + (L.foot[1] + 0.5) * CELL - cz; f.ceil.add(h); }
+  // 테마를 입을 수 있는 층(2층, 더한 층)은 벽·바닥 재질을 따로 둔다. 테마가 없으면 다른 층과 같은 벽지·바닥을 따른다 (setTheme)
+  const looks = new Map(); // lv → { mats, floor, theme }
+  const lookOf = (lv) => { const L = { mats: { wall: mats.wall.clone(), panel: mats.panel.clone() }, floor: upMat.clone(), theme: '' }; looks.set(lv, L); return L; };
+  for (let lv = 1; lv < BASE_LEVELS; lv++) {
+    const L = lv === 1 ? lookOf(1) : null;
+    const f = buildUpper(world, lv, lv === 2 ? mats3 : lv === 3 ? mats4 : L.mats, lv === 2 ? upMat3 : lv === 3 ? upMat4 : L.floor);
+    if (lv < BASE_LEVELS - 1) { const h = hole(), L2 = LADDERS[lv]; h.position.x = X0 + (L2.foot[0] + 0.5) * CELL - cx; h.position.y = Z0 + (L2.foot[1] + 0.5) * CELL - cz; f.ceil.add(h); }
     floors.push(f);
+  }
+  // 마스터키로 더한 층: built = 지금까지 만든 층 모두(지운 층도 숨겨서 남겨 둔다), floors = 지금 있는 층만
+  const built = [...floors], hooks = [];
+  let levels = BASE_LEVELS;
+  // 층 lv 에서 다음 층으로 가는 사다리와 천장의 구멍 (4층부터)
+  function upTo(f, lv) {
+    const L = LADDERS[lv], lad = ladder(f.g, L), h = hole();
+    h.position.x = X0 + (L.foot[0] + 0.5) * CELL - cx; h.position.y = Z0 + (L.foot[1] + 0.5) * CELL - cz; f.ceil.add(h);
+    return [lad, h];
+  }
+  // 테마의 바닥 그림 (테마마다 한 번만 그린다)
+  const themeMaps = new Map();
+  function themeMap(th) {
+    if (!themeMaps.has(th.id)) {
+      const f = th.floor;
+      themeMaps.set(th.id, f.kind === 'tile' ? tileTexture(f.a, f.b, W / f.size, D / f.size) : f.kind === 'carpet' ? speckTexture(f.base, f.dots, W / 2, D / 2) : floorTexture(f.tones, W / 3, D / 3));
+    }
+    return themeMaps.get(th.id);
   }
   return {
     ceil, walls, inner, tree: tree.g, cones: tree.cones, doors, floors, g0: scene,
     // 층 lv 만 보이게 한다 (0 = 1층과 마당)
     showFloor(lv) { floors.forEach((f, k) => { f.g.visible = k === lv; }); },
+    // 층 수를 n 으로 (마스터키로 더하거나 지운다: build.js). 처음 생기는 층은 그때 만든다. 맨 위층에는 위로 가는 사다리가 없다
+    get levels() { return levels; },
+    setLevels(n) {
+      n = Math.max(BASE_LEVELS, Math.min(MAX_LEVELS, n | 0));
+      for (let lv = BASE_LEVELS; lv < n; lv++) if (!built[lv]) {
+        const L = lookOf(lv);
+        built[lv] = buildUpper(world, lv, L.mats, L.floor);
+        for (const f of hooks) f(built[lv], lv);
+      }
+      for (let lv = BASE_LEVELS - 1; lv < MAX_LEVELS - 1; lv++) {
+        const f = built[lv], on = lv < n - 1;
+        if (!f || (!on && !f.up)) continue;
+        if (!f.up) f.up = upTo(f, lv);
+        for (const m of f.up) m.visible = on;
+      }
+      for (let lv = n; lv < built.length; lv++) if (built[lv]) built[lv].g.visible = false;
+      floors.length = 0; floors.push(...built.slice(0, n));
+      levels = n;
+    },
+    // 새 층을 만들 때마다 부른다: fn(층, lv) (sky.js 가 창을 하늘 재질로 바꾼다)
+    onBuild(fn) { hooks.push(fn); },
+    // 층 lv 에 테마를 입힌다 (id = catalog.js 의 THEMES, '' 이면 벗긴다). 2층과 더한 층만. 바뀌었으면 true
+    setTheme(lv, id) {
+      const L = looks.get(lv), f = built[lv];
+      if (!L || !f) return false;
+      const th = THEMES.find((t) => t.id === id) || null, w = WALLS.find((x) => x.id === wallId) || WALLS[0];
+      if (L.theme === (th ? th.id : '')) return false;
+      L.theme = th ? th.id : '';
+      L.mats.wall.color.setHex(th ? th.wall : w.wall); L.mats.panel.color.setHex(th ? th.panel : w.panel);
+      L.floor.map = th ? themeMap(th) : upMat.map; L.floor.needsUpdate = true;
+      f.ceil.material.color.setHex(th ? th.ceil : 0xFFF6E6);
+      return true;
+    },
+    themeOf(lv) { const L = looks.get(lv); return L ? L.theme : ''; },
     // 문을 움직인다. people = 방에 있는 사람들({ x, z }). 가까이(NEAR 안에) 누가 있으면 열리고, 없으면 닫힌다. 움직였으면 true
     tickDoors(dt, people) {
       let moved = false;
@@ -701,6 +771,7 @@ export function buildRoom(world) {
       wallId = w.id;
       mats.wall.color.setHex(w.wall); mats.panel.color.setHex(w.panel);
       mats3.wall.color.setHex(theater ? THEATER.wall : w.wall); mats3.panel.color.setHex(theater ? THEATER.panel : w.panel);
+      for (const L of looks.values()) if (!L.theme) { L.mats.wall.color.setHex(w.wall); L.mats.panel.color.setHex(w.panel); }
     },
     // 3층을 영화관답게(어두운 벽·카펫 바닥·창과 줄 장식 없이) 하거나 되돌린다. 바뀌었으면 true (cinema.js: 3층에 스크린이 있는 동안)
     get theater() { return theater; },
@@ -721,6 +792,7 @@ export function buildRoom(world) {
       floorId = f.id;
       for (const [m, tex] of [[floorMat, wood(f.tones)], [upMat, floorTexture(f.tones, W / 3, D / 3)]]) { const old = m.map; m.map = tex; m.needsUpdate = true; if (old) old.dispose(); }
       if (!theater) { upMat3.map = upMat.map; upMat3.needsUpdate = true; }
+      for (const L of looks.values()) if (!L.theme) { L.floor.map = upMat.map; L.floor.needsUpdate = true; }
     },
   };
 }

@@ -250,3 +250,42 @@ export const PIZZA_TOPS = [
   { id: 'pep', name: '페퍼로니', icon: '🔴' }, { id: 'mush', name: '버섯', icon: '🍄' }, { id: 'bell', name: '피망', icon: '🫑' }, { id: 'olive', name: '올리브', icon: '🫒' },
   { id: 'pine', name: '파인애플', icon: '🍍' }, { id: 'shrimp', name: '새우', icon: '🍤' }, { id: 'bacon', name: '베이컨', icon: '🥓' }, { id: 'corn', name: '옥수수', icon: '🌽' },
 ];
+
+// 층 테마 (마스터키의 BUILD 권한, build.js). 2층과 마스터키로 더한 층(5층부터)에 입힌다. 1층(트리·마당), 3층 영화관, 4층 게임방에는 입히지 않는다.
+// short = 고르는 단추에 쓰는 짧은 이름, wall·panel = 벽과 아랫단 색, ceil = 천장 색, floor = 바닥 그림({ kind: 'wood', tones } 나뭇결 | { kind: 'tile', a, b, size } 바둑판 타일(size m 마다 되풀이) | { kind: 'carpet', base, dots } 점무늬 카펫)
+// items = 한 번에 놓는 가구 [종류, 집 기준 칸 a, j, 돌린 횟수]. 그 층의 칸이 비어 있을 때만 놓인다(사다리 구멍·이미 놓인 가구 자리는 건너뛴다).
+//   목록에 없는 종류도 건너뛴다(요리 대결장의 cookst·pantry·judge 는 다른 작업에서 더한다).
+//   사다리 둘레(a 17~26, j 3~9)와 스위치 앞(a 26~28, j 0~1)은 비워 둔다. 층마다 사다리 자리가 달라서다(path.js 의 LADDERS)
+export const THEMES = [
+  { id: 'cafe', name: '아늑한 카페', short: '카페', icon: '☕', wall: 0xEAD7B7, panel: 0x7B4F33, ceil: 0xFFF3E0, floor: { kind: 'wood', tones: ['#D4A06A', '#C48E58', '#DDB07A', '#B98149'] },
+    items: [['counter', 0, 0, 0], ['counter', 2, 0, 0], ['fridge', 4, 0, 0], ['wine', 6, 0, 0], ['shelf', 8, 0, 0], ['plant', 11, 0, 0], ['art2', 13, 0, 0], ['lamp', 15, 0, 0],
+      ['table', 3, 6, 0], ['chair', 1, 6, 1], ['chair', 6, 6, 3], ['table', 11, 6, 0], ['chair', 9, 6, 1], ['chair', 14, 6, 3],
+      ['table', 3, 12, 0], ['chair', 1, 12, 1], ['chair', 6, 12, 3], ['table', 11, 12, 0], ['chair', 9, 12, 1], ['chair', 14, 12, 3],
+      ['plant', 0, 17, 0], ['plant', 16, 17, 0], ['sofa', 24, 16, 2], ['table', 25, 13, 0], ['music', 29, 11, 3], ['lamp', 29, 17, 0], ['plant', 22, 17, 0]] },
+  { id: 'lodge', name: '겨울 산장', short: '산장', icon: '🏔️', wall: 0x8E5B38, panel: 0x5B3920, ceil: 0xD8B48A, floor: { kind: 'wood', tones: ['#6E4527', '#5E3A21', '#7B4F2D', '#52321C'] },
+    items: [['fire', 6, 0, 0], ['lamp', 5, 0, 0], ['lamp', 10, 0, 0], ['shelf', 0, 0, 0], ['shelf', 12, 0, 0], ['plant', 16, 0, 0],
+      ['rug', 6, 4, 0], ['sofa', 6, 7, 2], ['chair', 2, 3, 1], ['chair', 11, 3, 3],
+      ['bed', 0, 13, 0], ['stand', 3, 13, 0], ['closet', 5, 17, 2], ['giftR', 14, 15, 0], ['giftG', 15, 15, 0], ['music', 16, 17, 0],
+      ['chair', 27, 11, 3], ['lamp', 29, 13, 0], ['rug', 23, 14, 0], ['plant', 29, 17, 0]] },
+  { id: 'party', name: '파티룸', short: '파티', icon: '🎉', wall: 0xF7B9D2, panel: 0x9B52B5, ceil: 0xFFEAF5, floor: { kind: 'tile', a: '#FFE1EF', b: '#D7C6FF', size: 1.2 },
+    items: [['tv', 5, 0, 0], ['music', 4, 0, 0], ['music', 8, 0, 0], ['dart', 11, 0, 0], ['dart', 13, 0, 0], ['arcade', 15, 0, 0], ['claw', 16, 0, 0], ['bigbunny', 0, 0, 0],
+      ['rug', 5, 3, 0], ['table', 5, 7, 0], ['giftR', 4, 9, 0], ['giftG', 8, 9, 0], ['lamp', 12, 7, 0],
+      ['beanbag', 1, 12, 0], ['beanbag', 4, 12, 0], ['beanbag', 7, 12, 0], ['beanbag', 10, 12, 0],
+      ['bunny', 14, 16, 0], ['bunny2', 15, 16, 0], ['bunny3', 16, 16, 0], ['giftR', 0, 17, 0], ['giftG', 1, 17, 0],
+      ['pool', 21, 12, 0], ['sofa', 24, 16, 2], ['lamp', 29, 17, 0]] },
+  { id: 'library', name: '서재', short: '서재', icon: '📚', wall: 0x2F5A49, panel: 0x5B3B23, ceil: 0xF1E5CC, floor: { kind: 'wood', tones: ['#5F3C23', '#6F462A', '#55341E', '#7B5131'] },
+    items: [['shelf', 0, 0, 0], ['shelf', 3, 0, 0], ['shelf', 6, 0, 0], ['shelf', 9, 0, 0], ['shelf', 12, 0, 0], ['lamp', 15, 0, 0], ['plant', 16, 0, 0],
+      ['shelf', 0, 3, 1], ['shelf', 0, 7, 1], ['shelf', 0, 11, 1],
+      ['table', 6, 7, 0], ['chair', 4, 7, 1], ['chair', 9, 7, 3], ['lamp', 8, 5, 0], ['table', 6, 13, 0], ['chair', 4, 13, 1], ['chair', 9, 13, 3],
+      ['rug', 13, 12, 0], ['chair', 14, 15, 2], ['lamp', 16, 15, 0], ['music', 16, 17, 0],
+      ['art1', 21, 0, 0], ['shelf', 29, 11, 3], ['shelf', 29, 14, 3], ['chair', 26, 12, 3]] },
+  { id: 'karaoke', name: '노래방', short: '노래방', icon: '🎤', wall: 0x2A2456, panel: 0x17133A, ceil: 0x151230, floor: { kind: 'carpet', base: '#1F1B3D', dots: ['#FF5FAE', '#55D6FF', '#FFD84F', '#9B7BFF'] },
+    items: [['tv', 6, 0, 0], ['music', 4, 0, 0], ['music', 10, 0, 0], ['lamp', 3, 0, 0], ['lamp', 11, 0, 0],
+      ['rug', 6, 2, 0], ['table', 6, 5, 0], ['sofa', 2, 8, 2], ['sofa', 8, 8, 2], ['beanbag', 13, 4, 0], ['beanbag', 13, 8, 0],
+      ['tv', 0, 13, 1], ['table', 2, 13, 1], ['sofa', 5, 13, 3], ['lamp', 0, 17, 0], ['art3', 13, 0, 0], ['art5', 15, 17, 2], ['lamp', 16, 0, 0],
+      ['arcade', 27, 13, 3], ['arcade', 27, 15, 3], ['beanbag', 23, 14, 0], ['music', 29, 17, 0]] },
+  { id: 'cook', name: '요리 대결장', short: '요리', icon: '🍳', wall: 0xF3EFE6, panel: 0xC8443A, ceil: 0xFFFFFF, floor: { kind: 'tile', a: '#F6F1E7', b: '#3B3B3B', size: 1 },
+    items: [['pantry', 0, 0, 0], ['pantry', 2, 0, 0], ['fridge', 4, 0, 0], ['counter', 6, 0, 0], ['stove', 8, 0, 0], ['counter', 10, 0, 0], ['stove', 12, 0, 0], ['fridge', 14, 0, 0], ['wine', 16, 0, 0],
+      ['cookst', 2, 6, 0], ['cookst', 7, 6, 0], ['cookst', 12, 6, 0], ['judge', 6, 15, 2], ['lamp', 5, 15, 0], ['lamp', 9, 15, 0], ['table', 11, 11, 0],
+      ['plant', 0, 17, 0], ['plant', 16, 17, 0], ['counter', 24, 17, 2], ['pantry', 27, 17, 2], ['plant', 29, 12, 0]] },
+];

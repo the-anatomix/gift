@@ -7,22 +7,30 @@
 //   위층(2층, 3층, 4층): 1층과 같은 크기의 한 층. 격자에서는 층마다 동쪽으로 FLOOR_DI 칸씩 밀어서 나란히 펼쳐 놓고,
 //        그릴 때만 제자리(위)로 옮긴다. 그래서 자리 (x, z) 와 칸 (i, j) 는 모든 곳에서 그대로 쓰고, 화면에 놓을 때만 toWorld 를 지난다.
 //   층 사이는 사다리(LADDERS)로만 이어진다. 길찾기는 사다리의 두 칸을 이웃으로 친다.
+//   층 수는 방의 상태다(state.js 의 S.levels, 마스터키로 위에 한 층씩 더한다: build.js). 처음은 BASE_LEVELS(4층), 많아야 MAX_LEVELS.
+//        격자는 MAX_LEVELS 층만큼 미리 잡아 두고, 아직 없는 층의 칸은 zoneOf 가 null(아무것도 없는 곳)로 본다.
+//        지금 층 수는 levelCount() (app.js 가 bindLevels 로 방의 상태에 잇는다).
 export const CELL = 0.5;
 export const NX = 30, NZ = 18;
 export const X0 = -4, Z0 = -4;
 export const X1 = X0 + NX * CELL, Z1 = Z0 + NZ * CELL;
 export const YARD = { wall: 18, j0: 19, j1: 26, i0: 0, i1: 29, door: [3, 4] }; // door = 현관문이 뚫린 칸(i)
-export const LEVELS = 4;          // 층 수 (4층은 게임방: gameroom.js)
+export const BASE_LEVELS = 4;     // 처음부터 있는 층 수 (4층은 게임방: gameroom.js). 이 층들은 지울 수 없다
+export const MAX_LEVELS = 8;      // 마스터키로 늘릴 수 있는 층 수
+export const LEVELS = BASE_LEVELS; // 예전 이름. 지금 층 수는 levelCount()
+let liveLevels = () => BASE_LEVELS;
+export const levelCount = () => liveLevels();
+export function bindLevels(f) { liveLevels = f; }
 export const FLOOR_DI = 32;       // 격자에서 층마다 옆으로 밀어 둔 칸 수 (집 30칸 + 빈 2칸)
 export const FLOOR_H = 2.8;       // 한 층의 높이 (바닥에서 위층 바닥까지)
 export const FLOOR_DX = FLOOR_DI * CELL;
-export const GX = FLOOR_DI * (LEVELS - 1) + NX, GZ = YARD.j1 + 1;
+export const GX = FLOOR_DI * (MAX_LEVELS - 1) + NX, GZ = YARD.j1 + 1;
 export const GX1 = X0 + GX * CELL, GZ1 = Z0 + GZ * CELL;
 
 export const cellOf = (x, z) => [Math.floor((x - X0) / CELL), Math.floor((z - Z0) / CELL)];
 export const centerOf = (i, j) => [X0 + (i + 0.5) * CELL, Z0 + (j + 0.5) * CELL];
-// 그 자리(칸)가 몇 층인지 (0 = 1층과 마당, 1 = 2층, 2 = 3층)
-export const levelOfCell = (i) => Math.max(0, Math.min(LEVELS - 1, Math.floor(i / FLOOR_DI)));
+// 그 자리(칸)가 몇 층인지 (0 = 1층과 마당, 1 = 2층, 2 = 3층 …)
+export const levelOfCell = (i) => Math.max(0, Math.min(MAX_LEVELS - 1, Math.floor(i / FLOOR_DI)));
 export const levelOf = (x) => levelOfCell(Math.floor((x - X0) / CELL + 1e-6));
 // 층 lv 에서 집 기준 칸 (a, j) 가 격자에서는 어느 칸인지
 export const cellOn = (lv, a, j) => [a + lv * FLOOR_DI, j];
@@ -30,7 +38,7 @@ export const cellOn = (lv, a, j) => [a + lv * FLOOR_DI, j];
 export function zoneOf(i, j) {
   if (i < 0 || j < 0 || i >= GX || j >= GZ) return null;
   const lv = levelOfCell(i);
-  if (i - lv * FLOOR_DI >= NX) return null;
+  if (i - lv * FLOOR_DI >= NX || lv >= levelCount()) return null; // 아직 없는 층
   if (lv) return j < NZ ? 'up' : null;
   if (j < NZ) return 'house';
   if (j === YARD.wall) return i >= YARD.door[0] && i <= YARD.door[1] ? 'yard' : null;
@@ -40,9 +48,14 @@ export function zoneOf(i, j) {
 export function toWorld(x, z) { const lv = levelOf(x); return [x - lv * FLOOR_DX, lv * FLOOR_H, z]; }
 // 사다리: 층 lv 에서 lv + 1 로. foot = 아래층에서 사다리 앞 칸, top = 위층에서 올라선 칸(둘 다 집 기준 칸).
 // 위층에서 foot 과 같은 자리는 사다리가 올라오는 구멍이라 막혀 있다. a, b = 격자에서의 두 칸
+// 4층부터 위로 더한 층의 사다리는 두 자리 (24, 4) 와 (19, 8) 를 번갈아 쓴다(구멍과 사다리가 겹치지 않게). 4층 게임방의 배치와도 겹치지 않는다
 export const LADDER_COST = 5;
-export const LADDERS = [{ lv: 0, foot: [19, 8], top: [20, 8] }, { lv: 1, foot: [24, 8], top: [25, 8] }, { lv: 2, foot: [27, 13], top: [28, 13] }]
+const UP_A = { foot: [24, 4], top: [25, 4] }, UP_B = { foot: [19, 8], top: [20, 8] };
+export const LADDERS = [{ lv: 0, foot: [19, 8], top: [20, 8] }, { lv: 1, foot: [24, 8], top: [25, 8] }, { lv: 2, foot: [27, 13], top: [28, 13] },
+  ...Array.from({ length: MAX_LEVELS - BASE_LEVELS }, (_, k) => ({ lv: BASE_LEVELS - 1 + k, ...(k % 2 ? UP_B : UP_A) }))]
   .map((L) => ({ ...L, a: cellOn(L.lv, L.foot[0], L.foot[1]), b: cellOn(L.lv + 1, L.top[0], L.top[1]) }));
+// 지금 있는 층끼리 잇는 사다리만
+export const liveLadders = () => LADDERS.slice(0, levelCount() - 1);
 // 위층의 그 칸이 사다리가 올라오는 구멍인지
 export function hatchCell(i, j) {
   const lv = levelOfCell(i);

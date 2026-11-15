@@ -6,23 +6,27 @@
 //
 // K = { room, S() 방 상태, level() 내가 있는 층, me, op(o), canEdit(), relight(hemi 배수, 해 배수), toast(m) }
 import { THREE, put } from './kit.js';
-import { CELL, X0, Z0, FLOOR_DI, LEVELS, cellOf, zoneOf } from './path.js';
+import { CELL, X0, Z0, FLOOR_DI, MAX_LEVELS, cellOf, zoneOf } from './path.js';
 
-// 스위치가 달린 칸(집 기준 a, j = 0: 북쪽 벽). 그 칸과 둘레 한 칸 안에 서면 누를 수 있다
-export const SWITCH = [19, 27, 27, 27];
+// 스위치가 달린 칸(집 기준 a, j = 0: 북쪽 벽). 그 칸과 둘레 한 칸 안에 서면 누를 수 있다. 마스터키로 더한 층(5층부터)도 칸 27
+export const SWITCH = [19, ...Array(MAX_LEVELS - 1).fill(27)];
 const DARK = [0.2, 0.04]; // 불을 껐을 때 [하늘빛, 햇빛]의 배수. 햇빛을 더 줄여 그림자가 옅어진다
 
 export function makeLights(K) {
   const dots = [], levers = [];
   const plate = new THREE.BoxGeometry(0.13, 0.2, 0.02), lever = new THREE.BoxGeometry(0.04, 0.08, 0.03), dotG = new THREE.CircleGeometry(0.012, 10);
-  for (let lv = 0; lv < LEVELS; lv++) {
-    const w = K.room.floors[lv].walls.n, x = w.at(X0 + (SWITCH[lv] + 0.5) * CELL), z = w.front;
-    put(plate, 0xF4EFE6, x, 1.25, z + 0.012, w.upper, false);
-    levers.push(put(lever, 0xD8CFC0, x, 1.25, z + 0.03, w.upper, false));
-    const d = put(dotG, new THREE.MeshBasicMaterial({ color: 0x7CFFB0 }), x, 1.13, z + 0.024, w.upper, false); // 어두울 때도 스위치를 찾게 해 주는 작은 불
-    d.receiveShadow = false; d.visible = false;
-    dots.push(d);
+  // 층마다 스위치 하나. 마스터키로 더한 층은 그 층이 생긴 뒤에 단다 (paint 가 부른다)
+  function build() {
+    for (let lv = dots.length; lv < K.room.floors.length; lv++) {
+      const w = K.room.floors[lv].walls.n, x = w.at(X0 + (SWITCH[lv] + 0.5) * CELL), z = w.front;
+      put(plate, 0xF4EFE6, x, 1.25, z + 0.012, w.upper, false);
+      levers.push(put(lever, 0xD8CFC0, x, 1.25, z + 0.03, w.upper, false));
+      const d = put(dotG, new THREE.MeshBasicMaterial({ color: 0x7CFFB0 }), x, 1.13, z + 0.024, w.upper, false); // 어두울 때도 스위치를 찾게 해 주는 작은 불
+      d.receiveShadow = false; d.visible = false;
+      dots.push(d);
+    }
   }
+  build();
   const isOn = (lv) => !!K.S().lamps[lv];
   let k = 1; // 지금 어두운 정도 (1 = 불이 켜진 밝기, 0 = 다 꺼진 밝기)
   // 내가 지금 어두운 곳에 있는지: 내가 있는 층의 불이 꺼져 있고, 마당이 아니다
@@ -33,7 +37,8 @@ export function makeLights(K) {
     return zoneOf(i, j) !== 'yard';
   }
   function paint() {
-    for (let lv = 0; lv < LEVELS; lv++) { const on = isOn(lv); dots[lv].visible = !on; levers[lv].rotation.x = on ? -0.35 : 0.35; }
+    build();
+    for (let lv = 0; lv < K.room.floors.length; lv++) { const on = isOn(lv); dots[lv].visible = !on; levers[lv].rotation.x = on ? -0.35 : 0.35; }
   }
   function toggle(lv = K.level()) {
     if (!K.canEdit()) { K.toast('구경하는 중에는 불을 켜고 끌 수 없어요'); return false; }
@@ -47,7 +52,7 @@ export function makeLights(K) {
     // 스위치 앞이면 할 수 있는 일 { label, run } (app.js 의 nearAction 이 쓴다)
     near() {
       const lv = K.level(), [i, j] = cellOf(K.me.x, K.me.z);
-      if (j > 1 || Math.abs(i - lv * FLOOR_DI - SWITCH[lv]) > 1) return null;
+      if (j > 1 || SWITCH[lv] === undefined || Math.abs(i - lv * FLOOR_DI - SWITCH[lv]) > 1) return null;
       return { label: isOn(lv) ? '💡 불 끄기' : '💡 불 켜기', run: () => toggle(lv) };
     },
     // 방의 불 상태가 바뀌었다 (누가 켜고 껐거나, 방을 통째로 받았다)

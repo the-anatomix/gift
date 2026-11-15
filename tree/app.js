@@ -4,7 +4,7 @@
 // 정적 파일만 쓴다.
 import { THREE, FX as LOOK } from './kit.js';
 import { makePost } from './post.js';
-import { Grid, NX, NZ, CELL, X0, Z0, X1, Z1, GX, GZ, GX1, GZ1, LEVELS, FLOOR_H, FLOOR_DX, LADDERS, cellOf, centerOf, levelOf, levelOfCell, zoneOf, toWorld } from './path.js';
+import { Grid, NX, NZ, CELL, X0, Z0, X1, Z1, GX, GZ, GX1, GZ1, BASE_LEVELS, MAX_LEVELS, FLOOR_DI, FLOOR_H, FLOOR_DX, LADDERS, liveLadders, bindLevels, cellOf, centerOf, levelOf, levelOfCell, zoneOf, toWorld } from './path.js';
 import { buildRoom, WALL_H, TREE, FRONT, fixedCell, noBuild, surfaceR } from './room.js';
 import { makeWardrobe, HOST_OUTFIT } from './costume.js';
 import { makeFly } from './fly.js';
@@ -25,7 +25,7 @@ import { makeGames } from './games.js';
 import { makeNames } from './names.js';
 import { makeRank } from './rank.js';
 import { makeSky } from './sky.js';
-import { makeMaster, can, LOCK, FIRE, SUIT, SLED, CINE } from './master.js';
+import { makeMaster, can, LOCK, FIRE, SUIT, SLED, CINE, BUILD } from './master.js';
 import { makeSleigh } from './sleigh.js';
 import { makeTrain } from './train.js';
 import { makeBeam } from './beam.js';
@@ -42,6 +42,7 @@ import { makeCheers } from './cheers.js';
 import { makePizza } from './pizza.js';
 import { makeGameroom } from './gameroom.js';
 import { makePool } from './pool.js';
+import { makeBuild } from './build.js';
 import { sfx, sfxOp, sfxWalk, mountSfxUI } from './sfx.js';
 import { makeCakeView, dressCake, flicker, pickTop, disposeCakeView } from './cake.js';
 
@@ -140,6 +141,7 @@ me.mark(true);
 scene.add(me.root);
 
 const S = makeState();
+bindLevels(() => S.levels); // 층 수는 방의 상태다 (마스터키로 더한다: build.js)
 const itemsG = new THREE.Group(), ornG = new THREE.Group();
 scene.add(itemsG); room.g0.add(ornG); // 트리 장식과 전구는 1층의 것
 const itemObj = new Map(), ornObj = new Map();
@@ -185,7 +187,7 @@ function dispatch(op, from = 'me') {
   if (from === 'load') { setLockFree(true); try { return dispatch(op, 'load2'); } finally { setLockFree(false); } }
   if (from === 'load2') from = 'load';
   else if (from === 'me' && op && MK_OPS.includes(op.t) && can(LOCK)) op = { ...op, mk: 1 }; // 마스터키: 어드벤트 잠금 없이 (state.js 의 locked)
-  if (op && (op.t === 'cakeSet' || op.t === 'pzSet') && from !== 'load') return false; // 저장된 방을 풀 때만 쓰는 변화
+  if (op && (op.t === 'cakeSet' || op.t === 'pzSet' || op.t === 'themeSet') && from !== 'load') return false; // 저장된 방을 풀 때만 쓰는 변화
   if (from === 'me' && !canEdit && op && op.t === 'star' && op.on === true) from = 'view'; // 꼭대기 별 달기는 구경하는 사람도 된다 (coop.js)
   if (from === 'me' && !canEdit && op && (op.t === 'gift' || op.t === 'giftOpen')) from = 'mine'; // 트리 밑 선물은 구경하는 사람도 두고 연다 (gift.js)
   if (from === 'me' && !canEdit && op && op.t === 'snowman') { canEdit = true; try { return dispatch(op, from); } finally { canEdit = false; } } // 마당에서 같이 만든 눈사람은 구경하는 사람도 놓는다 (snowman.js)
@@ -193,8 +195,13 @@ function dispatch(op, from = 'me') {
   const wasLit = op && typeof op.t === 'string' && op.t.startsWith('cake') && S.cakes.get(op.id) ? S.cakes.get(op.id).lit : 0;
   // 내가 들고 있는 가구를 친구가 옮기거나 치웠으면 손에서 내려놓는다
   const taken = from === 'peer' && ghost && ghost.id && op && ghost.id === op.id && (op.t === 'del' || op.t === 'move');
+  const before = op && (op.t === 'levels' || op.t === 'theme') ? new Map(S.items) : null; // 가구 여럿이 한 번에 바뀌는 변화 (build.js)
   if (!apply(S, op, noBuild)) return false;
   if (taken) ghost = null;
+  if (op.t === 'levels') { room.setLevels(S.levels); for (let lv = S.levels; lv < MAX_LEVELS; lv++) room.setTheme(lv, ''); lights.paint(); } // 층을 더하거나 지웠다
+  if (op.t === 'theme' || op.t === 'themeSet') room.setTheme(op.lv, S.themes.get(op.lv) || ''); // 층 테마의 벽·바닥·천장
+  let down = false; // 지운 층에 있던 내가 아래층으로 내려왔는지
+  if (before) { refit(before, from); if (op.t === 'levels') down = keepOnFloors(); }
   if (op.t === 'snowman') { const g = buildItem('snowman'); g.userData.item = op.id; seat(g, S.items.get(op.id)); itemsG.add(g); itemObj.set(op.id, g); paintLevels(); rebuildGrid(); } // 마당에서 같이 만든 눈사람: 보통 가구 눈사람으로 놓인다
   let eaten = false; // 이번에 케이크를 다 먹었는지
   if (op.t === 'put') {
@@ -230,6 +237,7 @@ function dispatch(op, from = 'me') {
   if (op.t === 'adv') advent.onOp(op, from); else if (op.t.startsWith('gift')) gift.onOp(op, from); // 어드벤트 달력, 트리 밑 선물
   if (op.t === 'lamp') lights.onOp(op, from); else if (op.t === 'adm' && from !== 'load') admin.onChange(op, from); // 방 불, 공동 관리자
   if (from === 'load') return true;
+  if (op.t === 'levels' || op.t === 'theme') build.onOp(op, from, down); // 층 더하기·지우기, 층 테마 (build.js)
   sfxOp(op, from, (o) => itemObj.get(o.id)); // 효과음 (sfx.js)
   if (op.t === 'pic') photos.onOp(op); // 액자의 사진 (photo.js)
   if (op.t === 'note' || op.t === 'noteDel' || op.t === 'best') book.onOp(op, from); // 방명록과 이 방 최고 기록
@@ -250,6 +258,42 @@ function dispatch(op, from = 'me') {
   return true;
 }
 
+// 가구 여럿이 한 번에 바뀐 변화(층 지우기·더하기, 층 테마) 뒤에 가구 모양을 방의 상태에 맞춘다. before = 바뀌기 전의 가구들
+function refit(before, from) {
+  for (const [id, old] of before) {
+    const it = S.items.get(id);
+    if (it && it.k === old.k) { if (it.i !== old.i || it.j !== old.j || it.r !== old.r) { seat(itemObj.get(id), it); restCheck(id); } continue; }
+    if (ghost && ghost.id === id) { ghost = null; ghostEnd(); } // 들고 있던 가구가 없어졌다
+    dropObj(itemObj, id, itemsG, true);
+    if (from === 'load') continue;
+    restCheck(id); coop.onOp({ t: 'del', id }, from);
+    if (mode === 'play' && play.id === id) setMode(null);
+  }
+  for (const it of S.items.values()) {
+    if (before.has(it.id) && before.get(it.id).k === it.k) continue;
+    const g = buildItem(it.k);
+    g.userData.item = it.id; seat(g, it);
+    itemsG.add(g); itemObj.set(it.id, g);
+  }
+  syncCakes(); paintLevels(); rebuildGrid();
+}
+// 지운 층에 있던 사람은 그 아래층(지금 맨 위층)의 사다리 앞으로 내려온다. 내가 내려왔으면 true
+function keepOnFloors() {
+  const top = S.levels - 1, gone = [...others.values()].filter((a) => a.level > top);
+  if (me.level <= top && !gone.length) return false;
+  const a0 = LADDERS[top].a, c = grid.free(a0[0], a0[1]) ? a0 : grid.nearestFree(a0[0], a0[1], ...centerOf(a0[0], a0[1])) || a0, [x, z] = centerOf(c[0], c[1]);
+  for (const a of gone) { if (a.rest) a.rise(); a.place(x, z); }
+  dirty = true;
+  if (me.level <= top) return false;
+  if (fly.on) fly.land(true);
+  if (me.rest) getUp();
+  me.stop(); me.onArrive = null; me.place(x, z);
+  const was = myLv;
+  myLv = floorOf(me); if (ghost) ghostCancel(); measure(false); paintLevels(); // 프레임의 "n층이에요" 알림 대신 아래 알림을 띄운다
+  toast(`${was + 1}층이 없어져서 ${myLv + 1}층으로 내려왔어요`);
+  return true;
+}
+
 // 방을 통째로 바꾼다 (저장된 방을 열 때, 친구의 방을 받아올 때). fromPeer = 친구에게서 받은 방(받는 순간 둘이 같다)
 function loadRoom(data, fromPeer = false) {
   if (mode === 'play') setMode(null);
@@ -260,6 +304,7 @@ function loadRoom(data, fromPeer = false) {
   for (const id of [...ornObj.keys()]) dropObj(ornObj, id, ornG, false);
   pops.length = 0;
   Object.assign(S, makeState());
+  room.setLevels(S.levels); for (let lv = 1; lv < MAX_LEVELS; lv++) room.setTheme(lv, ''); // 층 수와 테마도 처음으로 (저장값의 levels·themes 가 다시 정한다)
   bulbs.set(S.lights.set, S.lights.blink); glow.intensity = 1.6;
   room.setWall(S.wall); room.setFloor(S.floor);
   // 예전에 놓은 가구가 지금은 비워 둬야 하는 칸(사다리 앞, 현관)에 걸려 있으면 가까운 자리로 옮겨 놓는다
@@ -275,6 +320,7 @@ function loadRoom(data, fromPeer = false) {
   syncCakes();
   lights.paint(); // 방 불 스위치 (lights.js)
   rebuildGrid();
+  if (me.level >= S.levels) keepOnFloors(); // 받은 방에는 내가 있던 층이 없다
   paintPanels();
   dirty = true;
 }
@@ -470,10 +516,11 @@ function lookAtTree() { fy = Math.atan2(me.x, me.z); fpitch = 0.06; }
 /* ───────── 층: 1층(과 마당), 2층, 3층 ───────── */
 // 내가 있는 층만 보인다: 그 층의 바닥과 벽, 그 층에 놓인 가구, 그 층에 있는 사람. myLv = 내가 있는 층(0 = 1층)
 let myLv = 0;
-const floorOf = (a) => (a.fly ? a.level : clamp(Math.round(a.root.position.y / FLOOR_H), 0, LEVELS - 1)); // 나는 사람은 발밑의 층으로 친다 (fly.js) // 사다리를 반쯤 오르면 위층으로 친다
+const floorOf = (a) => (a.fly ? a.level : clamp(Math.round(a.root.position.y / FLOOR_H), 0, S.levels - 1)); // 나는 사람은 발밑의 층으로 친다 (fly.js) // 사다리를 반쯤 오르면 위층으로 친다
 const seenOn = (a) => !!(a.fly && a.fly.air) || floorOf(a) === myLv; // 같은 층에 있는 사람만 보인다. 하늘을 나는 사람은 어느 층에서나 보인다
 function paintLevels() {
   room.showFloor(myLv);
+  { const up = Math.max(0, myLv - (BASE_LEVELS - 1)) * FLOOR_H; sun.position.y = 18 + up; sun.target.position.y = up; } // 더한 층(5층부터)에서는 해를 같이 올린다 (그림자가 그 층까지 닿게)
   for (const [id, g] of itemObj) { const it = S.items.get(id); g.visible = !it || levelOfCell(it.i) === myLv; }
   if (ghost) ghost.g.visible = true;
   for (const a of others.values()) a.root.visible = seenOn(a);
@@ -665,7 +712,7 @@ function roomHash() {
   const d = serialize(S), byId = (a, b) => (a[0] < b[0] ? -1 : 1);
   // 케이크 장식은 올린 순서가 사람마다 다를 수 있어 자리 순으로 맞춰서 견준다
   const cakes = d.cakes.map((r) => [r[0], r[1], r[2], r[3].map((t) => t.join(',')).sort(), r[4] || '', r[5] || '', ...r.slice(6)]).sort(byId);
-  const txt = JSON.stringify([d.items.sort(byId), d.orns.sort(byId), d.lights, d.wall, d.floor, cakes, d.notes.sort(byId), Object.keys(d.best).sort().map((k) => [k, ...d.best[k]]), ...(d.lamps || d.adm ? [d.lamps || 0, d.adm || 0] : []), ...(d.pizzas ? [d.pizzas.sort(byId)] : []), ...(d.pics ? [d.pics] : [])]); // 방 불·공동 관리자·피자는 있을 때만 (예전 지문과 같게)
+  const txt = JSON.stringify([d.items.sort(byId), d.orns.sort(byId), d.lights, d.wall, d.floor, cakes, d.notes.sort(byId), Object.keys(d.best).sort().map((k) => [k, ...d.best[k]]), ...(d.lamps || d.adm ? [d.lamps || 0, d.adm || 0] : []), ...(d.pizzas ? [d.pizzas.sort(byId)] : []), ...(d.pics ? [d.pics] : []), ...(d.levels || d.themes ? [d.levels || 0, d.themes || 0] : [])]); // 방 불·공동 관리자·피자·층 수·층 테마는 있을 때만 (예전 지문과 같게)
   let h = 5381;
   for (let k = 0; k < txt.length; k++) h = ((h << 5) + h + txt.charCodeAt(k)) | 0;
   return (h >>> 0).toString(36) + '.' + d.items.length + '.' + d.orns.length;
@@ -1201,7 +1248,7 @@ const advent = makeAdvent({
 });
 // 숨은 마스터키 (master.js): 제목을 일곱 번 누른다
 const master = makeMaster({
-  toast: (m) => toast(m), sky: { time: () => sky.time, setTime: (v) => sky.setTime(v) }, fire: () => sky.openFire(), dawn: () => sky.dawn(), lamp: { on: (lv) => lights.isOn(lv), toggle: (lv) => lights.toggle(lv) }, changed: () => { advent.repaint(); wardrobe.paint(); dirty = true; },
+  toast: (m) => toast(m), sky: { time: () => sky.time, setTime: (v) => sky.setTime(v) }, fire: () => sky.openFire(), dawn: () => sky.dawn(), lamp: { on: (lv) => lights.isOn(lv), toggle: (lv) => lights.toggle(lv), count: () => S.levels }, changed: () => { advent.repaint(); wardrobe.paint(); dirty = true; },
   scene, ray(px, py) { aimRay(px, py); return ray.ray; }, shown: () => myLv === 0,
   fx: (m) => duo.fx(m), myId: () => duo.me, others: () => [...others.keys()], nameOf: (id) => nameOf(id), setMode: (m) => setMode(m), mode: () => mode,
   resized: () => { if (mode === 'master') measure(false); },
@@ -1254,6 +1301,11 @@ const gameroom = makeGameroom({
     const k = ['bunny', 'bunny2', 'bunny3'][Math.floor(Math.random() * 3)], spot = findSpot(k, 0);
     return !!spot && dispatch({ t: 'put', id: newId(), k, i: spot[0], j: spot[1], r: 0 });
   },
+});
+// 층 더하기·지우기와 층 테마 (build.js): 마스터 판의 "층"·"테마" 줄 (BUILD 권한)
+const build = makeBuild({
+  S: () => S, op: (o) => dispatch(o), canEdit: () => canEdit, allowed: () => can(BUILD), toast: (m) => toast(m),
+  mode: () => mode, measure: () => measure(false), level: () => myLv,
 });
 sfx.listen(() => me); mountSfxUI($('duoP'));
 const ACT_SFX = { clap: 'clap', jump: 'jump', cheer: 'whoosh', dance: 'whoosh' };
@@ -1497,7 +1549,7 @@ function nearAction() {
   const starHint = coop.near();
   if (starHint && !starHint.weak) return starHint; // 받쳐 주기·별 달기·같이 들기 (coop.js)
   const [ci, cj] = cellOf(me.x, me.z), by = (c) => Math.abs(ci - c[0]) <= 1 && Math.abs(cj - c[1]) <= 1;
-  for (const L of LADDERS) {
+  for (const L of liveLadders()) {
     if (by(L.a)) return { label: `🪜 ${L.lv + 2}층으로 올라가기`, run: () => climb(L, true) };
     if (by(L.b)) return { label: `🪜 ${L.lv + 1}층으로 내려가기`, run: () => climb(L, false) };
   }
@@ -1634,7 +1686,7 @@ function keyWalk(dt) {
   if (fly.on) return fly.push(dx, dz, push, dt); // 나는 중 (fly.js)
   { // 사다리 앞(위)에서 사다리 쪽으로 밀면 오르내린다
     const [ci, cj] = cellOf(me.x, me.z), at = (c) => ci === c[0] && cj === c[1];
-    for (const L of LADDERS) if ((at(L.a) && dx > 0.6) || (at(L.b) && dx < -0.6)) { const c = at(L.a) ? L.b : L.a; me.walk([centerOf(c[0], c[1])]); return false; }
+    for (const L of liveLadders()) if ((at(L.a) && dx > 0.6) || (at(L.b) && dx < -0.6)) { const c = at(L.a) ? L.b : L.a; me.walk([centerOf(c[0], c[1])]); return false; }
   }
   const step = SPEED * (me.run ? RUN : 1) * push * dt; // Shift 를 누르면 달린다
   const nx = clamp(me.x + dx * step, X0 + BODY_R, GX1 - BODY_R), nz = clamp(me.z + dz * step, Z0 + BODY_R, GZ1 - BODY_R);
@@ -1909,7 +1961,7 @@ function frame(now) {
   names.tick();
   sky.tick(dt);
   advent.tick(dt); gift.tick(dt); food.tick(dt); cheers.tick(dt); pizza.tick(dt); sfxWalk(dt, me, others.values());
-  lights.tick(dt); cinema.tick(); gameroom.tick(); pool.tick(dt); photos.tick(dt);
+  lights.tick(dt); cinema.tick(); gameroom.tick(); build.tick(); pool.tick(dt); photos.tick(dt);
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
   post.render(scene, cam(), clock);
@@ -1974,6 +2026,7 @@ window.__sky = sky.test;
 window.__master = { get on() { return master.on; }, get given() { return master.test.given; }, key: master.test.key };
 window.__food = food.test; window.__pizza = pizza.test; window.__game4 = gameroom.test; window.__pool = pool.test; window.__game4.convert = () => gameroom.convert();
 window.__cheers = cheers.test;
+window.__build = build.test; // 층 더하기·지우기와 층 테마 (build.js)
 window.__lights = Object.assign(lights.test, { toggle: (lv) => lights.toggle(lv), near: () => { const a = lights.near(); return a ? a.label : null; }, lamp: () => [...LAMP] });
 window.__photo = { choose: (id, f) => photos.choose(id, f), reset: (id) => photos.reset(id), get: (h) => photos.get(h), get count() { return photos.count; }, of: (id) => S.pics.get(id) || '', shown: (id) => cinema.picShown(id), tidy: () => photos.tidy() };
 window.__cinema = { convert: () => cinema.convert(), get has() { return cinema.has; }, get theater() { return cinema.theater; }, get beam() { return cinema.beam; }, get fixtures() { return cinema.fixtures; }, get decoShown() { return room.floors[2].deco.every((d) => d.visible); }, artShown: (id) => cinema.artShown(id), get sitting() { return !!(me.rest && me.rest.sit); } };
@@ -1986,7 +2039,9 @@ window.__look = { get fx() { return post.on; }, get glow() { return LOOK.glow.va
 window.__party = Object.assign(party.test, { bright: () => ({ hemi: hemi.intensity, sun: sun.intensity, glow: glow.intensity }) });
 window.__tree = {
   nameOf: (id) => nameOf(id),
-  NX, NZ, GX, GZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, LEVELS, FLOOR_H, FLOOR_DX, LADDERS, FRONT, toWorld, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
+  NX, NZ, GZ, CELL, HALF: 4, box: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, FLOOR_H, FLOOR_DX, FRONT, toWorld, grid, me, room, S, goTo, screenOf, floorAt, turnView, lowerQuality, setLook, zoomBy, dispatch, setMode,
+  // 지금 층 수, 지금 있는 층끼리 잇는 사다리, 지금 층 수까지의 격자 너비 (격자 자체는 MAX_LEVELS 층만큼 미리 잡아 둔다: gridW)
+  get LEVELS() { return S.levels; }, get LADDERS() { return liveLadders(); }, get GX() { return FLOOR_DI * (S.levels - 1) + NX; }, gridW: GX,
   ghostNew, ghostPick, ghostMoveTo, ghostTurn, ghostDone, ghostCancel, ghostRemove, surfaceR, serialize: () => serialize(S),
   setZoomMul(m) { setZoomMul(m); },
   dawn: () => sky.dawn(), aim(y, p) { fy = y; fpitch = p; applyPov(); dirty = true; }, // 새해 해돋이 미리 보기, 1인칭에서 바라보는 쪽

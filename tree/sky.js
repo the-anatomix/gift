@@ -321,7 +321,7 @@ export function makeSky(K) {
 
   // 안에서 보는 창: 밤 그림(남색 판·달·눈송이)을 하늘 재질로 바꾼다. 밖에서 볼 창 자리도 모은다(1층만: 마당에서 보이는 층)
   const outside = [];
-  room.floors.forEach((f, lv) => {
+  const dress = (f, lv) => {
     for (const side of ['n', 's', 'w', 'e']) {
       const up = f.walls[side].upper;
       for (const m of [...up.children, ...up.children.filter((c) => c.userData.deco).flatMap((c) => c.children)]) { // 3층의 창은 따로 묶여 있다 (room.js 의 deco)
@@ -333,7 +333,9 @@ export function makeSky(K) {
         else if (h === 0xFFFFFF && m.geometry.type === 'CircleGeometry' && m.geometry.parameters.radius < 0.03) m.visible = false; // 그려 둔 눈송이
       }
     }
-  });
+  };
+  room.floors.forEach(dress);
+  if (room.onBuild) room.onBuild(dress); // 마스터키로 나중에 더한 층의 창도 (room.js 의 setLevels)
 
   // 밖에서 본 창: 벽 바깥 면에 틀(빛을 받는 흰색)과 유리(낮에는 하늘빛, 밤에는 노란 불빛). 벽마다 묶어서 두 덩어리
   const glassMat = new THREE.MeshBasicMaterial({ color: PAL.glassDay.clone(), side: THREE.DoubleSide });
