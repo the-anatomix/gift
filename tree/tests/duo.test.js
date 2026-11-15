@@ -204,7 +204,7 @@ async function suite(browser, label, query, twoContexts) {
 
   /* 구경 온 사람은 방을 대신 맡지 않는다 */
   const V = await open(ctxB, `${url('v')}#v=zzzznobody`);
-  check('주인이 없는 방에 구경 오면 기다리라는 안내를 보고, 방을 꾸밀 수 없음', await until(async () => (await mode(V)) === 'away', 12000) && (await V.textContent('#net')) === '주인 없음' && (await T(V, () => window.__duo.role)) === null && (await put(V, 'v1', 'lamp', 3, 3)) === false && !(await V.isVisible('#tabs button[data-m="furn"]')));
+  check('주인이 없는 방에 구경 오면 기다리라는 안내를 보고, 방을 꾸밀 수 없음', await until(() => T(V, () => window.__duo.mode === 'away' && document.getElementById('net').textContent === '주인 없음'), 12000) && (await T(V, () => window.__duo.role)) === null && (await put(V, 'v1', 'lamp', 3, 3)) === false && !(await V.isVisible('#tabs button[data-m="furn"]')));
   await V.close();
 
   /* 손님이 나갔다 돌아옴 */
