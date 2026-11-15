@@ -272,7 +272,7 @@ async function walkAndTrace(p, act) {
     await B.mouse.move(fb.x, fb.y); await B.mouse.wheel(0, 300); await sleep(200);
     check('PC 에서는 목록 위에서 휠을 굴리면 옆으로 넘어감', (await B.evaluate(() => document.getElementById('furnList').scrollLeft)) > 100);
     await B.click('.more[data-list="furnList"]'); await sleep(200);
-    check('PC 에서도 "전체 보기"로 가구 32가지가 다 보임', await B.evaluate(() => { const box = document.getElementById('furnList').getBoundingClientRect(); return [...document.querySelectorAll('#furnList .pick')].every((b) => { const c = b.getBoundingClientRect(); return c.left >= box.left - 1 && c.right <= box.right + 1 && c.bottom <= innerHeight; }); }));
+    check('PC 에서도 "전체 보기"로 가구를 다 볼 수 있음 (목록은 화면 안, 넘치면 목록 안에서 위아래로 넘겨 맨 끝까지)', await B.evaluate(() => { const el = document.getElementById('furnList'), box = el.getBoundingClientRect(), all = [...el.querySelectorAll('.pick')]; if (box.bottom > innerHeight || !all.every((b) => { const c = b.getBoundingClientRect(); return c.left >= box.left - 1 && c.right <= box.right + 1; })) return false; el.scrollTop = el.scrollHeight; const c = all[all.length - 1].getBoundingClientRect(); el.scrollTop = 0; return c.bottom <= box.bottom + 1; }));
     await B.reload(); await ready(B);
     await B.click('#tabs button[data-m="furn"]'); await sleep(200);
     check('펼쳐 둔 것은 다시 열어도 그대로', await B.evaluate(() => document.getElementById('furnList').classList.contains('open')));

@@ -127,6 +127,29 @@ export function makeKaraoke(K) {
   cv.addEventListener('pointerdown', (e) => { if (cur && cur.phase === 'run') { sing.hit(cur); e.preventDefault(); } });
   window.addEventListener('keydown', (e) => { if (cur && cur.phase === 'run' && (e.key === ' ' || e.code === 'Space') && !e.repeat) { sing.hit(cur); e.preventDefault(); e.stopPropagation(); } }, true);
 
+  /* ───────── 손에 든 마이크 ───────── */
+  // 노래하는 사람(나는 'me', 친구는 그 사람 id)의 팔에 마이크를 붙이고, 팔을 입 앞으로 든다. 왼손에 먹을 것을 들고 있어도 되게 오른팔에 든다
+  const mics = new Map();
+  const avatarOf = (who) => (who === 'me' ? K.me : K.avatar(who));
+  function micOn(who) {
+    if (mics.has(who)) return;
+    const m = new THREE.Group();
+    put(cyl(0.017, 0.013, 0.15, 8), 0x2B2D3A, 0, 0, 0, m, false); put(ball(0.032, 10, 8), 0xC9CED3, 0, 0.095, 0, m, false); put(cyl(0.019, 0.019, 0.012, 8), 0xFF5FAE, 0, 0.068, 0, m, false);
+    mics.set(who, { m, arm: null }); K.dirty();
+  }
+  function micOff(who) { const x = mics.get(who); if (!x) return; if (x.m.parent) x.m.parent.remove(x.m); mics.delete(who); K.dirty(); }
+  function tickMics() {
+    for (const [who, x] of mics) {
+      const a = avatarOf(who);
+      if (!a || !a.parts) { micOff(who); continue; }
+      const arm = a.parts.arms[1];
+      if (x.m.parent !== arm) { arm.add(x.m); x.m.position.set(-0.012, -0.275, 0.03); x.m.rotation.set(-1.25, 0, 0.1); x.m.scale.setScalar(1.7); } // 생김새를 바꿔 몸을 새로 만들었으면 새 팔에 다시 붙인다
+      x.m.visible = !(a.rest && !a.rest.sit);
+      if (!a.hop && !a.hold && !a.push && (!a.rest || a.rest.sit)) { arm.rotation.x = -2.05 + 0.05 * Math.sin(clock * 3); arm.rotation.z = -0.55; } // 마이크를 입 앞으로
+      K.dirty();
+    }
+  }
+
   /* ───────── 소리 ───────── */
   let ac = null;
   const freq = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -227,6 +250,7 @@ export function makeKaraoke(K) {
       hush(c.bk);
       c.ch = ch; c.phase = 'run'; c.t = -LEAD; c.hits = 0; c.sum = 0; c.flash = 0; c.say = ''; c.score = 0;
       c.bk = backing(ch, 0.55, LEAD);
+      micOn('me');
       tell(`s:${id}:${c.id}`);
       sing.paint(c); draw(c);
     },
@@ -259,6 +283,7 @@ export function makeKaraoke(K) {
     stop(c) {
       if (c.phase === 'run') tell('x');
       hush(c.bk); c.bk = null; cv.hidden = true; cur = null;
+      micOff('me');
       idle(clock);
     },
   };
@@ -267,7 +292,7 @@ export function makeKaraoke(K) {
   /* ───────── 친구가 부르는 노래 ───────── */
   const singers = new Map(); // 부르는 친구 → { ch, bk, end }
   const ID_RE = /^[\w-]{1,24}$/;
-  function drop(who) { const s = singers.get(who); if (s) { hush(s.bk); singers.delete(who); } if (!cur && !singers.size) idle(clock); }
+  function drop(who) { const s = singers.get(who); if (s) { hush(s.bk); singers.delete(who); micOff(who); } if (!cur && !singers.size) idle(clock); }
   function peerFx(m, who) {
     const v = m && m.v;
     if (typeof v !== 'string' || v.length > 48 || !K.avatar(who)) return false;
@@ -285,6 +310,7 @@ export function makeKaraoke(K) {
     drop(who);
     const near = K.levelOfCell(it.i) === K.level() && !cur; // 같은 층에 있으면 반주가 들린다 (내가 부르는 중이면 내 노래만)
     singers.set(who, { ch, bk: near ? backing(ch, 0.3, LEAD) : null, end: clock + LEAD + ch.end + 2 });
+    micOn(who);
     K.toast(`🎤 ${name}님이 노래를 불러요 · ${ch.name}`);
     if (!cur) idle(clock, `♪ ${name} · ${ch.name}`);
     return true;
@@ -295,11 +321,13 @@ export function makeKaraoke(K) {
     tick(dt) {
       clock += dt;
       for (const [who, s] of singers) if (clock > s.end || !K.avatar(who)) drop(who);
+      tickMics();
       if (!cur && clock - drawn > 0.25) { drawn = clock; const s = [...singers.values()][0]; idle(clock, s ? `♪ ${s.ch.name}` : ''); } // 쉬는 화면의 불빛이 흐른다
     },
     test: {
       KARA, chart, JUDGE, LEAD,
       get state() { return cur ? { phase: cur.phase, song: cur.ch ? cur.ch.id : null, t: cur.t, hits: cur.hits, sum: cur.sum, score: cur.score, say: cur.say, notes: cur.ch ? cur.ch.notes.length : 0, audio: ac ? ac.state : null, backing: !!cur.bk, shown: !cv.hidden } : null; },
+      get mics() { return [...mics].map(([who, x]) => ({ who, held: !!x.m.parent, armX: (who === 'me' ? K.me : K.avatar(who)).parts.arms[1].rotation.x })); },
       get singers() { return [...singers].map(([who, s]) => ({ who, song: s.ch.id, heard: !!s.bk })); },
       // 검사: 시간을 옮긴다(소리의 시계 대신), 지금 눌러야 할 음까지의 시간
       seek(t) { if (cur && cur.phase === 'run') { if (cur.bk) { hush(cur.bk); cur.bk = null; } cur.t = t; } },

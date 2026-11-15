@@ -5,7 +5,7 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8241, BASE = `http://localhost:${PORT}/tree/`, OUT = path.join(__dirname, 'out');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript' };
-const HASH = '784fab8e1ed8c33f4f76b49522a65591e94c9d7834cd8a4ad625fbc1a87bdb10';
+const HASH = '9262b0baa88add8fdc882f6772709ebfbd645aaa651e904e4e3d795898a71a7d';
 const results = [];
 const check = (name, ok, d) => { results.push(!!ok); console.log(`${ok ? '통과' : '실패'}  ${name}${!ok && d !== undefined ? '  → ' + JSON.stringify(d) : ''}`); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -133,7 +133,10 @@ const serve = () => http.createServer((q, r) => { let p = decodeURIComponent(q.u
     await T(A, () => window.__food.stow());
     await use(A, rock);
     check('흔들의자에 앉음', await until(async () => { const r = await rest(A); return r && r.id === rock && r.sit; }, 10000), await rest(A));
+    check('앉으면 흔들의자가 앞뒤로 흔들리고 앉은 사람도 같이 기울어짐', await until(() => T(A, (id) => Math.abs(window.__spots.rockOf(id)) > 0.02 && Math.abs(window.__tree.me.root.rotation.x) > 0.02, rock), 6000) && await until(() => T(B, (id) => Math.abs(window.__spots.rockOf(id)) > 0.02, rock), 4000), await T(A, (id) => window.__spots.rockOf(id), rock));
     await sleep(300); await shot(A, 'lodge');
+    await T(A, () => window.__tree.getUp());
+    check('일어나면 몸이 바로 서고 의자는 천천히 멈춤', await until(() => T(A, (id) => window.__tree.me.root.rotation.x === 0 && window.__spots.rockOf(id) === 0, rock), 20000), await T(A, (id) => [window.__tree.me.root.rotation.x, window.__spots.rockOf(id)], rock));
 
     /* 서재 */
     await theme(A, 'library');
@@ -213,9 +216,11 @@ const serve = () => http.createServer((q, r) => { let p = decodeURIComponent(q.u
     await A.tap('#sing-wish');
     check('노래를 고르면 시작: 화면에 가사와 음 막대, 🎤 단추', await until(() => T(A, () => { const s = window.__sing.state; return s.phase === 'run' && s.song === 'wish' && s.shown && s.notes === 30; }), 3000) && (await A.textContent('#playGo')).includes('🎤') && (await audit(A, '#playBtns button')).length === 0, await T(A, () => window.__sing.state));
     check('친구에게 알림: "노래를 불러요", 같은 층이라 반주가 들림', await toastHas(B, '노래를 불러요', 4000) && await T(B, () => { const s = window.__sing.singers; return s.length === 1 && s[0].song === 'wish' && s[0].heard; }), [await toast(B), await T(B, () => window.__sing.singers)]);
+    check('노래하는 동안 손에 마이크를 들고 입 앞으로 올림 (친구 화면에서도)', await until(() => T(A, () => { const m = window.__sing.mics; return m.length === 1 && m[0].who === 'me' && m[0].held && m[0].armX < -1.5; }), 3000) && await until(() => T(B, (a) => window.__sing.mics.some((m) => m.who === a && m.held && m.armX < -1.5), aid), 3000), [await T(A, () => window.__sing.mics), await T(B, () => window.__sing.mics)]);
     await T(A, () => { window.__sing.seek(-0.5); window.__sing.hit(); });
     check('음이 없는 곳에서 누르면 "삑!"', (await T(A, () => window.__sing.state.say)) === '삑!' && (await T(A, () => window.__sing.state.hits)) === 0);
     await sleep(500); await shot(A, 'karaoke-sing');
+    await T(B, () => { const W = window.__tree; W.me.place(-4 + (32 + 6.5) * 0.5, -4 + 3.5 * 0.5); W.zoomBy(2.2); W.snapView(); }); await sleep(500); await B.screenshot({ path: path.join(OUT, 'themes-karaoke-mic.png') });
     // 음마다 제때 누른다
     await T(A, () => { const c = window.__sing.chart('wish'); for (const n of c.notes) { window.__sing.seek(n.t + 0.01); window.__sing.hit(); } });
     check('모든 음을 제때 누르면 PERFECT 서른 번', await T(A, () => { const s = window.__sing.state; return s.hits === 30 && s.sum === 3000 && s.say === 'PERFECT'; }), await T(A, () => window.__sing.state));
@@ -229,7 +234,7 @@ const serve = () => http.createServer((q, r) => { let p = decodeURIComponent(q.u
     check('하나도 안 누르면 0점 (기록에 안 남음)', await until(() => T(A, () => window.__sing.state.phase === 'done' && window.__sing.state.score === 0), 3000) && (await T(A, () => window.__tree.S.best.sing.v)) === 100);
     await A.tap('#sing-jingle').catch(() => {}); await A.tap('#playGo'); await until(() => T(A, () => window.__sing.state.phase === 'run'), 3000);
     await A.tap('#playQuit');
-    check('부르다 그만두면 친구 쪽에서도 멈춤', (await mode(A)) === null && await until(() => T(B, () => window.__sing.singers.length === 0), 3000));
+    check('부르다 그만두면 친구 쪽에서도 멈추고 마이크를 내려놓음', (await mode(A)) === null && await until(() => T(B, () => window.__sing.singers.length === 0 && window.__sing.mics.length === 0), 3000) && (await T(A, () => window.__sing.mics.length)) === 0);
     check('노래방 테마에 노래방 기계 둘, 스피커, 미러볼', await T(A, () => { const k = [...window.__tree.S.items.values()].filter((x) => /^1t/.test(x.id)).map((x) => x.k); const n = (q) => k.filter((x) => x === q).length; return n('karaoke') === 2 && n('speaker') === 4 && n('mirrorball') === 2; }));
 
     /* 수면양말, 양머리 수건, 찜질복 */

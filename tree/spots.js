@@ -122,7 +122,8 @@ addShape('menu', (g) => { // 1 × 1: 세워 두는 칠판 메뉴판
 });
 
 /* ───────── 산장 ───────── */
-addShape('rocker', (g) => { // 2 × 2: 흔들의자 (앉는 판 0.46)
+addShape('rocker', (root) => { // 2 × 2: 흔들의자 (앉는 판 0.46). 누가 앉으면 앞뒤로 흔들린다 (몸 전체가 한 묶음: userData.rock)
+  const g = own(root); root.userData.rock = g;
   const W = T(0x8A5A34, 'wood');
   for (const s of [-1, 1]) {
     const r = put(new THREE.TorusGeometry(0.9, 0.022, 6, 14, 0.9), W, 0.3 * s, 0.93, 0.02, g); r.rotation.set(0, Math.PI / 2, 0); r.rotation.z = -Math.PI / 2 - 0.45; // 바닥의 굽은 다리
@@ -136,7 +137,7 @@ addShape('rocker', (g) => { // 2 × 2: 흔들의자 (앉는 판 0.46)
   put(cbox(0.66, 0.07, 0.04, 0.012), W, 0, 1.17, -0.35, g).rotation.x = -0.14;
   put(cbox(0.5, 0.05, 0.46, 0.02), T(0xC8443A, 'plaid'), 0, 0.475, 0.04, g, false);         // 방석
   put(cbox(0.3, 0.03, 0.5, 0.012), T(CREAM, 'knit'), 0.33, 0.69, 0.02, g, false);           // 걸쳐 둔 담요
-  pool(g, 0, 0, 1.0, 1.1);
+  pool(root, 0, 0, 1.0, 1.1);
 });
 addShape('potbelly', (g) => { // 1 × 1: 주전자가 올라간 무쇠 난로 (코코아)
   const IRON = 0x33302E;
@@ -500,6 +501,7 @@ export function makeSpots(K) {
   const sweat = new Map();  // 찜질하는 사람(나는 'me') → 남은 시간
   const hops = [];          // 트램펄린에서 뛸 때 { id, at(다음에 뛸 때), left, mine }
   const cool = new Map();   // 가구 id → 다시 쓸 수 있을 때
+  const rocked = new Set(); // 흔들의자에 앉아 같이 기울어진 사람들
   const avatarOf = (who) => (who === 'me' ? K.me : K.avatar(who));
   const CONFETTI = [0xE8483B, 0x4FA3D9, 0xF2C94C, 0x6FD08C, 0xD9577E, 0xFFFFFF];
   // 그 일이 벌어지는 모습 (나와 친구 화면 모두). who = 한 사람('me' 또는 친구 id)
@@ -550,6 +552,24 @@ export function makeSpots(K) {
       b.position.set(Math.sin(clock * 61) * 0.004, Math.sin(clock * 47) * 0.003, 0); b.userData.on = true; K.dirty();
       if (K.me.rest && K.me.rest.id === id && (cool.get('hum') || 0) <= clock) { cool.set('hum', clock + 0.78); sfx('hum'); }
     }
+    // 흔들의자: 앉은 사람과 함께 앞뒤로 흔들린다 (바닥에 닿은 곳을 축으로). 일어나면 천천히 멈춘다
+    for (const [id, it] of S.items) {
+      if (it.k !== 'rocker') continue;
+      const g = K.itemObj(id), r = g && g.userData.rock; if (!r) continue;
+      const st = stOf(id), on = seated.has(id);
+      st.amp = clamp((st.amp || 0) + (on ? dt * 0.8 : -dt * 0.9), 0, 1);
+      if (!st.amp && !r.rotation.x) continue;
+      const ang = 0.085 * st.amp * Math.sin(clock * 2.3 + (st.ph ?? (st.ph = Math.random() * 6)));
+      r.rotation.x = ang; K.dirty();
+      for (const a of [K.me, ...K.others().values()]) {
+        if (!a.rest || a.rest.id !== id) continue;
+        const y = kindOf(it.k).rise + 0.02; g.updateMatrixWorld();
+        g.localToWorld(v3.set(0, y * Math.cos(ang), y * Math.sin(ang)));
+        a.rest.pos[0] = v3.x; a.rest.pos[1] = v3.y; a.rest.pos[2] = v3.z;
+        a.root.rotation.order = 'YXZ'; a.root.rotation.x = ang; a.root.position.set(v3.x, v3.y, v3.z); rocked.add(a);
+      }
+    }
+    for (const a of rocked) { const it = a.rest && S.items.get(a.rest.id); if (!it || it.k !== 'rocker') { a.root.rotation.x = 0; rocked.delete(a); } }
     for (const [id, it] of S.items) if (it.k === 'massage' && !seated.has(id)) { const g = K.itemObj(id), b = g && g.userData.buzz; if (b && b.userData.on) { b.userData.on = false; b.position.set(0, 0, 0); } }
     // 불가마 찜질: 머리에서 땀방울이 떨어진다
     for (const [who, left] of sweat) {
@@ -590,7 +610,7 @@ export function makeSpots(K) {
       get brew() { const c = K.play.cur; return c && c.kind === 'coffee' ? { phase: c.phase, ground: c.ground, heat: c.heat, q: c.q, drink: c.drink.id, stream: c.stream.visible, bar: !bar.hidden } : null; },
       setHeat(h) { const c = K.play.cur; if (c && c.kind === 'coffee') { c.heat = h; coffee.dress(c); } },
       get reading() { const c = K.play.cur; return c && c.kind === 'read' ? { book: c.book, page: c.page } : null; },
-      stateOf: (id) => ({ ...stOf(id) }), get sweating() { return [...sweat.keys()]; }, get hops() { return hops.length; },
+      stateOf: (id) => ({ ...stOf(id) }), rockOf: (id) => { const g = K.itemObj(id); return g && g.userData.rock ? g.userData.rock.rotation.x : null; }, get sweating() { return [...sweat.keys()]; }, get hops() { return hops.length; },
       show,
     },
   };

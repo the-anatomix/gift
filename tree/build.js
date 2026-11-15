@@ -17,7 +17,7 @@ export function makeBuild(K) {
   const button = (cls, text, id) => { const b = el('button', cls, text); b.type = 'button'; if (id) b.id = id; return b; };
   const css = el('style');
   css.textContent = '#mkTheme .row{flex:1;min-width:0;gap:6px;flex-wrap:wrap}#mkTheme .row .chip{flex:1 0 auto}#mkTheme .btn{padding:0 10px}'
-    + '#mkThemes{gap:6px}#mkThemes .chip{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.05;font-size:11px;padding:0 2px}#mkThemes .chip b{font-size:18px}'
+    + '#mkThemes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}#mkThemes .chip{min-height:44px;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.05;font-size:11px;padding:0 2px}#mkThemes .chip b{font-size:18px}'
     + '#mkLevels .btn{flex:1;padding:0 8px}#mkDel.main{white-space:normal;line-height:1.25;font-size:12.5px}';
   document.head.appendChild(css);
   /* 층 줄 */
