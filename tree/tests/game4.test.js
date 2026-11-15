@@ -53,7 +53,7 @@ const settle = (p) => until(() => T(p, () => { const m = window.__tree.me; retur
     /* 가구 목록 */
     await A.tap('#tabs button[data-m="furn"]'); await sleep(300);
     const picks = await T(A, () => [...document.querySelectorAll('#furnList .pick')].map((b) => b.textContent.trim()));
-    check('가구 탭에 게임방 가구 여덟 가지가 나옴 (누구나 직접 놓는다)', ['오락기', '인형뽑기', '당구대', '빈백', '토끼 인형 (빨강)', '토끼 인형 (하늘)', '토끼 인형 (노랑)', '큰 토끼 인형'].every((n) => picks.some((t) => t.includes(n))) && picks.length === 51, [picks.length, picks.slice(-9)]);
+    check('가구 탭에 게임방 가구 여덟 가지가 나옴 (누구나 직접 놓는다)', ['오락기', '인형뽑기', '당구대', '빈백', '토끼 인형 (빨강)', '토끼 인형 (하늘)', '토끼 인형 (노랑)', '큰 토끼 인형'].every((n) => picks.some((t) => t.includes(n))) && picks.length === 54, [picks.length, picks.slice(-9)]);
     await A.tap('#tabs button[data-m="furn"]'); await sleep(200);
     check('토끼 인형을 2층에도 놓을 수 있음', await T(A, () => window.__tree.dispatch({ t: 'put', id: 'bn', k: 'bunny2', i: 32 + 5, j: 5, r: 0 })) && await T(A, () => { let n = 0; window.__tree.itemObj && 0; const W = window.__tree; return W.S.items.get('bn').k === 'bunny2'; }));
 
