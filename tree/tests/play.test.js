@@ -43,7 +43,7 @@ const throwAt = async (p, x, y) => { await T(p, (a) => window.__play.throwAt(a.x
     const ctx = await browser.newContext({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true });
     const A = await open(ctx, BASE);
     check('다트판 · TV · 오르골 · 벽난로를 방에 놓을 수 있음', await furnish(A));
-    await T(A, () => window.__tree.setZoomMul(0)); await sleep(900);
+    await T(A, () => window.__tree.setZoomMul(0)); await until(() => T(A, () => window.__tree.view.settled), 8000); await sleep(300); // 확대가 다 끝난 뒤에 화면 자리를 잰다 (느린 기기에서는 900ms 로 모자람)
 
     /* 다트 */
     const sp = await T(A, () => window.__tree.screenOf(-4 + 3.5 * 0.5, -4 + 0.5 * 0.5, 1.3));
@@ -188,6 +188,11 @@ const throwAt = async (p, x, y) => { await T(p, (a) => window.__play.throwAt(a.x
     await sleep(500);
     await T(P, () => window.__play.open('music')); await P.tap('#song-wish');
     check('내가 튼 캐럴이 친구에게도 나옴', await until(async () => (await T(Q, () => window.__play.song)) === 'wish', 4000) && (await Q.textContent('#toast')).includes('캐럴'));
+    check('오르골이 있는 층(1층)에 있으면 들림', (await T(Q, () => window.__play.songLv)) === 0 && (await T(Q, () => window.__play.heard)));
+    await T(Q, () => { const W = window.__tree; W.me.stop(); W.me.place(W.FLOOR_DX + 1, 1); });
+    check('다른 층(2층)으로 가면 오르골 소리가 안 들림', await until(() => T(Q, () => window.__tree.level === 1 && !window.__play.heard), 4000), await T(Q, () => [window.__tree.level, window.__play.heard]));
+    await T(Q, () => { const W = window.__tree; W.me.place(1, 1); });
+    check('다시 1층으로 오면 들림', await until(() => T(Q, () => window.__tree.level === 0 && window.__play.heard), 4000));
     await P.tap('#playOff');
     check('내가 끄면 친구 쪽도 꺼짐', await until(async () => (await T(Q, () => window.__play.song)) === null, 4000));
     await T(P, () => window.__play.open('dart'));

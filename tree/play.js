@@ -482,33 +482,35 @@ export function makePlay(K) {
   };
 
   /* ───────── 오르골: 캐럴 ───────── */
-  let ac = null, song = null, noteAt = 0, noteK = 0, wantSong = false;
+  let ac = null, out = null, song = null, songLv = -1, noteAt = 0, noteK = 0, wantSong = false; // songLv = 오르골이 있는 층(그 층에 있을 때만 들린다), -1 = 어디서나(점등식)
   const freq = (m) => 440 * Math.pow(2, (m - 69) / 12);
   function bell(f, when, len) {
     const g = ac.createGain();
     g.gain.setValueAtTime(0.0001, when);
     g.gain.exponentialRampToValueAtTime(0.22, when + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, when + Math.max(0.5, len * 1.6));
-    g.connect(ac.destination);
+    g.connect(out);
     for (const [mul, vol] of [[1, 1], [2, 0.35], [3.01, 0.12]]) {
       const o = ac.createOscillator(), v = ac.createGain();
       o.type = 'sine'; o.frequency.value = f * mul; v.gain.value = vol;
       o.connect(v); v.connect(g); o.start(when); o.stop(when + Math.max(0.5, len * 1.6) + 0.05);
     }
   }
-  function setSong(id, mine = true) {
+  const hearSong = () => songLv < 0 || !K.level || K.level() === songLv;
+  function setSong(id, mine = true, lv = -1) {
     const s = SONGS.find((x) => x.id === id) || null;
-    song = s; noteK = 0;
+    song = s; noteK = 0; songLv = s ? lv : -1;
     if (s) {
-      try { if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { ac = null; }
+      try { if (!ac) { ac = new (window.AudioContext || window.webkitAudioContext)(); out = ac.createGain(); out.gain.value = hearSong() ? 1 : 0; out.connect(ac.destination); } } catch (_) { ac = null; }
       if (!ac) { song = null; K.toast('이 브라우저에서는 소리를 낼 수 없어요'); }
       else { if (ac.state === 'suspended') { wantSong = true; ac.resume().catch(() => {}); } noteAt = ac.currentTime + 0.15; }
     }
-    if (mine) K.fx({ k: 'music', v: song ? song.id : '' });
+    if (mine) K.fx({ k: 'music', v: song ? song.id + (songLv >= 0 ? '@' + songLv : '') : '' });
     if (cur && cur.kind === 'music') music.paint(cur);
   }
   function tickSong() { // 조금 앞의 음까지 미리 예약해 둔다
     if (!song || !ac || ac.state !== 'running') return;
+    { const g = hearSong() ? 1 : 0; if (out.gain.value !== g && Math.abs((out._to ?? -1) - g) > 1e-3) { out._to = g; out.gain.setTargetAtTime(g, ac.currentTime, 0.25); } } // 다른 층으로 가면 서서히 작아진다
     if (noteAt < ac.currentTime) noteAt = ac.currentTime + 0.05;
     const beat = 60 / song.bpm;
     while (noteAt < ac.currentTime + 0.35) {
@@ -521,9 +523,10 @@ export function makePlay(K) {
   }
   const music = {
     start(c) { music.paint(c); },
-    paint() {
-      panel(song ? `오르골 · ${song.name}` : '오르골', song ? '판을 닫아도 계속 나와요. 친구에게도 들려요.' : '캐럴을 골라 보세요. 친구에게도 들려요.',
-        [...SONGS.map((s) => ({ label: s.name, chip: true, id: 'song-' + s.id, on: !!song && song.id === s.id, fn: () => setSong(s.id) })),
+    paint(c) {
+      c = c || cur;
+      panel(song ? `오르골 · ${song.name}` : '오르골', song ? '판을 닫아도 계속 나와요. 이 층에 있는 친구에게도 들려요.' : '캐럴을 골라 보세요. 이 층에 있는 친구에게도 들려요.',
+        [...SONGS.map((s) => ({ label: s.name, chip: true, id: 'song-' + s.id, on: !!song && song.id === s.id, fn: () => setSong(s.id, true, K.levelOfItem && c ? K.levelOfItem(c.id) : -1) })),
           ...(song ? [{ label: '끄기', id: 'playOff', fn: () => setSong(null) }] : []),
           { label: '닫기', id: 'playQuit', fn: () => K.close() }]);
     },
@@ -613,6 +616,9 @@ export function makePlay(K) {
     tap(px, py) { if (cur) KINDS[cur.kind].tap(cur, px, py); },
     // 놀이 중에 손가락·마우스가 움직였다 (다트 겨냥)
     move(px, py) { if (cur && KINDS[cur.kind].move) KINDS[cur.kind].move(cur, px, py); },
+    // 눌렀다 / 뗐다 (당구: 끌어 당겼다 놓기. pool.js)
+    press(px, py) { if (cur && KINDS[cur.kind].press) KINDS[cur.kind].press(px, py); },
+    release() { if (cur && KINDS[cur.kind].release) KINDS[cur.kind].release(); },
     // 친구가 TV 영상을 보내기 시작했거나(stream) 그만뒀다(null)
     remoteTv(stream, from) {
       if (!stream) { if (rvFrom !== from) return; if (rv) { rv.pause(); rv.srcObject = null; } rv = null; rvFrom = null; }
@@ -638,8 +644,8 @@ export function makePlay(K) {
       if (m.k === 'dart' && Number.isFinite(m.v)) K.toast(`친구가 다트에서 ${clamp(Math.round(m.v), 0, 180)}점을 냈어요 🎯`);
       else if (m.k === 'fire' && Number.isFinite(m.v)) K.toast(m.v >= 80 ? '친구가 마시멜로를 완벽하게 구웠어요!' : '친구가 마시멜로를 구웠어요');
       else if (m.k === 'music' && typeof m.v === 'string') {
-        const had = song ? song.id : '';
-        setSong(m.v || null, false);
+        const had = song ? song.id : '', x = /^(.{1,16}?)(?:@(\d))?$/.exec(m.v);
+        setSong(x ? x[1] : null, false, x && x[2] !== undefined ? Number(x[2]) : -1);
         if ((song ? song.id : '') !== had) K.toast(song ? `친구가 캐럴을 틀었어요 🎵 ${song.name}` : '친구가 캐럴을 껐어요');
       }
     },
@@ -647,7 +653,7 @@ export function makePlay(K) {
     test: {
       get state() { return cur ? { kind: cur.kind, phase: cur.phase, left: cur.left, score: cur.score, heat: cur.heat, mix: cur.mix, perfect: cur.perfect, low: cur.low, pts: cur.pts, say: cur.say, last: cur.last, darts: cur.darts ? cur.darts.length : 0 } : null; },
       get topping() { return topping; }, set topping(v) { topping = v; if (cur && cur.kind === 'cake') cake.paint(cur); },
-      get song() { return song ? song.id : null; }, get audio() { return ac ? ac.state : null; },
+      get song() { return song ? song.id : null; }, get songLv() { return songLv; }, get heard() { return !!song && hearSong(); }, get audio() { return ac ? ac.state : null; },
       get video() { return video ? { ready: video.readyState, w: video.videoWidth, muted: video.muted, paused: video.paused } : null; },
       get remote() { return rv ? { ready: rv.readyState, w: rv.videoWidth, muted: rv.muted, from: rvFrom } : null; },
       throwAt(x, y) { if (cur && cur.kind === 'dart') dart.shoot(cur, [x, y]); },
