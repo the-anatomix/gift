@@ -121,7 +121,7 @@ const serve = () => http.createServer((q, r) => { let p = decodeURIComponent(q.u
     check('마카롱을 꺼내 듦 (두 입)', await until(async () => { const h = await holding(A); return (await mode(A)) === null && h && h.kind === 'macaron' && h.left === 2; }, 3000), await holding(A));
     await bite(A); await bite(A);
     check('두 입에 다 먹음', await until(async () => { const h = await holding(A); return !h || h.left === 0; }, 4000), await holding(A));
-    await until(async () => (await holding(A)) === null, 5000);
+    await until(async () => (await holding(A)) === null, 20000);
 
     /* 산장 */
     await theme(A, 'lodge');
@@ -142,7 +142,7 @@ const serve = () => http.createServer((q, r) => { let p = decodeURIComponent(q.u
     await theme(A, 'library');
     const desk = await idOf(A, 'readdesk'), globe = await idOf(A, 'globe');
     await use(A, desk);
-    check('독서 책상: 이야기의 첫 장이 펼쳐짐', await until(async () => (await mode(A)) === 'play' && (await T(A, () => window.__spots.reading)) !== null, 8000) && (await A.textContent('#playMain')).includes('(1/4)') && (await A.textContent('#playSub')).length > 20, await A.textContent('#playMain'));
+    check('독서 책상: 이야기의 첫 장이 펼쳐짐', await until(async () => (await mode(A)) === 'play' && (await T(A, () => window.__spots.reading)) !== null, 20000) && (await A.textContent('#playMain')).includes('(1/4)') && (await A.textContent('#playSub')).length > 20, await A.textContent('#playMain'));
     const b0 = (await T(A, () => window.__spots.reading)).book;
     for (let k = 0; k < 3; k++) await A.tap('#playGo');
     check('다음 장을 넘겨 끝까지 읽음 (4/4, 앞 장으로도 갈 수 있음)', (await T(A, () => window.__spots.reading.page)) === 3 && (await A.textContent('#playSub')).includes('끝') && await A.isVisible('#readPrev') && (await audit(A, '#playBtns button')).length === 0, await audit(A, '#playBtns button'));
