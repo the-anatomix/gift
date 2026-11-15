@@ -1,6 +1,6 @@
 // 가구 모양. 도형만으로 만든다. 바닥 자리 한가운데가 (0, 0), 앞쪽이 +z, 바닥이 y = 0.
 // 차지하는 칸 수는 catalog.js 의 FURNITURE 와 맞춘다(한 칸 0.5).
-import { THREE, M, T, L, put, rbox, cbox, cyl, ball, bake, pool, glowAt } from './kit.js';
+import { THREE, M, T, L, E, F, G, flameGeo, sparks, put, rbox, cbox, cyl, ball, bake, pool, glowAt } from './kit.js';
 import { DART, TV } from './catalog.js';
 
 // TV 화면 재질: 모든 TV 가 같이 쓴다. 무엇을 비출지는 play.js 가 정한다.
@@ -69,14 +69,16 @@ const BLACK = 0x2B2420, WHITE = 0xFFFAF2, METAL = 0x8C8478;
 const halo = (g, x, y, z, r) => glowAt(g, x, y, z, r * 3.2);
 // 작은 소품들
 function mug(g, x, y, z, hex, fill = 0x6B4630) { // 손잡이 달린 컵
-  put(cyl(0.05, 0.042, 0.1, 12), hex, x, y + 0.05, z, g);
+  put(cyl(0.05, 0.042, 0.1, 12), G(hex), x, y + 0.05, z, g);
   put(cyl(0.042, 0.042, 0.006, 12), fill, x, y + 0.099, z, g, false);
   put(new THREE.TorusGeometry(0.028, 0.009, 6, 10, Math.PI), hex, x + 0.05, y + 0.05, z, g, false).rotation.z = -Math.PI / 2;
 }
 function candle(g, x, y, z, h = 0.14, hex = CREAM) { // 초와 불꽃
   put(cyl(0.05, 0.06, 0.015, 10), GOLD, x, y + 0.008, z, g, false);
   put(cyl(0.03, 0.032, h, 10), hex, x, y + 0.015 + h / 2, z, g);
-  put(new THREE.ConeGeometry(0.018, 0.055, 6), lit(0xFFD166), x, y + h + 0.05, z, g, false);
+  put(cyl(0.002, 0.002, 0.02, 3), BLACK, x, y + h + 0.025, z, g, false);              // 심지
+  put(flameGeo(0.02, 0.07, 6), F(0xFFB347), x, y + h + 0.02, z, g, false);
+  put(flameGeo(0.011, 0.04, 5), F(0xFFF3C4), x, y + h + 0.024, z + 0.004, g, false);
 }
 function knob(g, x, y, z, r = 0.02) { put(ball(r, 6, 4), GOLD, x, y, z, g, false); }
 // 문짝: 얕게 파인 널판 무늬 (앞면 z 에 붙인다)
@@ -89,10 +91,10 @@ function feet(g, x, z, y = 0.06) {
   for (const a of [-1, 1]) for (const b of [-1, 1]) put(cyl(0.04, 0.03, y * 2, 8), DARK, x * a, y, z * b, g);
 }
 function gift(g, w, h, boxc, band) {
-  put(cbox(w, h, w, 0.03), boxc, 0, h / 2, 0, g);
-  put(cbox(w + 0.03, 0.08, w + 0.03, 0.02), boxc, 0, h - 0.03, 0, g);                 // 뚜껑
-  put(box(w + 0.036, h + 0.014, 0.07), band, 0, h / 2 + 0.002, 0, g, false);
-  put(box(0.07, h + 0.014, w + 0.036), band, 0, h / 2 + 0.002, 0, g, false);
+  put(cbox(w, h, w, 0.03), G(boxc), 0, h / 2, 0, g);
+  put(cbox(w + 0.03, 0.08, w + 0.03, 0.02), G(boxc), 0, h - 0.03, 0, g);                 // 뚜껑
+  put(box(w + 0.036, h + 0.014, 0.07), G(band), 0, h / 2 + 0.002, 0, g, false);
+  put(box(0.07, h + 0.014, w + 0.036), G(band), 0, h / 2 + 0.002, 0, g, false);
   // 포장지 무늬: 앞뒤·양옆의 물방울
   const dot = boxc === RED ? 0xF6C9C2 : 0xBFE3D3;
   for (const s of [-1, 1]) for (const [a, b] of [[-0.3, 0.3], [0.3, 0.3], [-0.3, 0.62], [0.3, 0.62], [-0.3, 0.9]]) {
@@ -102,11 +104,11 @@ function gift(g, w, h, boxc, band) {
   }
   // 리본: 고리 둘, 늘어진 끈 둘, 매듭
   for (const s of [-1, 1]) {
-    const loop = put(new THREE.TorusGeometry(0.05, 0.02, 5, 8), band, 0.06 * s, h + 0.05, 0, g);
+    const loop = put(new THREE.TorusGeometry(0.05, 0.02, 6, 10), G(band), 0.06 * s, h + 0.05, 0, g);
     loop.rotation.set(0, 0, 0.5 * s); loop.scale.set(1.15, 0.8, 1.5);
     put(box(0.05, 0.012, 0.13), band, 0.035 * s, h + 0.012, 0.09, g, false).rotation.y = 0.5 * s;
   }
-  put(ball(0.032, 6, 4), band, 0, h + 0.035, 0, g);
+  put(ball(0.032, 8, 6), G(band), 0, h + 0.035, 0, g);
   const tag = put(box(0.09, 0.004, 0.06), CREAM, w / 2 - 0.06, h + 0.014, -w / 2 + 0.07, g, false); tag.rotation.y = 0.5; // 이름표
   pool(g, 0, 0, 0.72, 0.72);
 }
@@ -176,11 +178,18 @@ const B = {
       put(box(0.025, 0.2, 0.025), BLACK, 0.33 * s, 0.17, 0.25, g, false); put(ball(0.028, 6, 4), GOLD, 0.33 * s, 0.285, 0.25, g, false);
     }
     const top = put(cyl(0.055, 0.055, 0.44, 8), WD(0x9A6A45), 0.02, 0.235, 0.14, g); top.rotation.set(0, 0.35, Math.PI / 2);
-    put(box(0.5, 0.03, 0.16), lit(0xE8622A), 0, 0.085, 0.15, g, false);                // 달아오른 숯
-    put(new THREE.ConeGeometry(0.16, 0.42, 7), lit(0xF28C28), -0.07, 0.36, 0.14, g, false);
-    put(new THREE.ConeGeometry(0.12, 0.3, 6), lit(0xFFD166), 0.1, 0.3, 0.17, g, false);
-    put(new THREE.ConeGeometry(0.08, 0.2, 6), lit(0xFFF1B8), -0.02, 0.25, 0.2, g, false);
-    put(new THREE.ConeGeometry(0.07, 0.22, 6), lit(0xF28C28), 0.2, 0.26, 0.12, g, false);
+    for (const [x, z, r] of [[-0.3, 0.07, 0.4], [0.31, 0.2, -0.5]]) { const lg = put(cyl(0.045, 0.05, 0.3, 7), WD(0x7A5236), x, 0.11, z, g); lg.rotation.set(0.15, r, Math.PI / 2 - 0.25 * Math.sign(r)); } // 기대 놓은 작은 장작
+    // 숯: 재 받침 위의 빛나는 덩이들 (가운데일수록 밝다)
+    [[-0.17, 0.2, 0.05, 0xC9431C], [-0.06, 0.24, 0.045, 0xFF7A2E], [0.05, 0.19, 0.05, 0xE8622A], [0.15, 0.23, 0.04, 0xFF9A3C], [-0.25, 0.25, 0.035, 0xB8361A], [0.24, 0.17, 0.035, 0xD9531F], [0.0, 0.27, 0.035, 0xFFB45A]]
+      .forEach(([x, z, r, c]) => put(new THREE.DodecahedronGeometry(r, 0), E(c, 0.8), x, 0.085, z, g, false).scale.y = 0.55);
+    // 불꽃: 물방울 모양 세 겹(바깥 주황 → 노랑 → 하얀 속불). 셰이더가 하나하나 다른 박자로 흔들고 일렁이게 한다 (kit.js 의 F)
+    [[-0.17, 0.15, 0.1, 0.34], [0.02, 0.13, 0.12, 0.46], [0.19, 0.16, 0.09, 0.32], [-0.06, 0.12, 0.08, 0.28], [0.12, 0.11, 0.07, 0.24]]
+      .forEach(([x, z, w, h]) => put(flameGeo(w, h), F(0xE8561E), x, 0.1, z, g, false));
+    [[-0.12, 0.19, 0.075, 0.26], [0.04, 0.18, 0.09, 0.36], [0.17, 0.2, 0.065, 0.22]]
+      .forEach(([x, z, w, h]) => put(flameGeo(w, h), F(0xF7A13A), x, 0.1, z, g, false));
+    [[-0.07, 0.23, 0.045, 0.16], [0.05, 0.22, 0.055, 0.22], [0.15, 0.24, 0.04, 0.13]]
+      .forEach(([x, z, w, h]) => put(flameGeo(w, h), F(0xFFE7A0), x, 0.1, z, g, false));
+    sparks(g, 0, 0.2, 0.17, { n: 16, w: 0.4, h: 0.75 });
     put(cbox(2.0, 0.1, 0.72, 0.03), CREAM, 0, 1.41, -0.14, g);
     put(box(1.9, 0.05, 0.64), 0xE3CFAC, 0, 1.335, -0.14, g, false);                    // 선반 밑 몰딩
     for (const s of [-1, 1]) put(box(0.1, 0.16, 0.1), CREAM, 0.74 * s, 1.26, 0.13, g, false); // 선반 받침
@@ -205,8 +214,8 @@ const B = {
     put(cyl(0.05, 0.06, 0.02, 8), BLACK, 0.86, 0.07, 0.36, g, false);
     for (const dx of [-0.02, 0.02]) put(cyl(0.008, 0.008, 0.5, 5), BLACK, 0.86 + dx, 0.32, 0.36, g, false).rotation.z = dx * 4;
     pool(g, 0, 0.02, 2.4, 1.3);
-    pool(g, 0, 0.62, 1.5, 0.9, { hex: 0xFF9A3C, op: 0.4, add: true });                 // 불빛이 바닥에 번진다
-    halo(g, 0, 0.36, 0.22, 0.42);
+    pool(g, 0, 0.62, 1.5, 0.9, { hex: 0xFF9A3C, op: 0.4, add: true, flick: true });    // 불빛이 바닥에 번진다 (불처럼 일렁인다)
+    glowAt(g, 0, 0.36, 0.22, 0.42 * 3.2, 0xFFC978, 0.5, true);
   },
   table(g) { // 3 × 2
     put(cbox(1.4, 0.07, 0.9, 0.03), WD(WOOD), 0, 0.43, 0, g);
@@ -296,11 +305,11 @@ const B = {
     put(cyl(0.09, 0.13, 0.03, 14), 0xC9A24B, 0, 0.055, 0, g, false);
     put(cyl(0.018, 0.018, 1.25, 8), 0xC9A24B, 0, 0.65, 0, g);
     for (const y of [0.34, 0.9]) put(ball(0.032, 6, 4), 0xB8862A, 0, y, 0, g, false);  // 기둥 마디
-    put(cyl(0.12, 0.22, 0.28, 14, 1, true), lit(0xFFE2A8), 0, 1.36, 0, g, false);
-    put(cyl(0.118, 0.118, 0.004, 14), lit(0xFFF4D8), 0, 1.5, 0, g, false);
+    put(cyl(0.12, 0.22, 0.28, 14, 1, true), E(0xFFE2A8, 0.55), 0, 1.36, 0, g, false);
+    put(cyl(0.118, 0.118, 0.004, 14), E(0xFFF4D8, 0.55), 0, 1.5, 0, g, false);
     put(new THREE.TorusGeometry(0.22, 0.012, 5, 16), GOLD, 0, 1.222, 0, g, false).rotation.x = Math.PI / 2;
     put(new THREE.TorusGeometry(0.12, 0.01, 5, 16), GOLD, 0, 1.5, 0, g, false).rotation.x = Math.PI / 2;
-    put(ball(0.05, 6, 4), lit(0xFFF6DC), 0, 1.32, 0, g, false);                        // 전구
+    put(ball(0.05, 6, 4), E(0xFFF6DC), 0, 1.32, 0, g, false);                        // 전구
     put(ball(0.02, 5, 3), GOLD, 0, 1.53, 0, g, false);
     put(cyl(0.003, 0.003, 0.16, 4), GOLD, 0.1, 1.16, 0.06, g, false); put(ball(0.014, 5, 3), GOLD, 0.1, 1.08, 0.06, g, false); // 당기는 줄
     pool(g, 0, 0, 0.7, 0.7);
@@ -358,12 +367,12 @@ const B = {
     feet(g, 0.62, 0.15, 0.03);
     put(cyl(0.06, 0.1, 0.05, 12), 0x2B2420, 0, 0.525, -0.02, g);
     put(box(0.4, 0.014, 0.2), 0x2B2420, 0, 0.507, -0.02, g, false);                    // TV 발판
-    put(cbox(TV.w + 0.1, TV.h + 0.1, 0.06, 0.02), 0x2B2420, 0, TV.y, -0.02, g);
+    put(cbox(TV.w + 0.1, TV.h + 0.1, 0.06, 0.02), G(0x2B2420), 0, TV.y, -0.02, g);
     put(box(TV.w + 0.02, 0.02, 0.01), 0x4A423C, 0, TV.y - TV.h / 2 - 0.035, 0.012, g, false);
-    put(ball(0.008, 5, 4), lit(0x7CFF9A), TV.w / 2 - 0.02, TV.y - TV.h / 2 - 0.035, 0.016, g, false); // 전원 불
+    put(ball(0.008, 5, 4), E(0x7CFF9A), TV.w / 2 - 0.02, TV.y - TV.h / 2 - 0.035, 0.016, g, false); // 전원 불
     put(new THREE.PlaneGeometry(TV.w, TV.h), TV_MAT, 0, TV.y, TV.z, g, false).receiveShadow = false;
     // 장 위: 게임기와 조종기, 작은 화분, 리모컨
-    put(cbox(0.2, 0.04, 0.14, 0.012), WHITE, -0.5, 0.52, 0.1, g, false); put(box(0.08, 0.004, 0.004), lit(0x6FD0FF), -0.5, 0.52, 0.171, g, false);
+    put(cbox(0.2, 0.04, 0.14, 0.012), WHITE, -0.5, 0.52, 0.1, g, false); put(box(0.08, 0.004, 0.004), E(0x6FD0FF), -0.5, 0.52, 0.171, g, false);
     put(cbox(0.11, 0.025, 0.06, 0.01), 0x3A3F4A, -0.28, 0.513, 0.14, g, false).rotation.y = 0.4;
     put(cyl(0.045, 0.035, 0.07, 8), 0xB5523F, 0.55, 0.535, 0.08, g, false);
     for (let k = 0; k < 4; k++) put(ball(0.04, 5, 3), M(k % 2 ? 0x3A9163 : 0x2F7D56, true), 0.55 + Math.cos(k * 1.6) * 0.03, 0.6 + (k % 2) * 0.03, 0.08 + Math.sin(k * 1.6) * 0.03, g, false).scale.set(0.7, 1.2, 0.7);
@@ -429,12 +438,12 @@ const B = {
     pool(g, 0, 0.02, 1.3, 0.8);
   },
   stove(g) { // 2 × 1, 오븐과 가스레인지
-    put(cbox(0.98, 0.84, 0.46, 0.03), 0xD9D0C3, 0, 0.44, 0, g);
+    put(cbox(0.98, 0.84, 0.46, 0.03), G(0xD9D0C3), 0, 0.44, 0, g);
     put(box(0.96, 0.08, 0.42), 0x6E655C, 0, 0.04, 0, g, false);
     put(box(0.98, 0.016, 0.46), 0x2B2420, 0, 0.866, 0, g, false);                      // 검은 윗판
     put(box(0.98, 0.14, 0.03), 0xC9C0B2, 0, 0.94, -0.215, g, false);                   // 뒤 턱
     put(new THREE.BoxGeometry(0.7, 0.4, 0.02), 0x2B2420, 0, 0.36, 0.235, g, false);
-    put(new THREE.BoxGeometry(0.5, 0.22, 0.01), lit(0xF7B25A), 0, 0.36, 0.247, g, false); // 오븐 안 불빛
+    put(new THREE.BoxGeometry(0.5, 0.22, 0.01), E(0xF7B25A, 0.45), 0, 0.36, 0.247, g, false); // 오븐 안 불빛
     for (const y of [0.31, 0.41]) put(box(0.5, 0.006, 0.004), 0x7A4A20, 0, y, 0.253, g, false); // 오븐 안 석쇠
     put(cyl(0.012, 0.012, 0.6, 6), 0x8C8478, 0, 0.6, 0.26, g, false).rotation.z = Math.PI / 2;
     for (const s of [-1, 1]) put(box(0.02, 0.02, 0.04), 0x8C8478, 0.28 * s, 0.6, 0.245, g, false);
@@ -445,8 +454,8 @@ const B = {
       for (let k = 0; k < 4; k++) put(box(0.1, 0.012, 0.014), 0x5A534C, x + Math.cos(k * Math.PI / 2) * 0.07, 0.892, Math.sin(k * Math.PI / 2) * 0.07, g, false).rotation.y = -k * Math.PI / 2;
     }
     for (const x of [-0.36, -0.24, 0.24, 0.36]) { put(cyl(0.025, 0.025, 0.03, 8), Math.abs(x) > 0.3 ? 0x4A423C : RED, x, 0.74, 0.25, g, false).rotation.x = Math.PI / 2; put(box(0.006, 0.03, 0.004), WHITE, x, 0.74, 0.267, g, false); }
-    put(cyl(0.13, 0.11, 0.1, 14), 0xC8443A, -0.24, 0.95, 0, g);                // 냄비
-    put(cyl(0.135, 0.135, 0.016, 14), 0xB03A31, -0.24, 1.005, 0, g, false); put(ball(0.022, 5, 3), BLACK, -0.24, 1.03, 0, g, false);
+    put(cyl(0.13, 0.11, 0.1, 14), G(0xC8443A), -0.24, 0.95, 0, g);                // 냄비
+    put(cyl(0.135, 0.135, 0.016, 14), G(0xB03A31), -0.24, 1.005, 0, g, false); put(ball(0.022, 5, 3), BLACK, -0.24, 1.03, 0, g, false);
     for (const s of [-1, 1]) put(box(0.05, 0.016, 0.03), BLACK, -0.24 + 0.15 * s, 0.975, 0, g, false);
     put(cyl(0.11, 0.09, 0.03, 14), 0x3A3F4A, 0.24, 0.915, 0, g, false);                // 프라이팬과 달걀
     put(box(0.2, 0.016, 0.03), BLACK, 0.4, 0.92, 0.07, g, false).rotation.y = -0.4;
@@ -455,7 +464,7 @@ const B = {
   },
   fridge(g) { // 2 × 1, 키 큰 냉장고. 닫힌 모양(shut)만 미리 만들고, 문이 열리는 모양은 처음 열 때 만든다(food.js 가 연다)
     const shut = new THREE.Group(); g.add(shut);
-    put(rbox(0.92, 1.75, 0.46, 0.04), 0xEEF2F4, 0, 0.9, 0, shut);
+    put(rbox(0.92, 1.75, 0.46, 0.04), G(0xEEF2F4), 0, 0.9, 0, shut);
     const front = (d) => { // 문 앞면의 줄·손잡이·자석 쪽지 (d = 붙일 곳, 문 왼쪽 아래 모서리가 0)
       put(new THREE.BoxGeometry(0.9, 0.012, 0.01), 0xB9C2C8, 0.46, 1.15, 0.002, d, false);
       for (const y of [0.75, 1.4]) put(cyl(0.014, 0.014, 0.26, 6), 0x8C8478, 0.82, y, 0.02, d, false);
@@ -474,9 +483,9 @@ const B = {
         put(new THREE.BoxGeometry(0.92, 0.04, 0.42), W, 0, 1.755, -0.02, root, false);
         put(new THREE.BoxGeometry(0.92, 0.1, 0.42), W, 0, 0.075, -0.02, root, false);
         for (const y of [0.55, 0.95, 1.35]) put(new THREE.BoxGeometry(0.86, 0.014, 0.36), 0xCFE3EA, 0, y, -0.02, root, false); // 선반
-        const glow = put(new THREE.BoxGeometry(0.5, 0.03, 0.05), lit(0xFFF6D0), 0, 1.715, 0.1, root, false);   // 안쪽 등
+        const glow = put(new THREE.BoxGeometry(0.5, 0.03, 0.05), E(0xFFF6D0, 0.6), 0, 1.715, 0.1, root, false);   // 안쪽 등
         const door = new THREE.Group(); door.position.set(-0.46, 0, 0.19); root.add(door);
-        put(rbox(0.92, 1.75, 0.04, 0.018), W, 0.46, 0.9, 0.02, door);
+        put(rbox(0.92, 1.75, 0.04, 0.018), G(W), 0.46, 0.9, 0.02, door);
         const f = new THREE.Group(); f.position.z = 0.04; door.add(f); front(f);
         for (const y of [0.5, 1.0]) put(new THREE.BoxGeometry(0.7, 0.1, 0.07), 0xDCEAF0, 0.46, y, -0.035, door, false); // 문 안쪽 칸
         const inside = new THREE.Group(); root.add(inside);
@@ -539,8 +548,8 @@ const B = {
     put(new THREE.BoxGeometry(0.34, 0.14, 0.02), WD(WOOD_D), 0, 0.34, 0.205, g, false); put(ball(0.018, 6, 4), GOLD, 0, 0.34, 0.222, g, false);
     put(box(0.34, 0.1, 0.012), DARK, 0, 0.18, 0.2, g, false);                          // 아래 빈 칸
     put(cyl(0.05, 0.07, 0.03, 10), DARK, -0.06, 0.485, -0.04, g); put(cyl(0.012, 0.012, 0.16, 6), 0xC9A24B, -0.06, 0.57, -0.04, g);
-    put(cyl(0.07, 0.11, 0.14, 12, 1, true), lit(0xFFE2A8), -0.06, 0.71, -0.04, g, false);
-    put(cyl(0.068, 0.068, 0.004, 12), lit(0xFFF4D8), -0.06, 0.78, -0.04, g, false);
+    put(cyl(0.07, 0.11, 0.14, 12, 1, true), E(0xFFE2A8, 0.55), -0.06, 0.71, -0.04, g, false);
+    put(cyl(0.068, 0.068, 0.004, 12), E(0xFFF4D8, 0.55), -0.06, 0.78, -0.04, g, false);
     put(new THREE.TorusGeometry(0.11, 0.008, 5, 14), GOLD, -0.06, 0.642, -0.04, g, false).rotation.x = Math.PI / 2;
     put(box(0.14, 0.022, 0.1), 0x4F6FB8, 0.1, 0.481, 0.1, g, false).rotation.y = -0.3; // 읽던 책
     put(box(0.13, 0.008, 0.09), 0xFFF8EA, 0.1, 0.484, 0.102, g, false).rotation.y = -0.3;

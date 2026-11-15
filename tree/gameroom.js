@@ -8,7 +8,7 @@
 //   빈백: 앉을 수 있다(catalog.js 의 sit, 한 자리). 앉기는 영화관 좌석과 같은 길(app.js 의 lieDown)을 쓴다.
 //   놀이는 하는 사람 화면의 일이다. 방 상태로는 점수(score·best)와 뽑은 인형(put)만 남는다.
 //   토끼 인형은 직접 지은 모양이다(늘어진 목도리, 세모 코와 웃는 입, 볼 터치). 남의 캐릭터를 따라 그리지 않는다.
-import { THREE, L, put, cbox, rbox, cyl, ball, cap } from './kit.js';
+import { THREE, L, E, put, cbox, rbox, cyl, ball, cap } from './kit.js';
 import { addShape } from './furniture.js';
 import { GAMEROOM, MAX_ITEMS } from './catalog.js';
 import { FLOOR_DI } from './path.js';
@@ -65,7 +65,7 @@ addShape('arcade', (g) => { // 1 × 1
   put(cbox(0.44, 0.1, 0.2, 0.02), 0x23265E, 0, 0.66, 0.11, g).rotation.x = 0.2;     // 조작판
   put(cbox(0.44, 0.62, 0.3, 0.02), body, 0, 0.98, -0.07, g);                        // 윗몸
   put(cbox(0.46, 0.13, 0.36, 0.02), trim, 0, 1.33, -0.04, g);                       // 간판
-  put(new THREE.PlaneGeometry(0.34, 0.07), L(0xFFF1B8), 0, 1.33, 0.142, g, false);
+  put(new THREE.PlaneGeometry(0.34, 0.07), E(0xFFF1B8, 0.5), 0, 1.33, 0.142, g, false);
   for (const sx of [-1, 1]) put(new THREE.BoxGeometry(0.012, 1.22, 0.3), trim, sx * 0.226, 0.66, -0.05, g, false); // 옆 띠
   if (!scrMat) { scrMat = new THREE.MeshBasicMaterial({ map: screenTex() }); }
   const scr = put(new THREE.PlaneGeometry(0.34, 0.26), scrMat, 0, 0.98, 0.083, g, false); scr.rotation.x = -0.12;
@@ -84,7 +84,7 @@ addShape('claw', (g) => { // 1 × 1
   const body = 0xE0569A;
   put(cbox(0.46, 0.5, 0.46, 0.02), body, 0, 0.25, 0, g);
   put(cbox(0.46, 0.14, 0.46, 0.02), body, 0, 1.33, 0, g);
-  put(new THREE.PlaneGeometry(0.36, 0.08), L(0xFFF1B8), 0, 1.33, 0.232, g, false);
+  put(new THREE.PlaneGeometry(0.36, 0.08), E(0xFFF1B8, 0.5), 0, 1.33, 0.232, g, false);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) put(new THREE.BoxGeometry(0.03, 0.78, 0.03), 0xFFFFFF, sx * 0.21, 0.88, sz * 0.21, g, false); // 기둥
   if (!glassMat) glassMat = new THREE.MeshLambertMaterial({ color: 0xCFE9FF, transparent: true, opacity: 0.16, depthWrite: false });
   for (const [x, z, ry] of [[0, 0.215, 0], [0, -0.215, 0], [0.215, 0, Math.PI / 2], [-0.215, 0, Math.PI / 2]]) { const p = put(new THREE.PlaneGeometry(0.4, 0.76), glassMat, x, 0.88, z, g, false); p.rotation.y = ry; p.material.side = THREE.DoubleSide; }

@@ -2,7 +2,8 @@
 // 1단계: 거실, 비스듬히 내려다보는 카메라, 아바타 걷기와 고르기
 // 2단계: 가구 놓기·옮기기, 벽지·바닥, 트리 장식과 전구
 // 정적 파일만 쓴다.
-import { THREE } from './kit.js';
+import { THREE, FX as LOOK } from './kit.js';
+import { makePost } from './post.js';
 import { Grid, NX, NZ, CELL, X0, Z0, X1, Z1, GX, GZ, GX1, GZ1, LEVELS, FLOOR_H, FLOOR_DX, LADDERS, cellOf, centerOf, levelOf, levelOfCell, zoneOf, toWorld } from './path.js';
 import { buildRoom, WALL_H, TREE, FRONT, fixedCell, noBuild, surfaceR } from './room.js';
 import { makeWardrobe, HOST_OUTFIT } from './costume.js';
@@ -65,6 +66,15 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.shadowMap.autoUpdate = false; // 무언가 움직였을 때만 그림자를 다시 그린다
+// 화면 다듬기: 빛 번짐·색 다듬기·비네트 (post.js). 좋은 화질에서만 켠다.
+// 그래픽 칩 없이 CPU 로 그리는 기기(소프트웨어 WebGL)는 처음부터 끈다. ?fx=1 / ?fx=0 은 자동 검사에서 켜고 끄는 데 쓴다
+const post = makePost(renderer);
+{
+  let cpu = false;
+  try { const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); cpu = /swiftshader|llvmpipe|softpipe|software|basic render/i.test(String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER))); } catch (_) { /* 모르면 켠다 */ }
+  const fx = new URLSearchParams(location.search).get('fx');
+  post.set(fx === '1' || (fx !== '0' && !cpu));
+}
 
 const scene = new THREE.Scene();
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 90);
@@ -1812,10 +1822,14 @@ function setLook(patch) {
 }
 
 /* ───────── 느린 기기에서는 화질을 낮춘다 ───────── */
-let quality = 'high', slowSum = 0, slowN = 0;
+// 'high'(화면 다듬기 켬) → 'mid'(화면 다듬기 끔) → 'low'(픽셀 줄이기, 그림자 그림 작게). 느리면 한 단계씩 내려간다
+let quality = post.on ? 'high' : 'mid', slowSum = 0, slowN = 0;
+function stepDown() { if (quality === 'high') { quality = 'mid'; post.set(false); dirty = true; } else lowerQuality(); }
+function fxOn() { return post.on; }
 function lowerQuality() {
   if (quality === 'low') return;
   quality = 'low';
+  post.set(false);
   renderer.setPixelRatio(1);
   sun.shadow.mapSize.set(1024, 1024);
   if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
@@ -1830,7 +1844,7 @@ function frame(now) {
   const raw = now - last; last = now;
   const dt = Math.min(0.05, raw / 1000);
   clock += dt;
-  if (quality !== 'low' && raw < 250) { slowSum += raw; if (++slowN >= 45) { if (slowSum / slowN > 36) lowerQuality(); slowSum = 0; slowN = 0; } }
+  if (quality !== 'low' && raw < 250) { slowSum += raw; if (++slowN >= 45) { if (slowSum / slowN > 36) stepDown(); slowSum = 0; slowN = 0; } }
 
   // 카메라 돌리기
   let dy = yawOf(yawK) - yaw;
@@ -1881,7 +1895,9 @@ function frame(now) {
   lights.tick(dt); cinema.tick(); gameroom.tick(); photos.tick(dt);
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
-  renderer.render(scene, cam());
+  { const tg = usingEye() || mode === 'look' ? 0 : mode === 'tree' ? 0.35 : 0.8; post.tilt += (tg - post.tilt) * Math.min(1, dt * 6); if (Math.abs(tg - post.tilt) < 0.01) post.tilt = tg; } // 내려다볼 때만 미니어처 흐림
+  post.render(scene, cam(), clock);
+  if (quality === 'high' && !post.on) quality = 'mid'; // 이 기기에서는 화면 다듬기를 할 수 없었다
   party.shot(); // 단체 사진: 방금 그린 화면을 같은 그림 안에서 찍는다
   frames++;
 }
@@ -1950,6 +1966,7 @@ window.__admin = {
   get tag() { return admin.tag; }, get tk() { return admin.tk(); }, get list() { return [...S.adm]; }, get here() { return duo.admins; }, get absent() { return admin.absent(); },
   grant: (id, on) => admin.grant(id, on !== false), clearAbsent: () => admin.clearAbsent(), tagOf: (tk) => admin.tagOf(tk),
 };
+window.__look = { get fx() { return post.on; }, get glow() { return LOOK.glow.value; }, get tilt() { return post.tilt; }, get time() { return LOOK.t.value; } }; // 화면 다듬기 (post.js) 검사용
 window.__party = Object.assign(party.test, { bright: () => ({ hemi: hemi.intensity, sun: sun.intensity, glow: glow.intensity }) });
 window.__tree = {
   nameOf: (id) => nameOf(id),
@@ -1972,8 +1989,8 @@ window.__tree = {
   get ghost() { return ghost ? { k: ghost.k, i: ghost.i, j: ghost.j, r: ghost.r, id: ghost.id, ok: ghost.ok } : null; },
   get look() { return look; }, get lookOpen() { return mode === 'look'; }, get bulbsOn() { return bulbs.on; },
   get itemsShown() { return itemsG.visible; }, get itemObjs() { return itemObj.size; }, get ornObjs() { return ornObj.size; },
-  get calls() { return renderer.info.render.calls; }, // 마지막 화면을 그리는 데 든 그리기 호출 수
-  get frames() { return frames; }, get yawK() { return yawK; }, get quality() { return quality; },
+  get calls() { return post.calls; }, // 마지막 화면을 그리는 데 든 그리기 호출 수
+  get frames() { return frames; }, get yawK() { return yawK; }, get quality() { return quality; }, get fx() { return fxOn(); }, stepDown,
   get view() { return { z: view.z, goal: zoomGoal(), pxu: view.z / view.sFit, whole: mode !== 'tree' && zoomGoal() <= 1.001, top: view.top, bottom: view.bottom, settled: Math.abs(view.z - zoomGoal()) < 1e-3 }; },
   get turning() { return Math.abs(Math.atan2(Math.sin(yawOf(yawK) - yaw), Math.cos(yawOf(yawK) - yaw))) > 1e-3; },
   get walls() { return Object.fromEntries(Object.entries(room.walls).map(([k, w]) => [k, w.upper.visible])); },

@@ -4,7 +4,7 @@
 //   들고 가기: 구운 피자는 통째로 들고(pzTake) 탁자에 올려놓을 수 있다(pzDrop). 탁자 위의 피자는 누구나 눌러서 한 조각씩 먹는다.
 //     피자의 id 는 구운 화덕의 id 그대로다(화덕 하나에 피자 하나). 케이크 들고 다니기(app.js)와 같은 규칙.
 //   먹기: pzEat 로 한 조각 줄이고, 손에 피자 조각을 든다(food.js 의 take. 한 입씩 먹는 것은 거기 것 그대로).
-import { THREE, L, put, cbox, rbox, cyl, ball } from './kit.js';
+import { THREE, L, E, put, cbox, rbox, cyl, ball } from './kit.js';
 import { addShape } from './furniture.js';
 import { PIZZA, PIZZA_TOPS } from './catalog.js';
 import { sfx } from './sfx.js';
@@ -22,8 +22,8 @@ addShape('pizza', (g) => { // 2 × 1: 왼쪽에 벽돌 화덕, 오른쪽에 나�
   put(new THREE.SphereGeometry(0.215, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), 0xB5533C, OVEN_X, 0.81, -0.01, g);
   put(cyl(0.225, 0.225, 0.03, 18), 0x8C4A36, OVEN_X, 0.825, -0.01, g, false);
   const arch = put(new THREE.CylinderGeometry(0.115, 0.115, 0.07, 14, 1, false, -Math.PI / 2, Math.PI), 0x8C4A36, OVEN_X, 0.84, 0.175, g, false); arch.rotation.x = Math.PI / 2;
-  const glow = put(new THREE.CircleGeometry(0.092, 14, 0, Math.PI), L(0xFF9A3C), OVEN_X, 0.842, 0.212, g, false);
-  put(new THREE.CircleGeometry(0.06, 10, 0, Math.PI), L(0xFFD27A), OVEN_X, 0.842, 0.2125, g, false);
+  const glow = put(new THREE.CircleGeometry(0.092, 14, 0, Math.PI), E(0xFF9A3C, 0.6), OVEN_X, 0.842, 0.212, g, false);
+  put(new THREE.CircleGeometry(0.06, 10, 0, Math.PI), E(0xFFD27A, 0.6), OVEN_X, 0.842, 0.2125, g, false);
   put(cyl(0.04, 0.05, 0.15, 10), 0x8C4A36, OVEN_X, 1.06, -0.09, g, false);
   put(cyl(0.055, 0.055, 0.02, 10), 0x6E3A2A, OVEN_X, 1.14, -0.09, g, false);
   // 도마와 밀대

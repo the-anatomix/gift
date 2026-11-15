@@ -1,5 +1,5 @@
 // 트리 장식과 전구. 장식은 트리 겉면의 한 점에 달리고, 바깥쪽이 +z 다.
-import { THREE, M, bake } from './kit.js';
+import { THREE, M, bake, hot, motes } from './kit.js';
 import { TREE, surfaceR } from './room.js';
 import { LIGHT_SETS } from './catalog.js';
 
@@ -107,7 +107,7 @@ export function buildLights(scene) {
   const geo = new THREE.SphereGeometry(0.045, 8, 6), box = new THREE.Group(), mats = [], base = [];
   const m4 = new THREE.Matrix4();
   for (let gi = 0; gi < GROUPS; gi++) {
-    const n = Math.ceil((COUNT - gi) / GROUPS), mat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+    const n = Math.ceil((COUNT - gi) / GROUPS), mat = hot(new THREE.MeshBasicMaterial({ color: 0xFFFFFF }));
     const inst = new THREE.InstancedMesh(geo, mat, n);
     for (let k = 0; k < n; k++) {
       const u = (gi + k * GROUPS) / (COUNT - 1), y = Y1 - u * (Y1 - Y0), a = u * TURNS * Math.PI * 2, r = surfaceR(y) + 0.03;
@@ -129,6 +129,7 @@ export function buildLights(scene) {
     gl.instanceMatrix.copy(inst.instanceMatrix); gl.instanceMatrix.needsUpdate = true; gl.frustumCulled = false; gl.renderOrder = 3; gl.raycast = () => {};
     box.add(gl); glows.push(gm);
   });
+  motes(box, { n: 40, r0: 0.75, r1: 2.0, y0: 0.15, y1: 2.5 }); // 전구가 켜지면 트리 둘레에 떠다니는 반짝이
   box.visible = false;
   scene.add(box);
   let blink = 'on', on = false;

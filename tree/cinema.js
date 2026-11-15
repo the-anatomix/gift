@@ -13,7 +13,7 @@
 // K = { S() 방 상태, kindOf(k), levelOfCell(i), op(o), newId(), isMaster() 영화관으로 바꿀 권한이 있는지(마스터키를 켰거나 마스터가 🎬 를 열어 줌: master.js 의 CINE), canEdit(), approach(id, then), popcorn() 팝콘 한 통을 꺼내 든다, mode(), measure(), toast(m),
 //       itemObj(id) 가구 모양, wallShown(lv, side) 그 층의 그 벽(n·s·w·e)이 지금 보이는지, dirty(),
 //       photo(h) 그 지문의 사진(data URL), room(room.js), showing() 스크린에 동영상이 나오는지, level() 내가 있는 층 }
-import { THREE, T, L, put, rbox, cyl, ball, bake, soft } from './kit.js';
+import { THREE, T, L, E, put, rbox, cyl, ball, bake, soft } from './kit.js';
 import { addShape, TV_MAT } from './furniture.js';
 import { CINEMA, MAX_ITEMS } from './catalog.js';
 import { FLOOR_DI, NX, NZ, X0, X1, Z0, CELL, LADDERS } from './path.js';
@@ -126,7 +126,7 @@ function signMat(w, h, draw) {
 addShape('screen', (g) => {
   const top = WALL_TOP - 0.04;
   put(new THREE.BoxGeometry(4.0, 0.18, 0.5), 0x4A3328, 0, 0.09, 0, g);                                     // 무대 단
-  put(new THREE.BoxGeometry(3.96, 0.02, 0.02), L(GLOW), 0, 0.186, 0.243, g, false).receiveShadow = false;  // 무대 앞 끝의 발밑 등
+  put(new THREE.BoxGeometry(3.96, 0.02, 0.02), E(GLOW, 0.6), 0, 0.186, 0.243, g, false).receiveShadow = false;  // 무대 앞 끝의 발밑 등
   put(rbox(SCREEN.w + 0.24, SCREEN.h + 0.24, 0.07, 0.02), 0x141114, 0, SCREEN.y, -0.2, g);
   const scr = put(new THREE.PlaneGeometry(SCREEN.w, SCREEN.h), TV_MAT, 0, SCREEN.y, -0.16, g, false);
   scr.receiveShadow = false;
@@ -153,7 +153,7 @@ const rowMat = (ch) => {
 const seatShape = (rise, row) => (g) => {
   if (rise) {
     put(new THREE.BoxGeometry(1.98, rise, 0.98), STEP, 0, rise / 2, 0, g);
-    put(new THREE.BoxGeometry(1.9, 0.02, 0.02), L(GLOW), 0, rise - 0.012, 0.495, g, false).receiveShadow = false;
+    put(new THREE.BoxGeometry(1.9, 0.02, 0.02), E(GLOW, 0.6), 0, rise - 0.012, 0.495, g, false).receiveShadow = false;
   }
   for (const sx of [-0.47, 0.47]) {
     put(rbox(0.76, 0.15, 0.56, 0.06), VELVET, sx, rise + 0.265, 0.1, g);                                    // 내려 둔 앉는 판
@@ -175,8 +175,8 @@ addShape('seat', seatShape(0, 'A')); addShape('seat2', seatShape(0.2, 'B')); add
 // 유도등: 6 × 2, 통로 양쪽 가장자리의 빛나는 줄과 점 (밟고 지나간다)
 addShape('guide', (g) => {
   for (const s of [-1, 1]) {
-    put(new THREE.BoxGeometry(2.9, 0.012, 0.03), L(GLOW), 0, 0.016, 0.47 * s, g, false).receiveShadow = false;
-    for (let k = 0; k < 6; k++) put(new THREE.BoxGeometry(0.07, 0.014, 0.07), L(0xFFE9B8), -1.25 + k * 0.5, 0.018, 0.47 * s, g, false).receiveShadow = false;
+    put(new THREE.BoxGeometry(2.9, 0.012, 0.03), E(GLOW, 0.6), 0, 0.016, 0.47 * s, g, false).receiveShadow = false;
+    for (let k = 0; k < 6; k++) put(new THREE.BoxGeometry(0.07, 0.014, 0.07), E(0xFFE9B8, 0.6), -1.25 + k * 0.5, 0.018, 0.47 * s, g, false).receiveShadow = false;
   }
 });
 // 매점(종류 이름은 예전 그대로 popcorn): 2 × 1, 줄무늬 판매대 위의 팝콘 기계와 음료 컵, 팝콘 통
@@ -220,7 +220,7 @@ function buildFixtures(f) {
     const w = f.walls[side], p = fx(w), xs = [-2.25, 1.0, 3.5, 6.0, 9.25].map((v) => w.at(v)), z = w.front;
     for (const x of xs) {
       put(new THREE.BoxGeometry(0.07, 0.16, 0.05), GOLD, x, 2.12, z + 0.025, p, false);
-      put(cyl(0.075, 0.045, 0.17, 8), L(0xFFDFA8), x, 2.2, z + 0.085, p, false);
+      put(cyl(0.075, 0.045, 0.17, 8), E(0xFFDFA8, 0.6), x, 2.2, z + 0.085, p, false);
       put(cyl(0.05, 0.05, 0.02, 8), GOLD, x, 2.105, z + 0.085, p, false);
     }
     bake(p, 0, false);
@@ -233,10 +233,10 @@ function buildFixtures(f) {
     const w = f.walls.e, p = fx(w), x = w.at(LZ), z = w.front;
     put(rbox(1.7, 0.66, 0.2, 0.04), 0x1C1820, x, LY, z + 0.1, p);
     put(new THREE.BoxGeometry(1.76, 0.05, 0.24), GOLD, x, LY - 0.35, z + 0.1, p, false);
-    put(new THREE.BoxGeometry(0.34, 0.2, 0.02), L(0xFFE2A0), x - 0.5, LY + 0.02, z + 0.2, p, false);          // 영사 기사의 창
+    put(new THREE.BoxGeometry(0.34, 0.2, 0.02), E(0xFFE2A0, 0.4), x - 0.5, LY + 0.02, z + 0.2, p, false);          // 영사 기사의 창
     put(new THREE.BoxGeometry(0.34, 0.2, 0.02), L(0x55618F), x + 0.5, LY + 0.02, z + 0.2, p, false);
     put(cyl(0.1, 0.12, 0.1, 12), 0x2B2630, x, LY, z + 0.24, p, false).rotation.x = Math.PI / 2;               // 렌즈 통
-    put(cyl(0.07, 0.07, 0.02, 12), L(0xEAF2FF), x, LY, z + 0.295, p, false).rotation.x = Math.PI / 2;
+    put(cyl(0.07, 0.07, 0.02, 12), E(0xEAF2FF), x, LY, z + 0.295, p, false).rotation.x = Math.PI / 2;
     bake(p, 0, false);
   }
   // 영사기 빛줄기: 렌즈에서 스크린까지 퍼지는 옅은 빛 (스크린에 동영상이 나올 때만 보인다)

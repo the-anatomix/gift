@@ -21,7 +21,7 @@
 //   g0(1층 묶음), me, S, grid, others() → Map, myId(), mode(), setMode(m), ghost() → { id } | null, ghostPick(id), ghostCancel(),
 //   itemObj(id), op(변화) → 받아들였는지, canEdit(), goTo(x, z), fx(소식), toast(글), dirty(), nameOf(id), key, store,
 //   treeGlow() → 트리 둘레 빛이 평소의 몇 배인지, actBottom() → 가운데 단추(#act)의 bottom
-import { THREE } from './kit.js';
+import { THREE, FX } from './kit.js';
 import { TREE } from './room.js';
 import { X0, Z0, CELL, toWorld, levelOfCell } from './path.js';
 import { NOTE } from './catalog.js';
@@ -542,7 +542,7 @@ export function makeCoop(K) {
       real.scale.setScalar(s);
       starG.rotation.y = Math.sin(clock * 0.8) * 0.5;
       const glow = Math.max(0, f - 1);
-      gold.emissiveIntensity = 1 + glow * 0.5 + 0.15 * Math.sin(clock * 3);
+      gold.emissiveIntensity = (1 + glow * 0.5 + 0.15 * Math.sin(clock * 3)) * (FX.glow.value > 1 ? 1.5 : 1); // 화면 다듬기가 켜져 있으면 빛 번짐이 생길 만큼 더 밝게
       halo.scale.setScalar(0.95 * (1 + glow * 0.45) + 0.06 * Math.sin(clock * 2.4));
       halo.material.opacity = Math.min(1, 0.6 + glow * 0.2);
       if (f > 2 && glowWas <= 2) burst(18, false); // 점등!

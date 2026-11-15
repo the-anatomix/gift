@@ -10,7 +10,7 @@
 //   key, store, toast, op(변화) → 받아들였는지, canEdit(), newId(), defName(), S() → 방의 상태, g0 → 1층 묶음(트리가 있는 곳),
 //   me → 내 아바타, mode() → 지금 판, setMode(m), ray(px, py) → 화면의 한 점에서 나가는 빛줄기, act(행동), cakeEaten(케이크 id),
 //   resized() → 판 높이가 바뀌었다, dirty()
-import { THREE, M, put, rbox, ball } from './kit.js';
+import { THREE, M, G, put, rbox, ball } from './kit.js';
 import { GIFT, WRAPS, NOTE } from './catalog.js';
 import { cleanWords, giftsList, cakesList } from './state.js';
 import { can, GIFT as MK_GIFT } from './master.js';
@@ -219,18 +219,18 @@ export function makeGift(K) {
     const w = WRAPS.find((x) => x.id === g.wrap) || WRAPS[0], hsh = hash(g.id), s = 0.22 + (hsh % 5) * 0.018, h = 0.18 + ((hsh >> 3) % 5) * 0.025;
     const grp = new THREE.Group(), body = h * 0.8, lh = h * 0.24;
     grp.userData.gift = g.id;
-    put(rbox(s, body, s, 0.015), w.box, 0, body / 2, 0, grp);
-    put(new THREE.BoxGeometry(s + 0.006, body + 0.002, 0.045), w.band, 0, body / 2, 0, grp, false);
-    put(new THREE.BoxGeometry(0.045, body + 0.002, s + 0.006), w.band, 0, body / 2, 0, grp, false);
+    put(rbox(s, body, s, 0.015), G(w.box), 0, body / 2, 0, grp);
+    put(new THREE.BoxGeometry(s + 0.006, body + 0.002, 0.045), G(w.band), 0, body / 2, 0, grp, false);
+    put(new THREE.BoxGeometry(0.045, body + 0.002, s + 0.006), G(w.band), 0, body / 2, 0, grp, false);
     put(new THREE.BoxGeometry(s * 0.9, 0.01, s * 0.9), 0x3A2A20, 0, body - 0.004, 0, grp, false); // 열면 보이는 안쪽
     // 뚜껑: 뒤쪽 모서리를 축으로 열린다
     const lid = new THREE.Group(); lid.position.set(0, body, -s / 2 - 0.006); grp.add(lid);
     const L = new THREE.Group(); L.position.set(0, lh / 2, s / 2 + 0.006); lid.add(L);
-    put(rbox(s + 0.012, lh, s + 0.012, 0.012), w.box, 0, 0, 0, L);
-    put(new THREE.BoxGeometry(s + 0.018, lh + 0.002, 0.045), w.band, 0, 0, 0, L, false);
-    put(new THREE.BoxGeometry(0.045, lh + 0.002, s + 0.018), w.band, 0, 0, 0, L, false);
-    for (const k of [-1, 1]) put(ball(0.04, 8, 6), w.band, 0.035 * k, lh / 2 + 0.02, 0, L).scale.set(1.15, 0.65, 0.65);
-    put(ball(0.02, 8, 6), w.band, 0, lh / 2 + 0.018, 0, L, false);
+    put(rbox(s + 0.012, lh, s + 0.012, 0.012), G(w.box), 0, 0, 0, L);
+    put(new THREE.BoxGeometry(s + 0.018, lh + 0.002, 0.045), G(w.band), 0, 0, 0, L, false);
+    put(new THREE.BoxGeometry(0.045, lh + 0.002, s + 0.018), G(w.band), 0, 0, 0, L, false);
+    for (const k of [-1, 1]) put(ball(0.04, 8, 6), G(w.band), 0.035 * k, lh / 2 + 0.02, 0, L).scale.set(1.15, 0.65, 0.65);
+    put(ball(0.02, 8, 6), G(w.band), 0, lh / 2 + 0.018, 0, L, false);
     // "To. 이름" 꼬리표: 앞면에 비스듬히
     const tex = tagTexture(`To. ${g.to}`), tag = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.066), new THREE.MeshBasicMaterial({ map: tex }));
     tag.position.set(s * 0.18, body * 0.55, s / 2 + 0.008); tag.rotation.z = -0.12;

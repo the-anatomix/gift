@@ -1,10 +1,10 @@
 // 케이크 한 판의 모양. 방 상태(state.js 의 cakes)에 맞춰 다시 차린다. 작업대·탁자·손 어디에 둘지는 app.js 가 정한다.
 // 크림 색, 올린 장식(딸기·체리·초콜릿·별·트리·초), 켜진 촛불, 먹고 남은 조각.
-import { THREE, M, L, put, cyl, ball, bake } from './kit.js';
+import { THREE, M, L, put, cyl, ball, bake, hot } from './kit.js';
 import { CREAMS, CAKE } from './catalog.js';
 
 const lit = (hex) => new THREE.MeshBasicMaterial({ color: hex });
-const FLAME = lit(0xFFD166), FLAME_IN = lit(0xFFF6D0);
+const FLAME = hot(lit(0xFFD166)), FLAME_IN = hot(lit(0xFFF6D0));
 const STAR = (() => { // 작은 별 (모든 케이크가 같이 쓴다)
   const s = new THREE.Shape();
   for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2 + Math.PI / 2, r = k % 2 ? 0.022 : 0.05; if (k) s.lineTo(Math.cos(a) * r, Math.sin(a) * r); else s.moveTo(Math.cos(a) * r, Math.sin(a) * r); }

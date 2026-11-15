@@ -168,6 +168,13 @@ function paneMaterial(u) {
             vec2 id = floor(g); float h = hash(id + float(l) * 17.);
             if (h < uSnow * .55) { vec2 f = fract(g) - .5 - (vec2(hash(id + 1.), hash(id + 2.)) - .5) * .6 + vec2(sin(uTime + h * 30.) * .12, 0.);
               c = mix(c, vec3(1.), smoothstep(l == 0 ? .14 : .1, 0., length(f)) * .9); } } }
+        // 유리 네 칸의 귀퉁이와 아랫단에 낀 성에 (결정 무늬). 방 불빛을 받아 희게 빛난다
+        { vec2 q = fract(vUv * 2.), e = min(q, 1. - q) * vec2(1.3, 1.);
+          float fr = smoothstep(.2, 0., length(e)) * .8 + smoothstep(.07, 0., q.y) * .35 + smoothstep(.05, 0., min(e.x, e.y)) * .25;
+          vec2 g = vUv * vec2(120., 92.);
+          float n = hash(floor(g)) * .55 + hash(floor(g * .37) + 5.) * .45;
+          fr = clamp(fr * (.45 + .9 * n) - .12, 0., .62);
+          c = mix(c, vec3(.82, .88, .97), fr); }
         gl_FragColor = vec4(c, 1.);
         ${COLOR_OUT}
       }`,

@@ -3,7 +3,7 @@
 // 층마다 묶음이 따로 있어서, 내가 있는 층만 보이게 한다(showFloor).
 // 방(침실)으로 들어가는 두 곳에는 미닫이문이, 현관에는 여닫이문이 달려 있어서 사람이 다가오면 열리고 지나가면 닫힌다.
 // 바깥 벽은 카메라 쪽 두 면을 숨길 수 있게 따로 묶는다. 방 사이 벽은 내려다볼 때 낮게만 보이고, 1인칭에서는 천장까지 보인다.
-import { THREE, M, T as TX, L, put, rbox, cbox, cyl, ball, bake, uvw, SN } from './kit.js';
+import { THREE, M, T as TX, L, E, F, flameGeo, tex, put, rbox, cbox, cyl, ball, bake, uvw, SN } from './kit.js';
 import { NX, NZ, CELL, X0, Z0, X1, Z1, GZ1, YARD, LEVELS, FLOOR_H, LADDERS, zoneOf, centerOf, hatchCell } from './path.js';
 import { WALLS, FLOORS } from './catalog.js';
 
@@ -146,7 +146,7 @@ function windowOn(w, v, curtain = 0xC0473C) {
   // 창턱 위의 작은 것: 자리마다 화분이나 초
   const pick = Math.abs(Math.round(v * 10)) % 3, px = x + (pick === 1 ? 0.5 : -0.5), pz = z + 0.1;
   if (pick === 0) { put(cyl(0.05, 0.04, 0.08, 8), 0xB5523F, px, 1.075, pz, w.upper, false); for (let k = 0; k < 3; k++) put(ball(0.045, 5, 3), M(k % 2 ? C.pine2 : C.pine, true), px + (k - 1) * 0.035, 1.15 + (k % 2) * 0.03, pz, w.upper, false).scale.set(0.7, 1.3, 0.7); }
-  else if (pick === 1) { put(cyl(0.028, 0.03, 0.12, 8), C.rugIn, px, 1.095, pz, w.upper, false); put(new THREE.ConeGeometry(0.016, 0.05, 6), L(0xFFD166), px, 1.185, pz, w.upper, false); put(cyl(0.045, 0.05, 0.012, 8), C.knob, px, 1.04, pz, w.upper, false); }
+  else if (pick === 1) { put(cyl(0.028, 0.03, 0.12, 8), C.rugIn, px, 1.095, pz, w.upper, false); put(flameGeo(0.018, 0.065, 6), F(0xFFB347), px, 1.155, pz, w.upper, false); put(flameGeo(0.01, 0.035, 5), F(0xFFF3C4), px, 1.16, pz + 0.004, w.upper, false); put(cyl(0.045, 0.05, 0.012, 8), C.knob, px, 1.04, pz, w.upper, false); }
   else { put(cyl(0.055, 0.055, 0.03, 8), 0xFFFAF2, px, 1.05, pz, w.upper, false); put(ball(0.06, 7, 5), 0xFFFAF2, px, 1.1, pz, w.upper, false); put(ball(0.042, 7, 5), 0xFFFAF2, px, 1.175, pz, w.upper, false); put(new THREE.ConeGeometry(0.01, 0.04, 5), 0xF28C28, px, 1.175, pz + 0.045, w.upper, false).rotation.x = Math.PI / 2; } // 꼬마 눈사람
 }
 
@@ -188,7 +188,7 @@ function frontDoor(w) {
   const wr = put(new THREE.TorusGeometry(0.17, 0.06, 8, 16), M(C.pine, true), lw / 2, 1.6, -0.05, hinge, false); wr.scale.z = 0.6; // 바깥쪽의 리스
   for (let k = 0; k < 5; k++) { const a = k * 1.257 + 0.4; put(ball(0.028, 6, 5), C.pot, lw / 2 + Math.cos(a) * 0.17, 1.6 + Math.sin(a) * 0.17, -0.085, hinge, false); }
   put(cbox(0.12, 0.08, 0.04, 0.02), C.knob, lw / 2, 1.42, -0.08, hinge, false);                               // 리스의 금빛 리본
-  for (const s of [-1, 1]) put(new THREE.BoxGeometry(lw - 0.3, 0.26, 0.012), L(0xFFE2A8), lw / 2, 1.86, s * 0.033, hinge, false); // 문 위쪽의 불빛 창
+  for (const s of [-1, 1]) put(new THREE.BoxGeometry(lw - 0.3, 0.26, 0.012), E(0xFFE2A8, 0.4), lw / 2, 1.86, s * 0.033, hinge, false); // 문 위쪽의 불빛 창
   for (const s of [-1, 1]) { put(new THREE.BoxGeometry(0.03, 0.26, 0.016), 0xA3432F, lw / 2, 1.86, s * 0.034, hinge, false); put(new THREE.BoxGeometry(0.2, 0.05, 0.016), C.knob, lw / 2, 0.3, s * 0.034, hinge, false); } // 창살, 아래의 놋쇠 판
   hinge.userData.own = true; // 문짝은 움직이므로 벽과 따로 합친다
   put(new THREE.BoxGeometry(FRONT.w, 0.03, T + 0.1), TX(C.frame, 'wood'), x, 0.015, 0, w.g, false);             // 문턱
@@ -392,11 +392,11 @@ function buildYard(scene) {
   const g = new THREE.Group(); scene.add(g);
   const xa = X0 - 0.3, xb = X1 + 0.3, za = Z1 + 0.14, zb = GZ1 + 0.3, W = xb - xa, cx = (xa + xb) / 2;
   // 따뜻한 조명 아래에서도 눈이 하얗게 보이도록 푸른빛을 조금 스스로 낸다
-  const snow = new THREE.MeshLambertMaterial({ color: 0xE6EEFF, emissive: 0x1C2A44 });
-  put(new THREE.BoxGeometry(W, 0.2, zb - za), snow, cx, -0.1, (za + zb) / 2, g, false);
+  const snow = new THREE.MeshLambertMaterial({ color: 0xE6EEFF, emissive: 0x1C2A44, map: tex('snow') }); // 바람 결과 둔덕이 옅게 보이는 눈밭
+  put(uvw(new THREE.BoxGeometry(W, 0.2, zb - za), 0.32), snow, cx, -0.1, (za + zb) / 2, g, false);
   // 집 벽 밑에 쌓인 눈 (벽 줄은 걸어갈 수 없다). 현관 앞만 비어 있다
   const zs = Z1 + 0.14 + 0.17;
-  for (const [a, b] of [[xa + 0.05, FRONT.x - FRONT.w / 2 - 0.08], [FRONT.x + FRONT.w / 2 + 0.08, xb - 0.05]]) put(cbox(b - a, 0.3, 0.36, 0.12), snow, (a + b) / 2, 0.06, zs, g);
+  for (const [a, b] of [[xa + 0.05, FRONT.x - FRONT.w / 2 - 0.08], [FRONT.x + FRONT.w / 2 + 0.08, xb - 0.05]]) put(uvw(cbox(b - a, 0.3, 0.36, 0.12), 0.32), snow, (a + b) / 2, 0.06, zs, g);
   put(new THREE.BoxGeometry(0.84, 0.03, 0.44), 0x9C4A3A, FRONT.x, 0.015, Z1 + 0.42, g, false); // 발판
   put(new THREE.BoxGeometry(0.7, 0.034, 0.3), 0xB5523F, FRONT.x, 0.015, Z1 + 0.42, g, false);
   for (let z = Z1 + 1.05, k = 0; z < GZ1 - 0.1; z += 0.72, k++) { // 디딤돌 (가장자리에 눈이 묻었다)
@@ -435,7 +435,7 @@ function buildYard(scene) {
   put(cyl(0.025, 0.035, 1.7, 8), 0x2B2420, lx, 0.9, lz, g);
   put(ball(0.045, 6, 5), 0x2B2420, lx, 1.2, lz, g, false);
   put(cyl(0.11, 0.05, 0.06, 4), 0x2B2420, lx, 1.71, lz, g, false).rotation.y = Math.PI / 4;
-  put(ball(0.13, 8, 6), new THREE.MeshBasicMaterial({ color: 0xFFE2A8 }), lx, 1.82, lz, g, false);
+  put(ball(0.13, 8, 6), E(0xFFE2A8), lx, 1.82, lz, g, false);
   for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + Math.PI / 4; put(new THREE.BoxGeometry(0.014, 0.24, 0.014), 0x2B2420, lx + Math.cos(a) * 0.14, 1.84, lz + Math.sin(a) * 0.14, g, false); } // 등갓 살
   put(new THREE.ConeGeometry(0.22, 0.14, 4), 0x2B2420, lx, 2.02, lz, g, false).rotation.y = Math.PI / 4;
   put(new THREE.ConeGeometry(0.15, 0.08, 4), SN(), lx, 2.09, lz, g, false).rotation.y = Math.PI / 4;
@@ -453,7 +453,7 @@ function buildYard(scene) {
   // 현관 옆의 작은 등불
   { const lx2 = FRONT.x - FRONT.w / 2 - 0.34, lz2 = zs + 0.1, y0 = 0.2;
     put(new THREE.BoxGeometry(0.15, 0.03, 0.15), 0x2B2420, lx2, y0 + 0.015, lz2, g, false);
-    put(new THREE.BoxGeometry(0.1, 0.15, 0.1), L(0xFFD98A), lx2, y0 + 0.105, lz2, g, false);
+    put(new THREE.BoxGeometry(0.1, 0.15, 0.1), E(0xFFD98A), lx2, y0 + 0.105, lz2, g, false);
     for (const dx of [-1, 1]) for (const dz of [-1, 1]) put(new THREE.BoxGeometry(0.014, 0.16, 0.014), 0x2B2420, lx2 + dx * 0.055, y0 + 0.105, lz2 + dz * 0.055, g, false);
     put(new THREE.ConeGeometry(0.11, 0.07, 4), 0x2B2420, lx2, y0 + 0.22, lz2, g, false).rotation.y = Math.PI / 4;
     put(new THREE.ConeGeometry(0.075, 0.04, 4), SN(), lx2, y0 + 0.25, lz2, g, false).rotation.y = Math.PI / 4;
@@ -496,7 +496,7 @@ function garlands(walls) {
         const ax = xa + u0 * step, bx = xa + u1 * step, ay = y0 + sag(u0), by = y0 + sag(u1);
         const m = put(new THREE.PlaneGeometry(Math.hypot(bx - ax, by - ay) + 0.01, 0.04), j % 2 ? C.pine2 : C.pine, (ax + bx) / 2, (ay + by) / 2, z, w.upper, false); // 벽에 붙은 것이라 납작한 판이면 된다
         m.rotation.z = Math.atan2(by - ay, bx - ax);
-        put(new THREE.CircleGeometry(0.032, 5), L(BULBS[(i * 6 + j) % 4]), (ax + bx) / 2, (ay + by) / 2 - 0.035, z + 0.004, w.upper, false);
+        put(new THREE.CircleGeometry(0.032, 5), E(BULBS[(i * 6 + j) % 4]), (ax + bx) / 2, (ay + by) / 2 - 0.035, z + 0.004, w.upper, false);
       }
       put(new THREE.PlaneGeometry(0.08, 0.08), C.pot, xa, y0, z + 0.006, w.upper, false).rotation.z = Math.PI / 4; // 매단 자리의 리본
     }

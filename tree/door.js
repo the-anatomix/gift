@@ -1,6 +1,6 @@
 // 집 밖: 초대받은 사람이 처음 보는 장면. 눈 내리는 밤의 집 앞에서 초인종을 누르고, 문이 열리면 걸어 들어간다.
 // 집 안과 겹치지 않게 멀리(z 쪽으로 OZ 만큼) 떨어뜨려 짓고, 문 앞에 있을 때만 보이게 한다.
-import { THREE, M, put, rbox, cyl, ball } from './kit.js';
+import { THREE, M, put, rbox, cyl, ball, hot } from './kit.js';
 import { sfx } from './sfx.js';
 
 const OZ = 70;                 // 집 밖 장면이 놓인 자리 (집 안은 z -4 ~ 5)
@@ -24,7 +24,7 @@ export function buildOutside(scene) {
   // 불 켜진 창
   for (const x of [-2.9, 2.9]) {
     put(rbox(1.7, 1.4, 0.1, 0.03), 0xFFF8EA, x, 1.75, 0.02, g, false);
-    put(new THREE.BoxGeometry(1.5, 1.2, 0.02), lit(0xFFD98A), x, 1.75, 0.08, g, false);
+    put(new THREE.BoxGeometry(1.5, 1.2, 0.02), hot(lit(0xFFD98A), 0.35), x, 1.75, 0.08, g, false);
     put(new THREE.BoxGeometry(0.06, 1.2, 0.03), 0xFFF8EA, x, 1.75, 0.1, g, false); put(new THREE.BoxGeometry(1.5, 0.06, 0.03), 0xFFF8EA, x, 1.75, 0.1, g, false);
     put(new THREE.BoxGeometry(1.9, 0.1, 0.3), SNOW, x, 1.02, 0.14, g, false);
   }
@@ -40,12 +40,12 @@ export function buildOutside(scene) {
   // 초인종: 문 오른쪽의 작은 판과 빛나는 단추
   const bell = new THREE.Group(); bell.position.set(0.95, 1.25, 0.06); g.add(bell);
   put(rbox(0.16, 0.24, 0.05, 0.02), 0x5A3824, 0, 0, 0, bell, false);
-  const btn = put(ball(0.045, 12, 10), lit(0xFFE08A), 0, 0, 0.035, bell, false);
+  const btn = put(ball(0.045, 12, 10), hot(lit(0xFFE08A), 0.7), 0, 0, 0.035, bell, false);
   const hitBox = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.3), new THREE.MeshBasicMaterial({ visible: false })); // 누르기 쉽게 넉넉한 자리
   bell.add(hitBox);
   // 현관 등
   put(cyl(0.02, 0.02, 0.25, 6), 0x2B2420, -0.95, 2.05, 0.2, g, false).rotation.x = Math.PI / 2;
-  put(ball(0.1, 10, 8), lit(0xFFE2A8), -0.95, 2.0, 0.34, g, false);
+  put(ball(0.1, 10, 8), hot(lit(0xFFE2A8)), -0.95, 2.0, 0.34, g, false);
   const lamp = new THREE.PointLight(0xFFC27A, 3, 7, 1.5); lamp.position.set(0, 2.1, 1.2); g.add(lamp);
   // 마당: 나무, 눈사람, 울타리
   for (const [x, z, s] of [[-3.6, 2.6, 1], [3.9, 3.3, 0.8], [-5.2, 4.6, 0.7]]) {
