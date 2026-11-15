@@ -40,6 +40,7 @@ import { ADMINS } from './catalog.js';
 import { makeCheers } from './cheers.js';
 import { makePizza } from './pizza.js';
 import { makeGameroom } from './gameroom.js';
+import { makePool } from './pool.js';
 import { sfx, sfxOp, sfxWalk, mountSfxUI } from './sfx.js';
 import { makeCakeView, dressCake, flicker, pickTop, disposeCakeView } from './cake.js';
 
@@ -756,6 +757,7 @@ const duo = makeDuo({
   },
   peerFx(m, id) {
     if (m && m.k === 'bell') { if (duo.role !== 'host') ding(false); return false; } // 초인종 소식은 방장만 전한다
+    if (m && m.k === 'pool') return pool.peerFx(m, id); // 당구 (pool.js. 소식이 길어서 아래의 20자 검사보다 먼저)
     if (m && m.k === 'gm') return games.peerFx(m, id); // 같이 놀기 (games.js)
     if (m && m.k === 'food') return food.peerFx(m, id); // 냉장고와 먹기 (food.js)
     if (m && m.k === 'cheers') return cheers.peerFx(m, id); // 건배 (cheers.js)
@@ -1023,6 +1025,7 @@ function freeBench() {
 }
 const play = makePlay({
   key, store, toast: (m) => toast(m),
+  level: () => myLv, levelOfItem: (id) => { const it = S.items.get(id); return it ? levelOfCell(it.i) : -1; }, // 오르골은 그 층에서만 들린다
   itemObj: (id) => itemObj.get(id),
   hasKind: (k) => hasKind(k) || (k === 'tv' && hasKind('screen')), // 영화관 스크린도 TV 화면을 비춘다 (cinema.js)
   aspect: () => eye.aspect,
@@ -1038,7 +1041,12 @@ const play = makePlay({
   },
   // 내가 넣은 TV 영상을 방 사람들에게 보낸다 (null 이면 그만)
   canShare: () => duo.mode === 'on' && media.can,
-  seated: () => !!(me.rest && me.rest.sit), // 영화관 좌석에 앉아 있는지: 앉아 있는 동안은 스크린 영상의 소리가 난다
+  seated: () => { // 영화관 좌석에 앉아 있는지: 같은 층에 스크린이 있는 영화관 좌석에 앉아 있을 때만 스크린 영상의 소리가 난다 (빈백 등 다른 자리는 아니다)
+    const it = me.rest && me.rest.sit && S.items.get(me.rest.id);
+    if (!it || kindOf(it.k).set !== 'cinema') return false;
+    const lv = levelOfCell(it.i);
+    return [...S.items.values()].some((x) => x.k === 'screen' && levelOfCell(x.i) === lv);
+  },
   shareTv: (stream) => media.setTv(stream),
   cake: (id) => S.cakes.get(id) || newCake(),
   // 케이크가 지금 놓인 곳: g = 작업대나 탁자, top = 그 가구에서 잰 케이크 윗면 높이
@@ -1216,6 +1224,13 @@ const pizza = makePizza({
   me: () => duo.me, avatar: (pid) => avatarOf(pid), holdsY: (id) => kindOf(S.items.get(id).k).holds,
 });
 // 4층 게임방 (gameroom.js): 오락기·인형뽑기 놀이, 마스터 판의 "4층을 게임방으로 꾸미기"
+// 당구 (pool.js): 당구대 위에서 여럿이 번갈아 친다
+const pool = makePool({
+  play, S: () => S, itemObj: (id) => itemObj.get(id), myId: () => duo.me, others: () => others, nameOf: (id) => nameOf(id),
+  online: () => duo.mode === 'on', fx: (m) => duo.fx(m), close: () => setMode(null), cam: () => cam(),
+  setPose: (p) => { pose = p; applyPov(); dirty = true; }, record: (k, v) => rank.record(k, v), bestLine: (k) => book.bestLine(k), dirty: () => { dirty = true; },
+  planeAt(px, py, y) { aimRay(px, py); upPlane.constant = -y; return ray.ray.intersectPlane(upPlane, hit) ? hit.clone() : null; },
+});
 const gameroom = makeGameroom({
   play, S: () => S, itemObj: (id) => itemObj.get(id), op: (o) => dispatch(o), newId, canEdit: () => canEdit, isMaster: () => can(CINE), toast: (m) => toast(m), close: () => setMode(null),
   setPose: (p) => { pose = p; applyPov(); dirty = true; }, levelOfCell, mode: () => mode, measure: () => measure(false), dirty: () => { dirty = true; },
@@ -1419,7 +1434,7 @@ const PLAY_LABEL = { dart: '🎯 다트 하기', tv: '📺 TV 보기', fire: '�
   $('tools').insertBefore(b, $('snap') || null);
 }
 PLAY_LABEL.advent = '🗓️ 어드벤트 달력'; // advent.js
-PLAY_LABEL.arcade = '🕹️ 오락기 하기'; PLAY_LABEL.claw = '🧸 인형 뽑기'; PLAY_LABEL.pool = '🎱 당구 치기'; // gameroom.js
+PLAY_LABEL.arcade = '🕹️ 오락기 하기'; PLAY_LABEL.claw = '🧸 인형 뽑기'; PLAY_LABEL.pool = '🎱 당구 치기'; // pool.js // gameroom.js
 PLAY_LABEL.pic = '🖼️ 사진 바꾸기'; // photo.js (꾸밀 수 있는 사람만)
 // 냉장고: 앞으로 가서 문을 열고 먹을 것을 고른다 (food.js)
 function snack(id) {
@@ -1518,7 +1533,7 @@ const spread = () => { const [a, b] = [...touches.values()]; return Math.hypot(a
 function ghostAt(px, py) { const p = floorAt(px, py, false); if (p) ghostMoveTo(p.x, p.z); }
 canvas.addEventListener('pointerdown', (e) => {
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (touches.size === 1) { tap = { x: e.clientX, y: e.clientY, id: e.pointerId }; if (ghost && !usingEye()) ghostAt(e.clientX, e.clientY); if (mode === 'play') play.move(e.clientX, e.clientY); }
+  if (touches.size === 1) { tap = { x: e.clientX, y: e.clientY, id: e.pointerId }; if (ghost && !usingEye()) ghostAt(e.clientX, e.clientY); if (mode === 'play') { play.press(e.clientX, e.clientY); play.move(e.clientX, e.clientY); } }
   else { tap = null; pinch = touches.size === 2 ? spread() : 0; }
 });
 canvas.addEventListener('pointermove', (e) => {
@@ -1534,6 +1549,7 @@ canvas.addEventListener('pointermove', (e) => {
 });
 function lift(e, ok) {
   touches.delete(e.pointerId);
+  if (mode === 'play') play.release(); // 당구: 끌던 큐를 놓는다 (pool.js)
   if (touches.size < 2) pinch = 0;
   const t = tap;
   if (!t || t.id !== e.pointerId) return;
@@ -1878,7 +1894,7 @@ function frame(now) {
   names.tick();
   sky.tick(dt);
   advent.tick(dt); gift.tick(dt); food.tick(dt); cheers.tick(dt); pizza.tick(dt); sfxWalk(dt, me, others.values());
-  lights.tick(dt); cinema.tick(); gameroom.tick(); photos.tick(dt);
+  lights.tick(dt); cinema.tick(); gameroom.tick(); pool.tick(dt); photos.tick(dt);
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
   renderer.render(scene, cam());
@@ -1940,7 +1956,7 @@ window.__play = Object.assign(play.test, {
 Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose }, id: { get: () => play.id }, spot: { get: () => play.spot } });
 window.__sky = sky.test;
 window.__master = { get on() { return master.on; }, get given() { return master.test.given; }, key: master.test.key };
-window.__food = food.test; window.__pizza = pizza.test; window.__game4 = gameroom.test; window.__game4.convert = () => gameroom.convert();
+window.__food = food.test; window.__pizza = pizza.test; window.__game4 = gameroom.test; window.__pool = pool.test; window.__game4.convert = () => gameroom.convert();
 window.__cheers = cheers.test;
 window.__lights = Object.assign(lights.test, { toggle: (lv) => lights.toggle(lv), near: () => { const a = lights.near(); return a ? a.label : null; }, lamp: () => [...LAMP] });
 window.__photo = { choose: (id, f) => photos.choose(id, f), reset: (id) => photos.reset(id), get: (h) => photos.get(h), get count() { return photos.count; }, of: (id) => S.pics.get(id) || '', shown: (id) => cinema.picShown(id), tidy: () => photos.tidy() };
