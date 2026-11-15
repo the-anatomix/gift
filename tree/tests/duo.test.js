@@ -264,8 +264,8 @@ async function suite(browser, label, query, twoContexts) {
   const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
   let broker = null;
   try {
-    await suite(browser, 'bc', 'net=bc', false);
-    if (args.includes('--peer')) {
+    if (!args.includes('--peer-only')) await suite(browser, 'bc', 'net=bc', false);
+    if (args.includes('--peer') || args.includes('--peer-only')) {
       const { PeerServer } = require('peer');
       broker = PeerServer({ port: BROKER_PORT, path: '/', host: '127.0.0.1' });
       await sleep(500);

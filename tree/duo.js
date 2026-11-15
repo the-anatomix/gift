@@ -79,8 +79,15 @@ export function makeDuo(K) {
     if (opt.want) want = opt.want;
     set('connecting');
     // 정해진 시간 안에 이어지지 않으면 끊긴 것으로 본다 (주인으로 기다리는 중이면 그대로 둔다)
+    // 처음 그리느라 화면이 멈춰 있던 시간은 세지 않는다 (느린 폰에서 막 열었을 때 이어지는 중인데 포기하지 않게)
     // (시간이 다 됐을 때 이미 와서 줄 서 있는 말이 있으면 그것부터 읽도록 아주 잠깐 더 기다린다: 화면이 무거우면 타이머와 말이 한꺼번에 밀린다)
-    connectT = setTimeout(() => { connectT = setTimeout(() => { if (my === gen && mode === 'connecting') lost(); }, 400); }, T.connect);
+    let waited = 0, at = performance.now();
+    const wait = () => {
+      if (my !== gen || mode !== 'connecting') return;
+      const now = performance.now(); waited += Math.min(now - at, 1000); at = now;
+      connectT = waited < T.connect ? setTimeout(wait, 500) : setTimeout(() => { if (my === gen && mode === 'connecting') lost(); }, 400);
+    };
+    connectT = setTimeout(wait, 500);
     const h = await openRoom(NET, id, {
       role(r) {
         if (my !== gen) return;
@@ -107,7 +114,7 @@ export function makeDuo(K) {
         else if (K.hasPass && K.hasPass()) knock(true); // 공동 관리자는 초인종 없이 바로 들어간다
         else if (re) knock(); // 초인종을 누르고 기다리다 끊겨 다시 이어졌으면, 주인에게 다시 알린다 (안 그러면 누른 게 사라진다)
       },
-      join(pid) { if (my === gen) peers.set(pid, { edit: false, hello: false, last: performance.now(), slot: freeSlot() }); },
+      join(pid) { if (my === gen) peers.set(pid, { edit: false, hello: false, last: performance.now(), since: performance.now(), slot: freeSlot() }); },
       leave(pid) { if (my === gen) left(pid); },
       msg(m, pid) { if (my !== gen) return; if (role === 'host') { fromGuest(m, pid); tell(); } else fromHost(m); },
       close() { if (my === gen && mode !== 'full' && mode !== 'solo' && mode !== 'away' && mode !== 'denied') lost(); },
@@ -194,6 +201,7 @@ export function makeDuo(K) {
   }
 
   function lost() {
+    
     clearTimeout(connectT);
     // 처음 들어가다 실패하면 한 번은 바로 다시 해 본다
     if (mode === 'connecting' && tries === 1 && room) { start(room, {}, true); return; }
@@ -239,7 +247,7 @@ export function makeDuo(K) {
       p.byKey = m.want === 'edit' && (m.key || '') === key;
       p.edit = adm(p) || (p.byKey && editors() < ECAP); // 열쇠가 맞고 자리가 남아 있을 때만 꾸밀 수 있다 (공동 관리자는 언제나)
       const first = true;
-      p.hello = true;
+      p.hello = true; p.since = performance.now();
       const adopted = p.edit && isObj(m.state) && K.preferPeer(m.state, m.mine === true);
       if (adopted) K.adopt(m.state);
       const info = K.peerJoin(pid, { look: m.look, pos: m.pos, pj: link.remote(pid) });
@@ -351,7 +359,8 @@ export function makeDuo(K) {
     const now = performance.now(), slept = now - tickAt > T.ping * 2.5; tickAt = now;
     // 화면이 무거워 타이머가 한참 밀렸으면(처음 그릴 때 등) 그동안 못 받은 말이 아직 줄 서 있다: 이번에는 끊긴 것으로 보지 않는다
     if (slept) { last = Math.max(last, now - T.silent / 2); for (const p of peers.values()) p.last = Math.max(p.last, now - T.silent / 2); return; }
-    if (role === 'host') { for (const [pid, p] of [...peers]) if (now - p.last > T.silent) { link.drop(pid); left(pid); } }
+    // 막 들어온 사람은 받은 방을 그리느라 한동안 소식이 늦을 수 있다: 처음 얼마 동안은 두 배로 기다린다
+    if (role === 'host') { for (const [pid, p] of [...peers]) if (now - p.last > T.silent * (now - p.since < T.silent * 3 ? 2 : 1)) { link.drop(pid); left(pid); } }
     else if (now - last > T.silent) lost();
   }, T.ping);
   document.addEventListener('visibilitychange', () => {
