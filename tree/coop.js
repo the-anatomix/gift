@@ -27,6 +27,7 @@ import { X0, Z0, CELL, toWorld, levelOfCell } from './path.js';
 import { NOTE } from './catalog.js';
 import { footprint, kindOf, cleanWords, okWords } from './state.js';
 import { BODY_R } from './avatar.js';
+import { mark } from './quest.js';
 
 const $ = (id) => document.getElementById(id);
 const now = () => (typeof window.__now === 'function' ? window.__now() : Date.now());
@@ -263,7 +264,7 @@ export function makeCoop(K) {
       pose(r.h, kind === 'ride' ? 'base' : 'prop');
       if (r.mine && !r.put && r.t >= T.put) { // 손이 닿았다: 별을 단다 (방의 상태)
         r.put = true;
-        if (!K.S.star && !K.op({ t: 'star', on: true, by: K.myId(), name: myName(), help: r.help })) K.toast('별을 달지 못했어요');
+        if (!K.S.star) { if (K.op({ t: 'star', on: true, by: K.myId(), name: myName(), help: r.help })) mark('star'); else K.toast('별을 달지 못했어요'); }
       }
       if (r.t >= T.end) endRide(r);
     }

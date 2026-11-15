@@ -8,6 +8,7 @@
 // 다른 화면은 이끄는 사람이 보낸 점수를 그대로 쓴다(맞힘 소식과 점수 소식이 오는 순서가 달라도 두 번 세지 않게).
 // 이끄는 사람이 나가면 판은 취소된다. 판 중에 들어온 사람은 구경(점수판만 보인다).
 import { THREE, put, ball, M } from './kit.js';
+import { mark } from './quest.js';
 
 const $ = (id) => document.getElementById(id);
 const now = () => (typeof window.__now === 'function' ? window.__now() : Date.now());
@@ -143,6 +144,7 @@ export function makeTeam(K, S) {
     result.append(w < 0 ? '무승부! ' : `${TEAMS[w].icon} ${TEAMS[w].name} 팀 승리! `, `${r} : ${g}`);
     const sub = document.createElement('small');
     const mine = teamOf(K.myId());
+    if (mine !== null && mine === w) mark('team', m.mid);
     sub.textContent = mine === null ? '🔴 빨강 대 초록 🟢' : w < 0 ? '아깝다! 다음 판에서 겨뤄요' : mine === w ? '우리 팀이 이겼어요! 🎉' : '다음 판에서 이겨 봐요!';
     result.appendChild(sub);
     result.hidden = false;

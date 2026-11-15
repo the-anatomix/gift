@@ -8,6 +8,7 @@ import { THREE, M } from './kit.js';
 import { makeTeam } from './snowteam.js';
 import { makeSnowman } from './snowman.js';
 import { sfx } from './sfx.js';
+import { mark } from './quest.js';
 import { X0, X1, GZ1, cellOf, zoneOf, levelOf } from './path.js';
 
 const $ = (id) => document.getElementById(id);
@@ -201,7 +202,7 @@ export function makeSnow(K) {
         let hitId = null;
         if (p.y < BODY_TOP) for (const [id, a] of K.others()) if (inYardA(a) && Math.hypot(p.x - a.x, p.z - a.z) < HIT_R) { hitId = id; break; }
         if (hitId) {
-          land(b); hits++;
+          land(b); hits++; mark('snow');
           cover(K.others().get(hitId));
           K.fx({ k: 'hit', v: hitId });
           K.toast(team.hit(K.myId(), hitId) || '명중! ❄️'); // 팀전이면 점수를 센다

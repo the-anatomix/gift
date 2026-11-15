@@ -14,6 +14,7 @@ import { kindOf } from './state.js';
 import { FLOOR_DX } from './path.js';
 import { addShape } from './furniture.js';
 import { sfx } from './sfx.js';
+import { mark } from './quest.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -452,6 +453,7 @@ export function makeSpots(K) {
       const h = c.heat, B = BREWING;
       c.q = h < B.ok[0] ? 'weak' : h > B.ok[1] ? 'bitter' : h >= B.best[0] && h <= B.best[1] ? 'perfect' : 'good';
       c.phase = 'done'; c.stream.visible = false; sfx(c.q === 'perfect' ? 'hooray' : 'cupDown');
+      if (c.q === 'perfect') { mark('brew'); mark('menu', c.drink.id); }
       coffee.paint(c);
     },
     take(c) {
@@ -485,6 +487,7 @@ export function makeSpots(K) {
     },
     paint(c) {
       const s = STORIES[c.book], n = s.pages.length;
+      if (c.page === n - 1) mark('books', c.book);
       K.play.panel(`📖 ${s.title} (${c.page + 1}/${n})`, s.pages[c.page], [
         ...(c.page > 0 ? [{ label: '◀ 앞 장', id: 'readPrev', fn: () => read.turn(c, -1) }] : []),
         ...(c.page < n - 1 ? [{ label: '다음 장 ▶', main: true, id: 'playGo', fn: () => read.turn(c, 1) }] : [{ label: '📚 다른 책 읽기', main: true, id: 'playGo', fn: () => { c.book = lastBook = (c.book + 1) % STORIES.length; c.page = 0; sfx('page'); read.paint(c); } }]),
@@ -501,6 +504,7 @@ export function makeSpots(K) {
   const sweat = new Map();  // 찜질하는 사람(나는 'me') → 남은 시간
   const hops = [];          // 트램펄린에서 뛸 때 { id, at(다음에 뛸 때), left, mine }
   const cool = new Map();   // 가구 id → 다시 쓸 수 있을 때
+  let rockT = 0; // 흔들의자에 앉아 있던 시간(퀘스트에 5초씩 알린다)
   const rocked = new Set(); // 흔들의자에 앉아 같이 기울어진 사람들
   const avatarOf = (who) => (who === 'me' ? K.me : K.avatar(who));
   const CONFETTI = [0xE8483B, 0x4FA3D9, 0xF2C94C, 0x6FD08C, 0xD9577E, 0xFFFFFF];
@@ -525,7 +529,7 @@ export function makeSpots(K) {
     const go = () => {
       if (K.mode() !== null || !K.itemObj(id) || (cool.get(id) || 0) > clock) return;
       cool.set(id, clock + ({ pop: 1.6, spin: 3.4, kiln: 5.5, bounce: 4.4 })[f.use]);
-      show(f.use, id, 'me');
+      show(f.use, id, 'me'); mark('props', f.use); if (f.use === 'kiln') mark('kiln');
       if (K.online()) K.fx({ k: 'use', v: f.use + ':' + id });
       if (f.use === 'pop') { K.act('cheer'); K.toast('🎉 펑! 색종이가 쏟아져요'); }
       else if (f.use === 'spin') { const p = PLACES[Math.floor(Math.random() * PLACES.length)]; setTimeout(() => K.toast('🌍 ' + p), 2600); }
@@ -567,6 +571,7 @@ export function makeSpots(K) {
         g.localToWorld(v3.set(0, y * Math.cos(ang), y * Math.sin(ang)));
         a.rest.pos[0] = v3.x; a.rest.pos[1] = v3.y; a.rest.pos[2] = v3.z;
         a.root.rotation.order = 'YXZ'; a.root.rotation.x = ang; a.root.position.set(v3.x, v3.y, v3.z); rocked.add(a);
+        if (a === K.me && (rockT += dt) >= 5) { rockT -= 5; mark('rock', 5); }
       }
     }
     for (const a of rocked) { const it = a.rest && S.items.get(a.rest.id); if (!it || it.k !== 'rocker') { a.root.rotation.x = 0; rocked.delete(a); } }
@@ -585,7 +590,7 @@ export function makeSpots(K) {
       const g = K.itemObj(h.id);
       if (!g || h.left <= 0) { hops.splice(k, 1); continue; }
       h.left--; h.at = clock + 1.36; stOf(h.id).kick = 1; sfx('boing', h.who === 'me' ? null : g);
-      if (h.who === 'me') K.act('jump');
+      if (h.who === 'me') { K.act('jump'); mark('bounce'); }
     }
   }
 

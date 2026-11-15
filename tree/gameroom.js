@@ -11,6 +11,7 @@
 import { THREE, L, E, put, cbox, rbox, cyl, ball, cap } from './kit.js';
 import { addShape } from './furniture.js';
 import { GAMEROOM, MAX_ITEMS } from './catalog.js';
+import { mark } from './quest.js';
 import { FLOOR_DI } from './path.js';
 import { sfx } from './sfx.js';
 
@@ -255,7 +256,7 @@ export function makeGameroom(K) {
         if (k >= 1) { c.phase = 'out'; c.t = 0; clawPaint(c); sfx('ovenDing'); }
       } else if (c.phase === 'out') { // 인형이 구멍으로 떨어진다
         const k = clamp(c.t / 0.5, 0, 1);
-        if (c.got) { c.got.g.position.y = CLAW.top - DOLL_H - k * 0.5; if (k >= 1) { c.got.g.visible = false; c.got.taken = true; c.got = null; c.won++; if (K.prize()) c.placed = true; } }
+        if (c.got) { c.got.g.position.y = CLAW.top - DOLL_H - k * 0.5; if (k >= 1) { c.got.g.visible = false; c.got.taken = true; c.got = null; c.won++; mark('claw'); if (K.prize()) c.placed = true; } }
         if (k >= 1) { c.t = 0; if (c.left > 0 && c.dolls.some((d) => !d.taken)) { c.phase = 'aim'; } else c.phase = 'done'; clawPaint(c); }
       }
       r.g.position.set(c.x, y, 0.03);

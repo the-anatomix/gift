@@ -8,6 +8,7 @@ import { THREE, L, E, put, cbox, rbox, cyl, ball } from './kit.js';
 import { addShape } from './furniture.js';
 import { PIZZA, PIZZA_TOPS } from './catalog.js';
 import { sfx } from './sfx.js';
+import { mark } from './quest.js';
 
 const HAND = [0, 0.615, 0.43]; // 든 사람 몸 기준 (케이크와 같은 자리)
 const BOARD = [0.23, 0.832, 0], MOUTH = [-0.25, 0.84, 0.02], OVEN_X = -0.25;
@@ -157,7 +158,7 @@ export function makePizza(K) {
     c.phase = null; view(c, false);
     if (c.heat > HEAT.ok[1]) { sfx('sizzle'); K.op({ t: 'pzClear', id: c.id }); K.toast('피자가 새까맣게 탔어요. 다시 만들어 봐요'); paint(c); return; }
     c.perfect = Math.abs(c.heat - HEAT.best) <= HEAT.tol;
-    if (K.op({ t: 'pzBake', id: c.id })) K.toast(c.perfect ? '완벽해요! 피자가 노릇하게 구워졌어요 ✨' : '피자가 잘 구워졌어요! 🍕');
+    if (K.op({ t: 'pzBake', id: c.id })) { if (c.perfect) mark('pizza'); K.toast(c.perfect ? '완벽해요! 피자가 노릇하게 구워졌어요 ✨' : '피자가 잘 구워졌어요! 🍕'); }
     paint(c);
   }
   function eat(c) {

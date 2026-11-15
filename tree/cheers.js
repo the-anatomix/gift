@@ -7,6 +7,7 @@
 import { THREE } from './kit.js';
 import { levelOf } from './path.js';
 import { sfx } from './sfx.js';
+import { mark } from './quest.js';
 
 const R = 1.5;       // 이만큼 가까이 있어야 잔이 닿는다
 const COOL = 6;      // 한 번 한 뒤 이만큼은 "마시기"가 먼저다 (바로 또 눌리지 않게)
@@ -72,6 +73,7 @@ export function makeCheers(K) {
         if (n) sum.multiplyScalar(1 / n); else sum.set(e.x, 1, e.z);
         sfx('cheers', e.mine ? null : { x: e.x, z: e.z });
         for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2, s = 0.5 + Math.random() * 0.7; K.food.spark(sum.x, sum.y, sum.z, k % 2 ? 0xFFF3B0 : 0xFFFFFF, Math.cos(a) * s, 0.5 + Math.random() * 0.9, Math.sin(a) * s, 0.45 + Math.random() * 0.3, 2.6); }
+        if (e.mine || (K.myId && e.who.includes(K.myId()))) mark('cheers');
         if (e.mine) K.toast(e.who.length > 2 ? `🥂 다 같이 짠! (${e.who.length}명)` : '🥂 짠!');
         K.dirty();
       }

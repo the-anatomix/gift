@@ -25,6 +25,7 @@
 //   점수는 소식에 싣지 않는다: 받은 쪽이 재료·조리법·대결 번호로 같은 셈을 해서 같은 점수를 본다.
 import { THREE, M, G, put, cbox, cyl, ball, bake } from './kit.js';
 import { sfx } from './sfx.js';
+import { mark } from './quest.js';
 
 const now = () => (typeof window.__now === 'function' ? window.__now() : Date.now()); // 놀이 시계 (대결 시간·요리 시간)
 const clock = () => performance.now(); // 실제로 흐른 시간 (소식이 끊겼는지, 다시 알릴 때)
@@ -375,7 +376,7 @@ export function makeCookoff(K) {
     if (!mine || mine.j) { if (cur === c) judgePaint(c); return; }
     mine.j = 1; mine.jt = now(); tellMine();
     const res = judgeDish(mine.i, mine.m, seedOf(me(), mine));
-    showResult(res);
+    showResult(res); mark('cook', res.total);
     sfx(res.total >= 80 ? 'hooray' : 'pop');
     if (C && C.ph === 'cook') {
       if (mine.r === C.rid) submit();

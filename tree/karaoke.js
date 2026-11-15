@@ -8,6 +8,7 @@ import { THREE, M, E, put, cbox, cyl, ball, pool } from './kit.js';
 import { addShape } from './furniture.js';
 import { SONGS } from './catalog.js';
 import { sfx } from './sfx.js';
+import { mark } from './quest.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -267,7 +268,7 @@ export function makeKaraoke(K) {
       const N = c.ch.notes.length;
       c.score = c.hits ? Math.round(30 + 70 * (c.sum / (N * 100))) : 0;
       c.phase = 'done'; hush(c.bk); c.bk = null;
-      if (c.score > 0) { sfx('hooray'); K.act('cheer'); if (K.record) K.record('sing', c.score); }
+      if (c.score > 0) { sfx('hooray'); K.act('cheer'); if (K.record) K.record('sing', c.score); if (c.score >= 85) mark('songs', c.ch.id); }
       tell('e:' + c.score);
       idle(clock, `${c.score}점!`); sing.paint(c);
       K.toast(`🎤 ${c.ch.name} ${c.score}점! ${say(c.score)}`);

@@ -12,6 +12,7 @@ import { THREE, M, put, rbox, cyl, ball } from './kit.js';
 import { kindOf } from './state.js';
 import { addShape } from './furniture.js';
 import { sfx } from './sfx.js';
+import { mark } from './quest.js';
 
 const TAU = Math.PI * 2;
 // n = 몇 입, sip = 마시는 것, fx = 먹을 때 날리는 것(부스러기 색) 또는 'steam'(김)·'fizz'(탄산 방울), say = 한 입 먹을 때 뜨는 말, snd = 한 입의 소리(sfx.js)
@@ -439,7 +440,7 @@ export function makeFoodPlay(K) {
     say(h, a, first && h.f.first ? h.f.first : h.f.say);
     if (h.shown === 0) {
       h.end = 1.7;
-      if (h.who === 'me') K.toast(h.f.done);
+      if (h.who === 'me') { K.toast(h.f.done); mark('foods', h.kind); }
     }
     K.dirty();
   }

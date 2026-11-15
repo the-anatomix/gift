@@ -25,7 +25,8 @@ import { makeGames } from './games.js';
 import { makeNames } from './names.js';
 import { makeRank } from './rank.js';
 import { makeSky } from './sky.js';
-import { makeMaster, can, LOCK, FIRE, SUIT, SLED, CINE, BUILD } from './master.js';
+import { makeMaster, can, gold, LOCK, FIRE, SUIT, SLED, CINE, BUILD } from './master.js';
+import { makeQuest, mark } from './quest.js';
 import { makeSleigh } from './sleigh.js';
 import { makeTrain } from './train.js';
 import { makeBeam } from './beam.js';
@@ -1141,7 +1142,7 @@ const play = makePlay({
   fx: (m) => duo.fx(m),
   resized: () => { if (mode === 'play') measure(false); },
   close: () => setMode(null),
-  bestLine: (k) => book.bestLine(k), record: (k, v) => rank.record(k, v), rank: (k) => rank.open(k), // 이 방 최고 기록 (book.js), 이름별 순위 (rank.js)
+  bestLine: (k) => book.bestLine(k), record: (k, v) => (mark(k, v), rank.record(k, v)), rank: (k) => rank.open(k), // 이 방 최고 기록 (book.js), 이름별 순위 (rank.js)
 });
 // 방명록과 이 방 최고 기록 (방명록 가구는 play 의 놀이 하나로 더해진다)
 const book = makeBook({
@@ -1259,6 +1260,11 @@ const master = makeMaster({
   fx: (m) => duo.fx(m), myId: () => duo.me, others: () => [...others.keys()], nameOf: (id) => nameOf(id), setMode: (m) => setMode(m), mode: () => mode,
   resized: () => { if (mode === 'master') measure(false); },
 });
+// 숨은 황금열쇠와 퀘스트 (quest.js): 1층 바닥의 열쇠를 누르면 퀘스트 판이 열린다
+const quest = makeQuest({
+  scene, ray(px, py) { aimRay(px, py); return ray.ray; }, shown: () => myLv === 0, toast: (m) => toast(m),
+  gold: () => gold(), earn: () => master.earn(), master: () => master.on,
+});
 // 트리 밑 선물 (gift.js): 판은 setMode('gift') 로 연다
 const gift = makeGift({
   key, store, toast: (m) => toast(m), op: (o) => dispatch(o), canEdit: () => canEdit, newId, defName: () => nameOf(duo.me), setName: (n) => names.set(n),
@@ -1280,7 +1286,7 @@ const food = makeFoodPlay({
   resized: () => { if (mode === 'fridge') measure(false); },
 });
 // 건배 (cheers.js), 효과음 (sfx.js): 소리는 내가 선 곳에서 듣고, 켜고 끄는 단추는 "같이" 판에 둔다
-const cheers = makeCheers({ food, me, others: () => others, fx: (m) => duo.fx(m), online: () => duo.mode === 'on', toast: (m) => toast(m), dirty: () => { dirty = true; } });
+const cheers = makeCheers({ food, me, myId: () => duo.me, others: () => others, fx: (m) => duo.fx(m), online: () => duo.mode === 'on', toast: (m) => toast(m), dirty: () => { dirty = true; } });
 // 피자 화덕 (pizza.js): 놀이 판은 play.js 것을 같이 쓴다
 const pizza = makePizza({
   play, S: () => S, itemObj: (id) => itemObj.get(id), op: (o) => dispatch(o), canEdit: () => canEdit, toast: (m) => toast(m), close: () => setMode(null),
@@ -1292,13 +1298,13 @@ const pizza = makePizza({
 const pool = makePool({
   play, S: () => S, itemObj: (id) => itemObj.get(id), myId: () => duo.me, others: () => others, nameOf: (id) => nameOf(id),
   online: () => duo.mode === 'on', fx: (m) => duo.fx(m), close: () => setMode(null), cam: () => cam(),
-  setPose: (p) => { pose = p; applyPov(); dirty = true; }, record: (k, v) => rank.record(k, v), bestLine: (k) => book.bestLine(k), dirty: () => { dirty = true; },
+  setPose: (p) => { pose = p; applyPov(); dirty = true; }, record: (k, v) => (mark(k, v), rank.record(k, v)), bestLine: (k) => book.bestLine(k), dirty: () => { dirty = true; },
   planeAt(px, py, y) { aimRay(px, py); upPlane.constant = -y; return ray.ray.intersectPlane(upPlane, hit) ? hit.clone() : null; },
 });
 const gameroom = makeGameroom({
   play, S: () => S, itemObj: (id) => itemObj.get(id), op: (o) => dispatch(o), newId, canEdit: () => canEdit, isMaster: () => can(CINE), toast: (m) => toast(m), close: () => setMode(null),
   setPose: (p) => { pose = p; applyPov(); dirty = true; }, levelOfCell, mode: () => mode, measure: () => measure(false), dirty: () => { dirty = true; },
-  record: (k, v) => rank.record(k, v), bestLine: (k) => book.bestLine(k),
+  record: (k, v) => (mark(k, v), rank.record(k, v)), bestLine: (k) => book.bestLine(k),
   // 인형뽑기에서 뽑은 토끼 인형을 내 옆 빈자리에 놓는다 (꾸밀 수 있는 사람만, 방에 열두 개까지)
   prize() {
     if (!canEdit) return false;
@@ -1329,7 +1335,7 @@ const spots = makeSpots({
 const karaoke = makeKaraoke({
   play, S: () => S, itemObj: (id) => itemObj.get(id), me, avatar: (pid) => avatarOf(pid), nameOf: (id) => nameOf(id), level: () => myLv, levelOfCell,
   act: (id) => doAct(id), fx: (m) => duo.fx(m), online: () => duo.mode === 'on', toast: (m) => toast(m), close: () => setMode(null), mode: () => mode,
-  setPose: (p) => { pose = p; applyPov(); dirty = true; }, record: (k, v) => rank.record(k, v), bestLine: (k) => book.bestLine(k), rank: (k) => rank.open(k), measure: () => measure(false), dirty: () => { dirty = true; },
+  setPose: (p) => { pose = p; applyPov(); dirty = true; }, record: (k, v) => (mark(k, v), rank.record(k, v)), bestLine: (k) => book.bestLine(k), rank: (k) => rank.open(k), measure: () => measure(false), dirty: () => { dirty = true; },
 });
 sfx.listen(() => me); mountSfxUI($('duoP'));
 const ACT_SFX = { clap: 'clap', jump: 'jump', cheer: 'whoosh', dance: 'whoosh' };
@@ -1654,6 +1660,7 @@ function lift(e, ok) {
   if (mode === 'play') { play.tap(e.clientX, e.clientY); return; }
   if (snow.tap(e.clientX, e.clientY)) return; // 눈싸움 모드: 걸어가는 대신 눈덩이를 던진다
   if (games.tap(e.clientX, e.clientY)) return; // 숨바꼭질: 술래가 숨은 사람을 누름
+  if (mode === null && quest.tap(e.clientX, e.clientY)) return; // 숨은 황금열쇠 (quest.js)
   if ((mode === null || mode === 'gift') && gift.tap(e.clientX, e.clientY)) return; // 트리 밑 선물 상자
   if (mode === 'fridge' && food.tap(e.clientX, e.clientY)) return; // 열린 냉장고 안의 음식
   if (mode === null && !fly.on && !train.on) { const id = pickItem(e.clientX, e.clientY); if (id && useItem(id)) return; } // 케이크 내려놓기, 놀 수 있는 가구, 침대, 냉장고
@@ -2051,7 +2058,8 @@ window.__play = Object.assign(play.test, {
 });
 Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose }, id: { get: () => play.id }, spot: { get: () => play.spot } });
 window.__sky = sky.test;
-window.__master = { get on() { return master.on; }, get given() { return master.test.given; } };
+window.__master = { get on() { return master.on; }, get given() { return master.test.given; }, get golds() { return master.test.golds; }, get gold() { return master.test.gold; } };
+window.__quest = quest.test;
 window.__food = food.test; window.__pizza = pizza.test; window.__game4 = gameroom.test; window.__pool = pool.test; window.__game4.convert = () => gameroom.convert();
 window.__cheers = cheers.test;
 window.__build = build.test; // 층 더하기·지우기와 층 테마 (build.js)

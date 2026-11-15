@@ -8,6 +8,7 @@
 // 마당을 나가거나 굴리기를 끄면 굴리던 뭉치는 그 자리에 놓인다(l). 다시 켜고 그 옆에 서면 이어서 굴린다.
 import { THREE, M, put, ball, cyl } from './kit.js';
 import { sfx } from './sfx.js';
+import { mark } from './quest.js';
 import { X0, X1, Z1, GZ1, YARD, GX, cellOf, centerOf, zoneOf, levelOf } from './path.js';
 
 const $ = (id) => document.getElementById(id);
@@ -227,6 +228,7 @@ export function makeSnowman(K, S) {
     if (mk.byMe) {
       const spot = spotNear(b.x, b.z);
       const ok = spot && K.op({ t: 'snowman', id: K.newId(), i: spot[0], j: spot[1] });
+      mark('snowman');
       if (!ok) K.toast('눈사람을 방에 남길 자리가 없어요 (마당에 눈사람은 몇 개까지만 둘 수 있어요)');
     }
     drop(b);
