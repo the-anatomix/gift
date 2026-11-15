@@ -40,8 +40,19 @@ export const FOODS = [
   { id: 'rose', snd: 'gulp', name: '로제 와인', icon: '🌸', n: 4, sip: true, wine: 'glass', col: 0xF2A3AC, bottle: 0xF4B6BC, foil: 0xD9717F, fx: 0xF2A3AC, say: '향긋', done: '🌸 로제 와인을 다 마셨어요. 빈 잔이에요' },
   { id: 'bubbly', snd: 'gulp', name: '스파클링', icon: '🍾', n: 4, sip: true, wine: 'flute', col: 0xF6E9B4, bottle: 0x1B3325, foil: 0xE7B441, fx: 'fizz', say: '톡톡', done: '🍾 스파클링 와인을 다 마셨어요. 빈 잔이에요' },
   { id: 'grape', snd: 'gulp', name: '포도주스', icon: '🍇', n: 4, sip: true, wine: 'glass', col: 0x5B2A7A, bottle: 0x3B1D55, foil: 0xC9B6E4, fx: 0x5B2A7A, say: '달콤', done: '🍇 포도주스를 다 마셨어요(무알코올). 빈 잔이에요' },
+  // 테마 소품에서 꺼내는 것 (out: 냉장고에는 없다. spots.js 의 에스프레소 머신·디저트 진열장·찜질방 매점·젤리 기계)
+  { id: 'americano', snd: 'slurp', name: '아메리카노', icon: '☕', n: 4, sip: true, out: true, fx: 'steam', say: '호로록', done: '☕ 아메리카노를 다 마셨어요. 향이 남았어요' },
+  { id: 'latte', snd: 'slurp', name: '카페라떼', icon: '🤎', n: 4, sip: true, out: true, fx: 'steam', say: '부드러워', done: '🤎 카페라떼를 다 마셨어요. 거품만 남았어요' },
+  { id: 'icecoffee', snd: 'straw', name: '아이스 아메리카노', icon: '🧊', n: 4, sip: true, out: true, fx: 0x4A2C1A, say: '쪼옥', done: '🧊 아이스 아메리카노를 다 마셨어요. 얼음만 남았어요' },
+  { id: 'macaron', snd: 'soft', name: '마카롱', icon: '🧁', n: 2, out: true, fx: 0xF7A9C0, say: '쫀득', done: '🧁 마카롱을 다 먹었어요' },
+  { id: 'croissant', snd: 'crisp', name: '크루아상', icon: '🥐', n: 3, out: true, fx: 0xE0A458, say: '바삭', done: '🥐 크루아상을 다 먹었어요. 부스러기만 남았어요' },
+  { id: 'egg', snd: 'soft', name: '구운 계란', icon: '🥚', n: 3, out: true, fx: 0xFFF6E6, say: '냠냠', first: '탁!', done: '🥚 구운 계란을 다 먹었어요. 껍데기만 남았어요' },
+  { id: 'sikhye', snd: 'gulp', name: '식혜', icon: '🍚', n: 4, sip: true, out: true, fx: 0xF3EBD2, say: '시원~', done: '🍚 식혜를 다 마셨어요. 밥알만 남았어요' },
+  { id: 'gummy', snd: 'soft', name: '곰젤리', icon: '🧸', n: 3, out: true, fx: 0xE2485A, say: '쫀득', done: '🧸 곰젤리를 다 먹었어요' },
+  { id: 'worm', snd: 'cheese', name: '꿈틀이 젤리', icon: '🐛', n: 3, out: true, fx: 0x6FD08C, say: '쭈욱', done: '🐛 꿈틀이 젤리를 다 먹었어요' },
+  { id: 'jheart', snd: 'soft', name: '하트 젤리', icon: '💗', n: 2, out: true, fx: 0xFF8FB8, say: '말랑', done: '💗 하트 젤리를 다 먹었어요' },
 ];
-const WINES = FOODS.filter((f) => f.wine), PANTRY = FOODS.filter((f) => !f.wine && !f.cine);
+const WINES = FOODS.filter((f) => f.wine), PANTRY = FOODS.filter((f) => !f.wine && !f.cine && !f.out);
 const lying = (a) => !!a.rest && !a.rest.sit; // 누워 있는지 (좌석에 앉은 것은 아니다: 앉아서는 들고 먹을 수 있다)
 const BY = new Map(FOODS.map((f) => [f.id, f]));
 const HAND = 2.1; // 손에 들었을 때의 배율 (머리가 큰 캐릭터에 맞춘다. 선반에서는 1.3)
@@ -219,6 +230,64 @@ MODEL.popcorn = (g, n) => { // 팝콘 통: 빨강·하양 띠의 통에 수북�
   const heap = mesh(g, 'pcHeap', () => ball(0.046, 9, 6), 0xFFE9A8), tops = [[0.018, 0.012], [-0.02, 0.006], [0.002, -0.02], [-0.006, 0.022]].map(([x, z]) => mesh(g, 'pcBit', () => ball(0.016, 6, 5), 0xFFF6D0, x, 0, z));
   return (left) => { const k = left / n, y = 0.03 + 0.07 * k; heap.visible = left > 0; heap.position.y = y; heap.scale.set(0.82 + 0.18 * k, 0.5, 0.82 + 0.18 * k); tops.forEach((m, i) => { m.visible = left > i; m.position.y = y + 0.022; }); };
 };
+/* 테마 소품에서 꺼내는 것들의 모양 */
+const MUG_W = new THREE.MeshLambertMaterial({ color: 0xFFFAF2, side: THREE.DoubleSide });
+const jelly = (hex) => geo('jellyM' + hex, () => new THREE.MeshLambertMaterial({ color: hex, transparent: true, opacity: 0.86, emissive: hex, emissiveIntensity: 0.12 }));
+const mugOf = (g, col) => { const level = cup(g, 0.04, 0.072, col, MUG_W); mesh(g, 'handle', () => new THREE.TorusGeometry(0.02, 0.006, 6, 10), 0xFFFAF2, 0.05, 0.038, 0); mesh(g, 'saucer', () => cyl(0.06, 0.045, 0.006, 14), 0xFFFAF2, 0, 0.001, 0); return level; };
+MODEL.americano = (g, n) => { const level = mugOf(g, 0x3A2416); return (left) => level(left / n); };
+MODEL.latte = (g, n) => { // 하트 무늬가 뜬 라떼: 첫 모금에 무늬가 흐트러진다
+  const level = mugOf(g, 0xC9A27A), art = new THREE.Group(); g.add(art);
+  for (const x of [-0.008, 0.008]) mesh(art, 'artDot', () => cyl(0.011, 0.011, 0.002, 10), 0xFFF6E6, x, 0, -0.004);
+  mesh(art, 'artTip', () => { const c = new THREE.ConeGeometry(0.0175, 0.022, 3); c.rotateX(Math.PI / 2); c.scale(1, 0.1, 1); return c; }, 0xFFF6E6, 0, 0, 0.008);
+  return (left) => { const y = level(left / n); art.visible = left === n; art.position.y = y + 0.001; };
+};
+MODEL.icecoffee = (g, n) => { // 투명한 컵의 아이스 아메리카노: 얼음과 빨대
+  const level = cup(g, 0.034, 0.122, 0x4A2C1A);
+  straw(g, 0.006, 0.16, 0x2B2420);
+  const ice = [[0.01, 0.008, 0.3], [-0.012, -0.006, 0.9], [0.002, -0.012, 1.7]].map(([x, z, r]) => { const m = mesh(g, 'ice', () => new THREE.BoxGeometry(0.018, 0.018, 0.018), ICE, x, 0, z); m.rotation.set(r, r * 2, 0); return m; });
+  return (left) => { const y = level(left / n); ice.forEach((m, i) => { m.position.y = Math.max(0.016, y - 0.006 - i * 0.005); }); };
+};
+MODEL.macaron = (g, n) => { // 분홍 마카롱: 반쪽이 되었다가 없어진다
+  const w = new THREE.Group(); w.position.y = 0.03; g.add(w);
+  for (const y of [-0.012, 0.012]) mesh(w, 'macS', () => { const c = ball(0.036, 12, 8); c.scale(1, 0.42, 1); return c; }, 0xF7A9C0, 0, y, 0);
+  mesh(w, 'macC', () => cyl(0.033, 0.033, 0.01, 12), 0xFFF6E6);
+  return (left) => { w.visible = left > 0; w.scale.set(left === n ? 1 : 0.55, 1, 1); w.position.x = left === n ? 0 : -0.012; };
+};
+MODEL.croissant = (g, n) => { // 크루아상: 한쪽 끝부터 줄어든다
+  const parts = [[-0.044, 0.014, 0.6, 0.5], [-0.024, 0.004, 0.85, 0.25], [0, 0, 1, 0], [0.024, 0.004, 0.85, -0.25], [0.044, 0.014, 0.6, -0.5]].map(([x, z, k, r], i) => { const m = mesh(g, 'croi', () => ball(0.026, 10, 8), i % 2 ? 0xD9963F : 0xE8B25C, x, 0.024, z); m.scale.set(0.75, k, k * 1.25); m.rotation.y = r; return m; });
+  const cb = crumbs(g, 0xE0A458);
+  return (left) => { parts.forEach((m, i) => { m.visible = i < Math.ceil(5 * left / n); }); cb.visible = left === 0; };
+};
+MODEL.egg = (g, n) => { // 구운 계란: 첫 입에 껍데기를 "탁" 깨서 까고, 흰자가 줄어든다. 껍데기 조각이 남는다
+  const shell = mesh(g, 'eggS', () => { const c = ball(0.034, 12, 10); c.scale(1, 1.28, 1); return c; }, 0xB07A45, 0, 0.044, 0);
+  const white = mesh(g, 'eggW', () => { const c = ball(0.031, 12, 10); c.scale(1, 1.28, 1); return c; }, 0xF4E6CF, 0, 0.042, 0);
+  const bits = crumbs(g, 0xB07A45);
+  return (left) => { shell.visible = left === n; white.visible = left > 0 && left < n; white.scale.setScalar(left === n - 1 ? 1 : 0.7); white.position.y = left === n - 1 ? 0.042 : 0.03; bits.visible = left < n; };
+};
+MODEL.sikhye = (g, n) => { // 식혜: 뽀얀 국물에 밥알이 떠 있다가 바닥에 남는다
+  const level = cup(g, 0.034, 0.1, 0xF3EBD2);
+  const rice = [[0.012, 0.006], [-0.01, 0.012], [0.002, -0.014], [-0.014, -0.006], [0.016, -0.008]].map(([x, z]) => { const m = mesh(g, 'rice', () => ball(0.0045, 5, 4), 0xFFFFFF, x, 0, z); m.scale.set(1.5, 0.7, 0.8); return m; });
+  return (left) => { const y = level(left / n); rice.forEach((m, i) => { m.position.y = Math.max(0.012, y + 0.002 - (i % 2) * 0.004); }); };
+};
+MODEL.gummy = (g, n) => { // 곰젤리: 머리부터 먹는다
+  const M2 = jelly(0xE2485A);
+  const body = mesh(g, 'gumB', () => { const c = ball(0.03, 10, 8); c.scale(1, 1.15, 0.75); return c; }, M2, 0, 0.036, 0);
+  const head = new THREE.Group(); head.position.y = 0.083; g.add(head);
+  mesh(head, 'gumH', () => { const c = ball(0.026, 10, 8); c.scale(1, 0.92, 0.78); return c; }, M2);
+  for (const sx of [-1, 1]) { mesh(head, 'gumE', () => ball(0.01, 6, 5), M2, sx * 0.02, 0.022, 0); mesh(g, 'gumL', () => ball(0.012, 6, 5), M2, sx * 0.03, 0.05, 0.008).userData.limb = 1; mesh(g, 'gumL', () => ball(0.013, 6, 5), M2, sx * 0.018, 0.008, 0.01).userData.limb = 2; }
+  return (left) => { head.visible = left === n; body.visible = left > 0; body.scale.y = left >= n - 1 ? 1 : 0.55; body.position.y = left >= n - 1 ? 0.036 : 0.02; for (const m of g.children) if (m.userData.limb) m.visible = m.userData.limb === 1 ? left >= n - 1 : left > 0; };
+};
+MODEL.worm = (g, n) => { // 꿈틀이 젤리: 두 가지 색이 번갈아 이어진 긴 젤리. 위에서부터 줄어든다
+  const segs = Array.from({ length: 7 }, (_, i) => { const m = mesh(g, 'wormS', () => ball(0.014, 8, 6), jelly(i % 2 ? 0xF2C94C : 0x6FD08C), Math.sin(i * 1.1) * 0.012, 0.014 + i * 0.019, 0); m.scale.set(1, 1.15, 1); return m; });
+  return (left) => { segs.forEach((m, i) => { m.visible = i < Math.ceil(7 * left / n); }); };
+};
+MODEL.jheart = (g, n) => { // 하트 젤리: 반쪽이 되었다가 없어진다
+  const w = new THREE.Group(); w.position.y = 0.036; g.add(w);
+  const M2 = jelly(0xFF8FB8);
+  for (const sx of [-1, 1]) mesh(w, 'jhB', () => { const c = ball(0.022, 10, 8); c.scale(1, 1, 0.6); return c; }, M2, sx * 0.016, 0.012, 0);
+  mesh(w, 'jhT', () => { const c = new THREE.ConeGeometry(0.037, 0.046, 4); c.rotateX(Math.PI); c.rotateY(Math.PI / 4); c.scale(1, 1, 0.42); return c; }, M2, 0, -0.016, 0);
+  return (left) => { w.visible = left > 0; w.scale.x = left === n ? 1 : 0.5; w.position.x = left === n ? 0 : -0.012; };
+};
 for (const f of WINES) MODEL[f.id] = (g, n) => { const level = wineGlass(g, f.col, f.wine === 'flute'); return (left) => level(left / n); };
 // 음식 하나의 모양 { g, set(left) }
 function makeFood(kind, left) {
@@ -361,7 +430,7 @@ export function makeFoodPlay(K) {
     h.pend = null;
     if (h.f.sip) h.drain = { from: h.lv, t: 0 }; // 마시는 것은 꿀꺽꿀꺽 조금씩 내려간다
     h.shown = h.left; if (!h.drain) h.set(h.lv = h.shown);
-    sfx(h.kind === 'pizza' && h.shown === 0 ? 'crisp' : first && h.kind === 'tangerine' ? 'peel' : h.f.snd, h.who === 'me' ? null : a);
+    sfx(h.kind === 'pizza' && h.shown === 0 ? 'crisp' : first && h.kind === 'tangerine' ? 'peel' : first && h.kind === 'egg' ? 'snap' : h.f.snd, h.who === 'me' ? null : a);
     if (h.kind === 'soda') sfx('fizz', h.who === 'me' ? null : a, 0.5);
     const m = mouthOf(a, new THREE.Vector3()), fx = a.root.visible ? h.f.fx : null; // 다른 층에 있거나 숨은 사람의 부스러기는 보이지 않는다
     if (typeof fx === 'number') for (let k = 0; k < (h.f.sip ? 3 : 7); k++) spark(m.x + rnd(0.08), m.y + rnd(0.04), m.z + rnd(0.08), fx, rnd(0.5), h.f.sip ? 0 : 0.5 + Math.random() * 0.5, rnd(0.5), 0.7 + Math.random() * 0.3, 3.2);
@@ -663,6 +732,7 @@ export function makeFoodPlay(K) {
   const rc = new THREE.Raycaster();
   return {
     tick, peerFx, open, bite, stow, take, // take(kind): 손에 든다 (피자 조각은 pizza.js 가 부른다)
+    info: (kind) => BY.get(kind) || null, // 그 음식의 이름·그림 (spots.js 의 꺼내 먹는 소품이 쓴다)
     label: '🧊 냉장고 열기',
     labelOf: (k) => (k === 'wine' ? '🍷 와인 냉장고 열기' : '🧊 냉장고 열기'),
     // 건배(cheers.js)가 쓰는 것: 그 사람이 든 마실 것(없으면 null), 잔 내밀기, 잔의 자리, 반짝이

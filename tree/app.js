@@ -44,6 +44,8 @@ import { makeGameroom } from './gameroom.js';
 import { makePool } from './pool.js';
 import { makeBuild } from './build.js';
 import { makeCookoff } from './cookoff.js';
+import { makeSpots } from './spots.js';
+import { makeKaraoke } from './karaoke.js';
 import { sfx, sfxOp, sfxWalk, mountSfxUI } from './sfx.js';
 import { makeCakeView, dressCake, flicker, pickTop, disposeCakeView } from './cake.js';
 
@@ -766,6 +768,7 @@ function paintRole() {
   if (!canEdit && (mode === 'furn' || mode === 'tree' || mode === 'paint')) setMode(null);
 }
 const FX = { dart: 'number', fire: 'number', music: 'string', act: 'string', lie: 'string', show: 'string' };
+// 테마 소품(spots.js 의 'use')과 노래방(karaoke.js 의 'sing') 소식은 peerFx 에서 따로 살핀다
 FX.fly = 'string'; // 비행 슈트·썰매로 나는 높이와 하늘의 자리 (fly.js)
 FX.car = 'string'; // 썰매 기차에 탔다·내렸다 (train.js)
 FX.run = 'string'; // Shift 로 달린다('1')·걷는다('')
@@ -820,6 +823,8 @@ const duo = makeDuo({
     if (m && m.k === 'cook') return cook.peerFx(m, id); // 요리 대결 (cookoff.js. 소식이 길어서 아래의 20자 검사보다 먼저)
     if (m && m.k === 'food') return food.peerFx(m, id); // 냉장고와 먹기 (food.js)
     if (m && m.k === 'cheers') return cheers.peerFx(m, id); // 건배 (cheers.js)
+    if (m && m.k === 'use') return spots.peerFx(m, id); // 테마 소품: 폭죽·지구본·불가마·트램펄린 (spots.js)
+    if (m && m.k === 'sing') return karaoke.peerFx(m, id); // 노래방 (karaoke.js)
     if (m && (m.k === 'team' || m.k === 'ball' || m.k === 'made')) return snow.peerFx(m, id); // 눈싸움 팀전·눈사람 (소식이 길어서 snow.js 가 따로 살핀다)
     if (m && m.k === 'mk') return master.peerFx(m, id); // 마스터가 나눠 주는 권한 (master.js)
     if (m && m.k === 'show' && typeof m.v === 'string' && /^sky:(auto|day|dusk|night)$/.test(m.v)) return sky.peerFx(m, id); // 하늘을 낮·노을·밤으로 (마스터 판)
@@ -1314,6 +1319,18 @@ const cook = makeCookoff({
   online: () => duo.mode === 'on', canEdit: () => canEdit, fx: (m) => duo.fx(m), toast: (m) => toast(m), close: () => setMode(null),
   setPose: (p) => { pose = p; applyPov(); dirty = true; }, busy: () => !!carried() || !!pizza.mine(), reseat: () => seatCakes(), dirty: () => { dirty = true; },
 });
+// 테마 소품 (spots.js): 커피 내리기·디저트·책 읽기 놀이와 눌러서 바로 하는 것들. 노래방 (karaoke.js): 노래방 기계·미러볼·스피커
+const spots = makeSpots({
+  play, food, scene, S: () => S, itemObj: (id) => itemObj.get(id), me, avatar: (pid) => avatarOf(pid), others: () => others, myId: () => duo.me,
+  approach: (id, then) => approach(id, then), walkTo: (x, z, then) => { if (Math.hypot(x - me.x, z - me.z) < 0.15 || !goTo(x, z)) then(); else me.onArrive = then; },
+  mode: () => mode, act: (id) => doAct(id), fx: (m) => duo.fx(m), online: () => duo.mode === 'on', toast: (m) => toast(m), close: () => setMode(null),
+  setPose: (p) => { pose = p; applyPov(); dirty = true; }, busy: () => !!carried() || !!pizza.mine(), level: () => myLv, levelOfCell, measure: () => measure(false), dirty: () => { dirty = true; },
+});
+const karaoke = makeKaraoke({
+  play, S: () => S, itemObj: (id) => itemObj.get(id), me, avatar: (pid) => avatarOf(pid), nameOf: (id) => nameOf(id), level: () => myLv, levelOfCell,
+  act: (id) => doAct(id), fx: (m) => duo.fx(m), online: () => duo.mode === 'on', toast: (m) => toast(m), close: () => setMode(null), mode: () => mode,
+  setPose: (p) => { pose = p; applyPov(); dirty = true; }, record: (k, v) => rank.record(k, v), bestLine: (k) => book.bestLine(k), rank: (k) => rank.open(k), measure: () => measure(false), dirty: () => { dirty = true; },
+});
 sfx.listen(() => me); mountSfxUI($('duoP'));
 const ACT_SFX = { clap: 'clap', jump: 'jump', cheer: 'whoosh', dance: 'whoosh' };
 // 놀 수 있는 가구를 누르면: 그 앞으로 걸어가서 놀이를 연다
@@ -1444,11 +1461,12 @@ function lieSpot(id, side) {
   if (!it || !g || !(kindOf(it.k).lie || kindOf(it.k).sit)) return null;
   g.updateMatrixWorld();
   if (kindOf(it.k).sit) { // 영화관 좌석 (cinema.js): 왼쪽(0)·오른쪽(1) 자리에 앉는다. pos = 발끝, head = 눈
-    const f = kindOf(it.k), sx = f.seats === 1 ? 0 : side ? 0.47 : -0.47, z = f.seatZ || 0, y = f.rise + SIT_Y; // 빈백(gameroom.js)은 한 자리, 가운데에 파묻혀 앉는다
+    const f = kindOf(it.k), sx = f.seats === 1 ? 0 : (side ? 1 : -1) * (f.seatX || 0.47), z = f.seatZ || 0, y = f.rise + SIT_Y; // 빈백(gameroom.js)은 한 자리, 가운데에 파묻혀 앉는다
     const q = g.localToWorld(new THREE.Vector3(sx, y, z)), e = g.localToWorld(new THREE.Vector3(sx, y + 0.86, z + 0.1));
     return { id, side, sit: true, pos: [q.x, q.y, q.z], head: [e.x, e.y, e.z], ry: g.rotation.y };
   }
-  const x = side ? 0.35 : -0.35, p = g.localToWorld(new THREE.Vector3(x, 0.4, 0.455)), h = g.localToWorld(new THREE.Vector3(x, 0.52, -0.6));
+  const fl = kindOf(it.k), ly = fl.lieY ?? 0.4; // 찜질 매트(spots.js)는 한 사람이 가운데에, 바닥 가까이 눕는다
+  const x = fl.seats === 1 ? 0 : side ? 0.35 : -0.35, p = g.localToWorld(new THREE.Vector3(x, ly, 0.455)), h = g.localToWorld(new THREE.Vector3(x, ly + 0.12, -0.6));
   return { id, side, pos: [p.x, p.y, p.z], head: [h.x, h.y, h.z], ry: g.rotation.y };
 }
 const SIT_Y = 0.02;  // 앉았을 때 발끝의 높이 (좌석 단 위에서)
@@ -1456,7 +1474,7 @@ let tellLie = false; // 새로 온 사람에게 내가 누워 있다는 것을 �
 function paintLie() {
   const el = $('lieP'), was = el.hidden;
   el.hidden = !(me.rest && mode === null);
-  el.querySelector('.hint').firstChild.textContent = me.rest && me.rest.sit ? '💺 자리에 앉아 있어요' : '🛏️ 침대에 누워 있어요';
+  { const it = me.rest && S.items.get(me.rest.id); el.querySelector('.hint').firstChild.textContent = me.rest && me.rest.sit ? '💺 자리에 앉아 있어요' : it && it.k !== 'bed' ? `😌 ${kindOf(it.k).name}에 누워 있어요` : '🛏️ 침대에 누워 있어요'; }
   if (was !== el.hidden) measure(false);
 }
 // 침대를 눌렀을 때: 발치로 걸어가서 빈 베개 쪽에 눕는다
@@ -1475,9 +1493,9 @@ function lieDown(id) {
     if (!r) { if (S.items.has(id)) toast(sit ? '앉을 자리가 없어요' : '침대에 누울 자리가 없어요'); return; }
     me.lie(r);
     if (fp) { fy = r.ry; fpitch = sit ? 0.04 : 0.45; } // 1인칭: 발치 쪽 천장을 올려다본다 (앉았으면 앞의 스크린을 본다)
-    duo.fx({ k: 'lie', v: id + ':' + side });
+    duo.fx({ k: 'lie', v: id + ':' + side }); tellLie = true; // 걸어온 마지막 자리 소식이 이 소식보다 늦게 닿으면 친구 화면에서 도로 일어난다: 자리 소식 뒤에 한 번 더 알린다
     paintLie(); dirty = true;
-    toast(sit ? '자리에 앉았어요 💺 걸으면 일어나요' : '침대에 누웠어요 😴 걸으면 일어나요'); sfx(sit ? 'seat' : 'bed');
+    toast(sit ? '자리에 앉았어요 💺 걸으면 일어나요' : it.k === 'bed' ? '침대에 누웠어요 😴 걸으면 일어나요' : `${kindOf(it.k).name}에 누웠어요 😌 걸으면 일어나요`); sfx(sit ? 'seat' : 'bed');
   });
   return true;
 }
@@ -1506,6 +1524,7 @@ const PLAY_LABEL = { dart: '🎯 다트 하기', tv: '📺 TV 보기', fire: '�
 }
 PLAY_LABEL.advent = '🗓️ 어드벤트 달력'; // advent.js
 PLAY_LABEL.arcade = '🕹️ 오락기 하기'; PLAY_LABEL.claw = '🧸 인형 뽑기'; PLAY_LABEL.pool = '🎱 당구 치기'; // pool.js // gameroom.js
+PLAY_LABEL.coffee = '☕ 커피 내리기'; PLAY_LABEL.read = '📖 책 읽기'; PLAY_LABEL.sing = '🎤 노래 부르기'; // spots.js, karaoke.js
 PLAY_LABEL.pic = '🖼️ 사진 바꾸기'; // photo.js (꾸밀 수 있는 사람만)
 // 냉장고: 앞으로 가서 문을 열고 먹을 것을 고른다 (food.js)
 function snack(id) {
@@ -1521,7 +1540,7 @@ function dress(id) {
   return true;
 }
 // 가구를 눌렀을 때(또는 그 앞에서 스페이스바): 케이크 내려놓기·먹기, 놀이, 눕기, 간식, 옷 갈아입기
-const useItem = (id) => cakeTap(id) || startPlay(id) || lieDown(id) || snack(id) || dress(id) || cinema.use(id);
+const useItem = (id) => cakeTap(id) || startPlay(id) || lieDown(id) || snack(id) || dress(id) || cinema.use(id) || spots.use(id);
 // 그 가구로 지금 할 수 있는 일의 이름 (없으면 null)
 function actionOf(it) {
   const f = kindOf(it.k), mine = carried(), pz = pizza.mine();
@@ -1534,6 +1553,7 @@ function actionOf(it) {
   if (it.k === 'cake') return cakeAtBench(S, it.id) ? '🎂 케이크 꾸미기·먹기' : null;
   { const c = cinema.label(it); if (c) return c; } // 영화 보기, 팝콘 먹기 (cinema.js)
   { const c = cook.label(it); if (c) return c; } // 요리하기, 재료 고르기, 심사받기·요리 대결 (cookoff.js)
+  { const c = spots.label(it); if (c) return c; } // 꺼내 먹기, 폭죽·지구본·불가마·트램펄린 (spots.js)
   if (f.play) return (f.play === 'bake' || f.play === 'pic') && !canEdit ? null : PLAY_LABEL[f.play] || null;
   if (f.lie) return '🛏️ 눕기';
   if (f.sit) return '💺 앉기';
@@ -1969,7 +1989,7 @@ function frame(now) {
   names.tick();
   sky.tick(dt);
   advent.tick(dt); gift.tick(dt); food.tick(dt); cheers.tick(dt); pizza.tick(dt); sfxWalk(dt, me, others.values());
-  lights.tick(dt); cinema.tick(); gameroom.tick(); build.tick(); pool.tick(dt); photos.tick(dt); cook.tick(dt);
+  lights.tick(dt); cinema.tick(); gameroom.tick(); build.tick(); pool.tick(dt); photos.tick(dt); cook.tick(dt); spots.tick(dt); karaoke.tick(dt);
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
   post.render(scene, cam(), clock);
@@ -2036,6 +2056,7 @@ window.__food = food.test; window.__pizza = pizza.test; window.__game4 = gameroo
 window.__cheers = cheers.test;
 window.__build = build.test; // 층 더하기·지우기와 층 테마 (build.js)
 window.__cook = cook.test; // 요리 대결 (cookoff.js)
+window.__spots = spots.test; window.__sing = karaoke.test; // 테마 소품과 노래방 (spots.js, karaoke.js)
 window.__lights = Object.assign(lights.test, { toggle: (lv) => lights.toggle(lv), near: () => { const a = lights.near(); return a ? a.label : null; }, lamp: () => [...LAMP] });
 window.__photo = { choose: (id, f) => photos.choose(id, f), reset: (id) => photos.reset(id), get: (h) => photos.get(h), get count() { return photos.count; }, of: (id) => S.pics.get(id) || '', shown: (id) => cinema.picShown(id), tidy: () => photos.tidy() };
 window.__cinema = { convert: () => cinema.convert(), get has() { return cinema.has; }, get theater() { return cinema.theater; }, get beam() { return cinema.beam; }, get fixtures() { return cinema.fixtures; }, get decoShown() { return room.floors[2].deco.every((d) => d.visible); }, artShown: (id) => cinema.artShown(id), get sitting() { return !!(me.rest && me.rest.sit); } };

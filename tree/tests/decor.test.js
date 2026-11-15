@@ -59,7 +59,7 @@ async function walkAndTrace(p, act) {
 
     /* 가구 */
     await A.tap('#tabs button[data-m="furn"]'); await sleep(300);
-    check('가구 탭을 누르면 가구 54가지(어드벤트 달력과 달력으로 풀리는 특별 가구 7가지, 영화관 소품, 요리 대결 가구, 게임방 가구 포함)가 나옴', (await A.isVisible('#furn')) && (await A.locator('#furnList .pick').count()) === 54 && (await T(A, () => window.__tree.mode)) === 'furn');
+    check('가구 탭을 누르면 가구 79가지(어드벤트 달력과 달력으로 풀리는 특별 가구 7가지, 영화관 소품, 요리 대결 가구, 게임방 가구, 테마 소품 25가지 포함)가 나옴', (await A.isVisible('#furn')) && (await A.locator('#furnList .pick').count()) === 79 && (await T(A, () => window.__tree.mode)) === 'furn');
     check('가구 판의 단추가 44px 이상', (await audit(A)).length === 0, await audit(A));
     // 목록: 접어 두면 옆으로 넘기고, "전체 보기"를 누르면 한 번에 다 보인다
     const shown = (sel) => A.evaluate((q) => { const box = document.querySelector(q), r = box.getBoundingClientRect();

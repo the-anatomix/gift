@@ -1,5 +1,5 @@
 // 의상: 옷(전신), 색, 소품(모자·목·안경·등)의 목록과 모양, 그리고 고르는 판.
-// 생김새(look)에 들어가는 값: outfit(옷), tint(색), hat, neck, eye, back(소품). 빈 글자 '' 는 "없음/기본"이다.
+// 생김새(look)에 들어가는 값: outfit(옷), tint(색), hat, neck, eye, back(소품), sock(수면양말). 빈 글자 '' 는 "없음/기본"이다.
 // avatar.js 의 build 가 suitOf(색과 큰 모양)와 dressUp(꾸밈과 소품)을 부른다. 새 옷을 더하려면 OUTFITS 에 한 줄, SUITS 에 색, EXTRA 에 꾸밈.
 import { THREE, M, put, ball, cyl, rbox } from './kit.js';
 
@@ -8,6 +8,7 @@ export const OUTFITS = [
   { id: 'basic', name: '평상복' }, { id: 'santa', name: '🎅 산타' }, { id: 'rudolph', name: '🦌 루돌프' },
   { id: 'snowman', name: '⛄ 눈사람' }, { id: 'elf', name: '🧝 엘프' }, { id: 'penguin', name: '🐧 펭귄' }, { id: 'bear', name: '🐻 곰 잠옷' },
   { id: 'hanbok', name: '🎎 한복' }, { id: 'suit', name: '🤵 정장' }, { id: 'hoodie', name: '🧥 후드티' }, { id: 'padding', name: '🧣 패딩' },
+  { id: 'jjim', name: '♨️ 찜질복' },
   { id: HOST_OUTFIT, name: '🚀 비행 슈트' },
 ];
 // 색: 옷의 바탕색(평상복 윗옷, 엘프, 곰 잠옷, 한복 저고리, 정장, 후드티, 패딩)과 털모자·야구모자·목도리·가방·망토의 색을 바꾼다
@@ -18,11 +19,13 @@ export const TINTS = [
 ];
 const NONE = { id: '', name: '없음', icon: '🚫' };
 export const HATS = [NONE, { id: 'beanie', name: '털모자', icon: '🧶' }, { id: 'cap', name: '야구모자', icon: '🧢' }, { id: 'party', name: '고깔', icon: '🥳' },
-  { id: 'ribbon', name: '리본', icon: '🎀' }, { id: 'crown', name: '왕관', icon: '👑' }, { id: 'muff', name: '귀마개', icon: '🎧' }];
+  { id: 'ribbon', name: '리본', icon: '🎀' }, { id: 'crown', name: '왕관', icon: '👑' }, { id: 'muff', name: '귀마개', icon: '🎧' }, { id: 'yang', name: '양머리 수건', icon: '🐑' }];
 export const NECKS = [NONE, { id: 'scarf', name: '목도리', icon: '🧣' }, { id: 'bow', name: '나비넥타이', icon: '🎗️' }, { id: 'bell', name: '방울', icon: '🔔' }];
 export const EYES = [NONE, { id: 'round', name: '안경', icon: '👓' }, { id: 'sun', name: '선글라스', icon: '🕶️' }];
 export const BACKS = [NONE, { id: 'pack', name: '가방', icon: '🎒' }, { id: 'wing', name: '날개', icon: '🪽' }, { id: 'cape', name: '망토', icon: '🦸' }];
-const SLOTS = { tint: TINTS, hat: HATS, neck: NECKS, eye: EYES, back: BACKS };
+// 양말: 신발 위에 신는 도톰한 수면양말 (발목의 줄무늬와 복슬복슬한 목)
+export const SOCKS = [NONE, { id: 'sleep', name: '수면 분홍', icon: '🧦' }, { id: 'sleepM', name: '수면 민트', icon: '🧦' }, { id: 'sleepY', name: '수면 노랑', icon: '🧦' }, { id: 'sleepP', name: '수면 보라', icon: '🧦' }];
+const SLOTS = { tint: TINTS, hat: HATS, neck: NECKS, eye: EYES, back: BACKS, sock: SOCKS };
 
 // 저장된 값이나 상대가 보낸 값에서 색과 소품만 골라 아는 값으로 맞춘다
 export function cleanExtra(v) {
@@ -56,13 +59,14 @@ const SUITS = {
   suit: (L, f) => { const t = tintOf(L, 0x2F3A52); return { top: t, bottom: t, skirt: f, leg: f ? C.skin : t, shoe: 0x1E1E24 }; },
   hoodie: (L) => ({ top: tintOf(L, 0x8E9BD6), bottom: 0x4A6FA5, skirt: false, leg: 0x4A6FA5, shoe: 0xF4F1EA }),
   padding: (L) => ({ top: tintOf(L, 0xF08A3C), bottom: 0x3A3F4A, skirt: false, leg: 0x3A3F4A, shoe: 0x5A3824 }),
+  jjim: (L) => { const t = tintOf(L, 0xF2A07B); return { top: t, bottom: t, skirt: false, leg: C.skin, shoe: C.skin }; }, // 찜질복: 반팔·반바지에 맨발
   jet: () => ({ top: C.jet, bottom: C.jet, skirt: false, leg: C.jet, shoe: C.jetDark, hand: C.jetGold, bald: true, head: true, mask: true }),
 };
 export function suitOf(L) { const f = SUITS[L.outfit]; return f ? f(L, L.gender === 'f') : null; }
 const headgear = (L) => L.outfit === 'santa' || L.outfit === 'rudolph' || !!(suitOf(L) || {}).head;
 const masked = (L) => !!(suitOf(L) || {}).mask;
 // 그 옷에서 그 소품을 쓸 수 있는지 (모자가 달린 옷에는 모자를, 얼굴을 가리는 옷에는 안경을 못 쓴다)
-export const canWear = (L, slot) => (slot === 'hat' ? !headgear(L) : slot === 'eye' ? !masked(L) : slot === 'back' || slot === 'neck' ? L.outfit !== HOST_OUTFIT : true);
+export const canWear = (L, slot) => (slot === 'hat' ? !headgear(L) : slot === 'eye' ? !masked(L) : slot === 'back' || slot === 'neck' || slot === 'sock' ? L.outfit !== HOST_OUTFIT : true);
 
 const torus = (r, tube, seg = 18) => new THREE.TorusGeometry(r, tube, 8, seg);
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
@@ -152,6 +156,14 @@ const EXTRA = {
 
 // 소품
 const HAT = {
+  yang(g, c) { // 양머리 수건: 머리를 감싼 수건과 양옆의 동그란 말이
+    const m = put(new THREE.SphereGeometry(0.335, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.47), c, 0, 0.0, -0.01, g); m.scale.set(1.05, 1.04, 1.04);
+    ring(torus(0.318, 0.03, 20), shade(c, 0.9), 0.035, g, 1.05, 1.04);
+    for (const s of [-1, 1]) {
+      const r = put(torus(0.062, 0.042, 14), c, 0.36 * s, 0.1, 0, g); r.rotation.y = Math.PI / 2;
+      put(ball(0.03, 8, 6), shade(c, 0.86), 0.375 * s, 0.1, 0, g, false);
+    }
+  },
   beanie(g, c) {
     const m = put(new THREE.SphereGeometry(0.305, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.44), c, 0, 0.01, -0.01, g); m.scale.set(1.06, 1, 1.02);
     ring(torus(0.285, 0.036, 20), shade(c, 0.82), 0.075, g, 1.06, 1.02);
@@ -215,7 +227,19 @@ const BACK = {
     put(cyl(0.13, 0.16, 0.04, 14), c, 0, 0.635, 0, g);
   },
 };
-const ACC_COL = { beanie: 0xD9483B, cap: 0x4F7FD0, scarf: 0xD23A30, pack: 0x4FA36B, cape: 0xB02F3A };
+// 수면양말: 두 다리(엉덩이 묶음)에 하나씩. 신발을 덮는 도톰한 발, 발목의 흰 줄무늬, 복슬복슬한 목, 발끝의 흰 덧댐
+const SOCK_COL = { sleep: 0xF7A9C0, sleepM: 0x8FD8C4, sleepY: 0xF6D36B, sleepP: 0xB9A2EC };
+function socks(legs, id) {
+  const c = SOCK_COL[id]; if (c == null) return;
+  for (const hip of legs) {
+    flat(put(ball(0.095, 12, 9), c, 0, -0.231, 0.027, hip), 1.03, 0.68, 1.4);
+    put(cyl(0.08, 0.082, 0.11, 12), c, 0, -0.165, 0, hip);
+    for (const y of [-0.15, -0.188]) put(torus(0.081, 0.011, 14), C.fur, 0, y, 0, hip, false).rotation.x = Math.PI / 2;
+    put(torus(0.078, 0.027, 14), C.fur, 0, -0.105, 0, hip).rotation.x = Math.PI / 2;
+    flat(put(ball(0.05, 8, 6), C.fur, 0, -0.238, 0.118, hip, false), 1.25, 0.72, 0.8);
+  }
+}
+const ACC_COL = { beanie: 0xD9483B, cap: 0x4F7FD0, scarf: 0xD23A30, pack: 0x4FA36B, cape: 0xB02F3A, yang: 0xFFF1E0 };
 
 // 몸에 옷의 꾸밈과 소품을 붙인다. 돌려주는 값 = 날 때만 보이는 불꽃들(비행 슈트일 때만), 없으면 null
 export function dressUp(p, L, c) {
@@ -223,6 +247,7 @@ export function dressUp(p, L, c) {
   const acc = (set, id, slot, parent) => { if (id && set[id] && canWear(L, slot)) set[id](parent, tintOf(L, ACC_COL[id] ?? 0)); };
   acc(HAT, L.hat, 'hat', p.head); acc(EYE, L.eye, 'eye', p.head);
   acc(NECK, L.neck, 'neck', p.body); acc(BACK, L.back, 'back', p.body);
+  if (L.sock && canWear(L, 'sock')) socks(p.legs, L.sock);
   return jets;
 }
 
@@ -231,12 +256,12 @@ export function dressUp(p, L, c) {
    옷 · 색 · 모자 · 목 · 안경 · 등 여섯 갈래를 단추로 바꿔 가며 한 줄 목록에서 고른다(폰에서 판이 높아지지 않게). */
 export function makeWardrobe(K) {
   const css = document.createElement('style');
-  css.textContent = '#cosTabs{gap:4px}#cosTabs .chip{font-size:12.5px;min-height:44px}'
+  css.textContent = '#cosTabs{gap:3px}#cosTabs .chip{font-size:12.5px;min-height:44px;min-width:44px;padding:0 2px}'
     + '#look .scroll .chip{flex:none;padding:0 12px;white-space:nowrap}#look .scroll .chip[data-lock="1"]{opacity:.55}'
     + '#look .scroll{min-height:48px;align-items:center}#look .scroll .sw{margin:3px 2px}';
   document.head.appendChild(css);
   const tabs = K.$('cosTabs'), outfitBox = K.$('pickOutfit');
-  const TABS = [{ id: 'outfit', name: '옷' }, { id: 'tint', name: '색' }, { id: 'hat', name: '모자' }, { id: 'neck', name: '목' }, { id: 'eye', name: '안경' }, { id: 'back', name: '등' }];
+  const TABS = [{ id: 'outfit', name: '옷' }, { id: 'tint', name: '색' }, { id: 'hat', name: '모자' }, { id: 'neck', name: '목' }, { id: 'eye', name: '안경' }, { id: 'back', name: '등' }, { id: 'sock', name: '양말' }];
   const hex = (h) => '#' + h.toString(16).padStart(6, '0');
   const boxes = { outfit: outfitBox };
   let tab = 'outfit';
