@@ -293,7 +293,7 @@ function buildTree(scene) {
     const m = put(geo, leafMat, 0, t.y0 + t.h / 2, 0, g);
     m.rotation.y = k * 0.5;
     cones.push(m);
-    // 가지 끝: 층 아랫단을 따라 삐죽삐죽 내민 잎 두 줄, 군데군데 얹힌 눈
+    // 가지 끝: 층 아랫단을 따라 삐죽삐죽 내민 잎 두 줄
     const n = Math.round(t.r * 20) + 4;
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + k * 0.5, piv = new THREE.Group(); piv.rotation.y = a; deco.add(piv);
@@ -302,9 +302,31 @@ function buildTree(scene) {
       if (i % 2) continue;
       const up = put(new THREE.ConeGeometry(0.07, 0.2, 4), M(greens[Math.min(3, k + 1)], true), t.r * 0.86 - 0.05, t.y0 + t.h * 0.14 + 0.02, 0.09, piv, false);
       up.rotation.z = -Math.PI / 2 - 0.15; up.scale.z = 1.4;
-      if (i % 4 === 0) put(ball(0.055, 4, 2), 0xFBFDFF, t.r * 0.9 - 0.06, t.y0 + t.h * 0.1 + 0.055, -0.03, piv, false).scale.set(1.5, 0.45, 1.2);
     }
+    // 층 겉면 가운데쯤에도 바깥으로 삐친 잔가지 (장식을 다는 잎 층은 그대로라 장식 자리는 바뀌지 않는다). 군데군데 연둣빛 새순
+    const rows = [[0.32, 0.62, 0.075], [0.58, 0.45, 0.06]];
+    rows.forEach(([f, dens, sz], ri) => {
+      const y = t.y0 + t.h * f, rr = t.r * (1 - f), m = Math.max(5, Math.round(rr * 24 * dens));
+      for (let i = 0; i < m; i++) {
+        const a = (i / m) * Math.PI * 2 + k * 0.9 + ri * 0.37 + (i % 3) * 0.06, piv = new THREE.Group(); piv.rotation.y = a; deco.add(piv);
+        const fresh = (i * 7 + k * 3 + ri) % 5 === 0;
+        const tw = put(new THREE.ConeGeometry(sz, sz * 2.9, 4), M(fresh ? 0x5DAE7A : greens[Math.min(3, k + (i % 2))], true), rr - 0.02, y - 0.02, 0, piv, false);
+        tw.rotation.z = -Math.PI / 2 - 0.55; tw.scale.z = 1.5;
+      }
+    });
   });
+  // 화분: 나무 통처럼 세로 널과 쇠테
+  for (let k = 0; k < 14; k++) { const pv = new THREE.Group(); pv.rotation.y = -(k / 14) * Math.PI * 2; deco.add(pv); put(new THREE.BoxGeometry(0.012, 0.28, 0.022), 0x8E3B2E, 0.336, 0.15, 0, pv, false).rotation.z = -0.197; } // 화분 옆면 기울기를 따라 선 널 사이의 홈
+  for (const y of [0.06, 0.25]) put(new THREE.TorusGeometry(y < 0.1 ? 0.307 : 0.35, 0.012, 4, 24), 0x5A4A3E, 0, y, 0, deco, false).rotation.x = Math.PI / 2;
+  // 트리 치마 위에 떨어진 솔방울 몇 개와 작은 호랑가시 가지
+  for (const [x, z, r] of [[0.55, 0.42, 0.4], [-0.62, 0.3, 1.9], [0.18, -0.68, 3.1]]) {
+    const pc = new THREE.Group(); pc.position.set(x, 0.088, z); pc.rotation.set(Math.PI / 2 - 0.25, 0, r); deco.add(pc);
+    for (let j = 0; j < 4; j++) put(new THREE.ConeGeometry(0.045 - j * 0.008, 0.035, 7), M(j % 2 ? 0x7A4E2E : 0x8E5E38, true), 0, -0.03 + j * 0.022, 0, pc, false);
+    put(ball(0.02, 5, 4), 0x6A4228, 0, 0.06, 0, pc, false);
+  }
+  { const hx = -0.3, hz = 0.62;
+    for (const s2 of [-1, 1]) { const l = put(new THREE.ConeGeometry(0.035, 0.12, 4), M(0x2F7D56, true), hx + s2 * 0.05, 0.075, hz, deco, false); l.rotation.set(Math.PI / 2, 0, s2 * 1.1); l.scale.z = 0.35; }
+    for (const [dx, dz] of [[0, -0.01], [0.02, 0.015], [-0.02, 0.015]]) put(ball(0.016, 6, 4), 0xD23A30, hx + dx, 0.088, hz + dz, deco, false); }
   bake(deco, 0, false);
   return { g, cones };
 }
@@ -379,14 +401,33 @@ function slidingDoor(scene, tops, mats, along, a0, a1, fix) {
 // 마당: 눈 쌓인 땅, 현관에서 대문까지의 디딤돌, 울타리와 대문, 나무 두 그루, 가로등
 const SNOW = 0xF2F6FB;
 function pine(g, x, z, s) {
-  put(cyl(0.09 * s, 0.11 * s, 0.4 * s, 8), C.trunk, x, 0.2 * s, z, g);
-  // 세 층의 잎과 층마다 얹힌 눈
-  [[0.66, 0.9, 0.72, C.pine], [0.52, 0.8, 1.22, 0x358A5D], [0.36, 0.7, 1.68, C.pine2]].forEach(([r, h, y, col], k) => {
-    put(new THREE.ConeGeometry(r * s, h * s, 8), M(col, true), x, y * s, z, g).rotation.y = k * 0.6;
-    const cap = put(new THREE.ConeGeometry(r * 0.66 * s, h * 0.62 * s, 8, 1, true), SN(), x, (y + h * 0.2) * s, z, g, false); cap.rotation.y = k * 0.6;
-    if (k < 2) for (let i = 0; i < 3; i++) { const a = i * 2.094 + k; put(ball(0.13 * s, 4, 2), SN(), x + Math.cos(a) * r * 0.8 * s, (y - h * 0.34) * s, z + Math.sin(a) * r * 0.8 * s, g, false).scale.set(1.3, 0.5, 1.3); } // 가지 끝에 얹힌 눈
+  put(cyl(0.07 * s, 0.11 * s, 0.5 * s, 8), TX(C.trunk, 'wood'), x, 0.25 * s, z, g);
+  for (let k = 0; k < 4; k++) { const a = k * 1.57 + 0.4; put(cyl(0.02 * s, 0.045 * s, 0.22 * s, 5), C.trunk, x + Math.cos(a) * 0.1 * s, 0.03 * s, z + Math.sin(a) * 0.1 * s, g, false).rotation.set(Math.sin(a) * 1.25, 0, -Math.cos(a) * 1.25); } // 땅 위로 드러난 뿌리
+  // 네 층의 잎. 아래층일수록 짙고, 층마다 겉 가장자리는 밝고 위층에 가려지는 안쪽은 어둡다
+  const tiers = [[0.7, 0.62, 0.36, 0x2A6E4B], [0.58, 0.56, 0.74, 0x2F7B53], [0.45, 0.5, 1.08, 0x358A5D], [0.3, 0.48, 1.4, 0x3E9666]];
+  const c0 = new THREE.Color(), c1 = new THREE.Color();
+  tiers.forEach(([r, h, y0, hex], k) => {
+    const geo = new THREE.ConeGeometry(r * s, h * s, 10, 1), P = geo.attributes.position, col = [];
+    c0.setHex(hex).multiplyScalar(0.68); c1.setHex(hex).multiplyScalar(1.12);
+    for (let i = 0; i < P.count; i++) { const c = P.getY(i) > 0 ? c0 : c1; col.push(c.r, c.g, c.b); }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    put(geo, M(0xFFFFFF, true), x, (y0 + h / 2) * s, z, g).rotation.y = k * 0.7; // 꼭짓점 색은 합칠 때 그대로 옮겨진다
+    // 층 위에 얹힌 눈: 꼭대기에서 흘러내린 눈 덮개
+    const cap = put(new THREE.ConeGeometry(r * 0.62 * s, h * 0.5 * s, 10, 1, true), SN(), x, (y0 + h * 0.75) * s, z, g, false); cap.rotation.y = k * 0.7;
+    // 가지 끝: 층 아랫단을 따라 아래로 처진 잎 덩이 (군데군데 밝은 새 잎)
+    const n = Math.round(r * 13) + 3;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + k * 0.9 + (i % 2) * 0.12, piv = new THREE.Group(); piv.position.set(x, 0, z); piv.rotation.y = a; g.add(piv);
+      const tip = put(new THREE.ConeGeometry(0.075 * s, 0.24 * s, 4), M(i % 3 ? hex : 0x4AA372, true), (r - 0.07) * s, (y0 + 0.02) * s, 0, piv, false);
+      tip.rotation.z = -Math.PI / 2 - 0.5; tip.scale.z = 1.6;
+    }
   });
-  put(ball(0.34 * s, 6, 2), SN(), x, 0.02, z, g, false).scale.set(1.5, 0.3, 1.5);                     // 밑동 둘레에 쌓인 눈
+  put(new THREE.ConeGeometry(0.07 * s, 0.22 * s, 5), SN(), x, 1.9 * s, z, g, false);                      // 꼭대기 눈
+  put(ball(0.36 * s, 7, 2), SN(), x, 0.02, z, g, false).scale.set(1.5, 0.28, 1.5);                     // 밑동 둘레에 쌓인 눈
+  for (const [dx, dz] of [[0.42, 0.2], [-0.3, 0.38]]) {                                                  // 밑에 떨어진 솔방울
+    const pc = new THREE.Group(); pc.position.set(x + dx * s, 0.07, z + dz * s); pc.rotation.set(Math.PI / 2 - 0.3, 0, dx * 4); g.add(pc);
+    for (let j = 0; j < 3; j++) put(new THREE.ConeGeometry(0.045 - j * 0.01, 0.035, 6), M(j % 2 ? 0x7A4E2E : 0x8E5E38, true), 0, -0.02 + j * 0.022, 0, pc, false);
+  }
 }
 function buildYard(scene) {
   const g = new THREE.Group(); scene.add(g);

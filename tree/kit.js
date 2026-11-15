@@ -7,7 +7,7 @@ export { THREE };
 /* ───────── 온 화면에 같이 드는 빛 처리 ───────── */
 // FX.glow: 스스로 빛나는 것(전구·촛불·불꽃·달 …)을 몇 배 밝게 그릴지. 후처리(post.js)가 켜져 있을 때만 1 보다 커서
 // 그 밝기가 빛 번짐으로 퍼진다. 후처리를 끄면 1 이라 예전과 똑같이 그려진다. FX.t = 흐른 시간(초, 불꽃이 일렁이는 데 쓴다)
-export const FX = { glow: { value: 1 }, hot: 2.6, t: { value: 0 }, px: { value: 800 } }; // px = 화면 높이(그리는 픽셀)
+export const FX = { glow: { value: 1 }, hot: 2.6, t: { value: 0 }, px: { value: 800 }, pat: { value: 0 } }; // px = 화면 높이(그리는 픽셀), pat = 가구의 나뭇결·천·돌 무늬를 그릴지(좋은 화질에서만 1)
 // 빛나는 재질로 만든다(MeshBasicMaterial·SpriteMaterial). k = 얼마나 빛날지(1 = 보통, 0.5 = 은은하게)
 //   flick: 밝기가 불처럼 일렁인다(물체마다 박자가 다르다)
 //   sway : 불꽃 모양이 흔들린다. bake 가 'flame' 덩어리에 넣어 주는 fl 값(불꽃 안의 높이 0~1, 불꽃 크기, 박자)을 쓴다
@@ -214,8 +214,16 @@ export function soft() {
 // 무늬가 든 색 재질. 1 m 에 무늬가 몇 번 되풀이될지는 DENS 가 정한다(bake 가 겉면 자리로 UV 를 새로 매긴다).
 const DENS = { plain: 0, paper: 1.6, wood: 1.3, fabric: 5, plaid: 2.4, knit: 7, brick: 1.5, stone: 1.6, pleat: 2.2, plank: 2.5 };
 const tms = new Map();
+// 은은한 결(나뭇결·천 짜임·돌)은 따로 그림을 입히지 않고, bake 가 합친 덩어리 안에서 꼭짓점마다 무늬 번호(pat)와 자리(puv)만 적어 둔다.
+// 좋은 화질(FX.pat = 1)에서만 셰이더가 그 무늬를 곱해 그린다 → 그리기 호출은 그대로, 느린 기기에서는 예전처럼 민무늬
+const PATS = { wood: 1, fabric: 2, stone: 3 }, pms = new Map();
 export function T(hex, kind = 'wood', flat = false) {
-  if (kind === 'wood' || kind === 'fabric' || kind === 'stone') return M(hex, flat); // 은은한 결은 넓은 면을 덮어 느린 기기에서 무겁다. 눈에 띄는 무늬(체크·뜨개·벽돌·주름)만 그림을 입힌다
+  if (PATS[kind]) {
+    const key = hex + kind + (flat ? 'f' : '');
+    let m = pms.get(key);
+    if (!m) { m = new THREE.MeshLambertMaterial({ color: hex, flatShading: flat }); m.userData.bk = { kind: 'plain', flat, pat: PATS[kind], d: DENS[kind] }; pms.set(key, m); }
+    return m;
+  } // 눈에 띄는 무늬(체크·뜨개·벽돌·주름)는 그림을 입힌다
   const key = hex + kind + (flat ? 'f' : '');
   let m = tms.get(key);
   if (!m) { m = new THREE.MeshLambertMaterial({ color: hex, map: tex(kind), flatShading: flat }); m.userData.bk = { kind, flat }; tms.set(key, m); }
@@ -248,7 +256,7 @@ export function E(hex, k = 1) {
 const flames = new Map();
 export function F(hex) {
   let m = flames.get(hex);
-  if (!m) { m = hot(new THREE.MeshBasicMaterial({ color: hex }), 0.5, { flick: true }); m.userData.bk = { kind: 'flame' }; flames.set(hex, m); }
+  if (!m) { m = hot(new THREE.MeshBasicMaterial({ color: hex }), 0.25, { flick: true }); m.userData.bk = { kind: 'flame' }; flames.set(hex, m); }
   return m;
 }
 // 눈: 따뜻한 조명 아래에서도 하얗게 보이도록 푸른빛을 조금 스스로 낸다 (마당의 눈밭과 같은 색)
@@ -265,14 +273,29 @@ export function VM(kind = 'plain') {
   let m = vms.get(kind);
   if (!m) {
     m = kind === 'lit' ? new THREE.MeshBasicMaterial({ vertexColors: true })
-      : kind === 'flame' ? hot(new THREE.MeshBasicMaterial({ vertexColors: true }), 0.5, { flick: true, sway: true })
+      : kind === 'flame' ? hot(new THREE.MeshBasicMaterial({ vertexColors: true }), 0.25, { flick: true, sway: true })
       : emits(kind) ? hot(new THREE.MeshBasicMaterial({ vertexColors: true }), kind === 'glow' ? 1 : +kind.slice(4))
       : kind === 'snow' ? new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0x1C2A44 })
       : kind === 'gloss' ? new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 42, specular: 0x2E2A26 })
-      : new THREE.MeshLambertMaterial({ vertexColors: true, map: kind === 'plain' ? null : tex(kind) });
+      : kind === 'plain' ? patterned(new THREE.MeshLambertMaterial({ vertexColors: true }))
+      : new THREE.MeshLambertMaterial({ vertexColors: true, map: tex(kind) });
     vms.set(kind, m);
   }
   return m;
+}
+// 합친 민무늬 덩어리: 꼭짓점의 무늬 번호(pat 1 나무, 2 천, 3 돌)대로 무늬 그림을 곱한다 (FX.pat 이 1 일 때만)
+function patterned(mat) {
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, { tPw: { value: tex('wood') }, tPf: { value: tex('fabric') }, tPs: { value: tex('stone') }, uPat: FX.pat });
+    sh.vertexShader = 'attribute float pat;\nattribute vec2 puv;\nvarying float vPat;\nvarying vec2 vPuv;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvPat = pat; vPuv = puv;');
+    sh.fragmentShader = 'uniform sampler2D tPw, tPf, tPs;\nuniform float uPat;\nvarying float vPat;\nvarying vec2 vPuv;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      if (uPat > 0.5 && vPat > 0.5) {
+        vec3 tc = vPat < 1.5 ? texture2D(tPw, vPuv).rgb : vPat < 2.5 ? texture2D(tPf, vPuv).rgb : texture2D(tPs, vPuv).rgb;
+        diffuseColor.rgb *= min(tc * 1.1, vec3(1.15));
+      }`);
+  };
+  mat.customProgramCacheKey = () => 'pat';
+  return mat;
 }
 // 묶음 g 안의 도형들을 재질 종류별로 한 덩어리씩 합친다(그리기 호출을 줄인다). 색은 꼭짓점 색으로 옮긴다.
 // M()·T()·L() 로 만든 재질의 메시만 합치고, 다른 재질(TV 화면, 그림이 든 것 등)과 userData.keep 인 것, userData.own 인 묶음 안쪽은 그대로 둔다.
@@ -295,11 +318,11 @@ export function bake(g, grid = 0, receive = true) {
         const cast = ch.castShadow && !emits(bk.kind); // 그림자를 드리우는 것과 아닌 것은 따로 합친다 (그림자를 그릴 때 작은 장식은 빠진다)
         const key = bk.kind + (cast ? '+' : '') + (grid ? '|' + Math.floor(rel.elements[12] / grid) + ',' + Math.floor(rel.elements[14] / grid) : '');
         let b = buckets.get(key);
-        if (!b) { b = { kind: bk.kind, pos: [], nor: [], col: [], uv: [], fl: [], idx: [], cast }; buckets.set(key, b); }
+        if (!b) { b = { kind: bk.kind, pos: [], nor: [], col: [], uv: [], fl: [], pat: [], puv: [], anyPat: false, idx: [], cast }; buckets.set(key, b); }
         let geo = ch.geometry;
         if (bk.flat) { geo = geo.index ? geo.toNonIndexed() : geo.clone(); geo.computeVertexNormals(); }
         const flip = rel.determinant() < 0; // 뒤집힌(거울) 도형은 세모의 감는 방향을 바꾼다
-        const P = geo.attributes.position, N = geo.attributes.normal, base = b.pos.length / 3, d = DENS[bk.kind] || 0, sw = ch.userData.sw;
+        const P = geo.attributes.position, N = geo.attributes.normal, VC = geo.attributes.color, base = b.pos.length / 3, d = DENS[bk.kind] || 0, sw = ch.userData.sw;
         _c.copy(ch.material.color);
         let fy0 = 0, fh = 1, fph = 0, fh0 = 0;
         if (bk.kind === 'flame') { // 불꽃: 도형 안의 높이(아래 0, 끝 1)와 크기, 불꽃마다 다른 박자
@@ -311,13 +334,17 @@ export function bake(g, grid = 0, receive = true) {
         for (let i = 0; i < P.count; i++) {
           if (bk.kind === 'flame') b.fl.push((P.getY(i) - fy0) / fh, fh0, fph, 0);
           _v.fromBufferAttribute(P, i).applyMatrix4(rel); _n.fromBufferAttribute(N, i).applyMatrix3(_nm).normalize();
-          b.pos.push(_v.x, _v.y, _v.z); b.nor.push(_n.x, _n.y, _n.z); b.col.push(_c.r, _c.g, _c.b);
-          if (d) { // 겉면이 보는 쪽에 맞춰 무늬를 펼친다
-            const ax = Math.abs(_n.x), ay = Math.abs(_n.y), az = Math.abs(_n.z);
+          b.pos.push(_v.x, _v.y, _v.z); b.nor.push(_n.x, _n.y, _n.z);
+          if (VC) b.col.push(_c.r * VC.getX(i), _c.g * VC.getY(i), _c.b * VC.getZ(i)); else b.col.push(_c.r, _c.g, _c.b); // 도형에 꼭짓점 색이 있으면 재질 색에 곱한다
+          const pd = bk.kind === 'plain' ? bk.d || 0 : 0;
+          if (d || pd) { // 겉면이 보는 쪽에 맞춰 무늬를 펼친다
+            const ax = Math.abs(_n.x), ay = Math.abs(_n.y), az = Math.abs(_n.z), dd = d || pd;
             let u, w;
             if (ay >= ax && ay >= az) { u = _v.x; w = _v.z; } else if (ax >= az) { u = _v.z; w = _v.y; } else { u = _v.x; w = _v.y; }
-            if (sw) b.uv.push(w * d, u * d); else b.uv.push(u * d, w * d);
-          }
+            const arr = d ? b.uv : b.puv;
+            if (sw) arr.push(w * dd, u * dd); else arr.push(u * dd, w * dd);
+          } else if (bk.kind === 'plain') b.puv.push(0, 0);
+          if (bk.kind === 'plain') { b.pat.push(bk.pat || 0); if (bk.pat) b.anyPat = true; }
         }
         const I = geo.index;
         const n = I ? I.count : P.count;
@@ -339,6 +366,7 @@ export function bake(g, grid = 0, receive = true) {
     geo.setAttribute('color', new THREE.Float32BufferAttribute(b.col, 3));
     if (b.uv.length) geo.setAttribute('uv', new THREE.Float32BufferAttribute(b.uv, 2));
     if (b.fl.length) geo.setAttribute('fl', new THREE.Float32BufferAttribute(b.fl, 4));
+    if (b.anyPat) { geo.setAttribute('pat', new THREE.Float32BufferAttribute(b.pat, 1)); geo.setAttribute('puv', new THREE.Float32BufferAttribute(b.puv, 2)); }
     geo.setIndex(b.idx);
     const m = new THREE.Mesh(geo, VM(kind));
     m.castShadow = b.cast; m.receiveShadow = receive && !emits(kind);

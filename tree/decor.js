@@ -17,11 +17,11 @@ const starShape = (r0, r1) => {
 };
 // 장식의 부품 도형. 종류마다 한 덩어리로 합칠 때만 쓴다
 const G = {
-  ball: new THREE.SphereGeometry(0.085, 14, 10),
-  cap: new THREE.CylinderGeometry(0.02, 0.024, 0.03, 8),
+  ball: new THREE.SphereGeometry(0.085, 20, 14),
+  cap: new THREE.CylinderGeometry(0.02, 0.024, 0.03, 12),
   ring: new THREE.TorusGeometry(0.016, 0.005, 4, 8),
-  band: new THREE.CylinderGeometry(0.0865, 0.0865, 0.022, 14, 1, true),
-  thin: new THREE.CylinderGeometry(0.0862, 0.0862, 0.008, 14, 1, true),
+  band: new THREE.CylinderGeometry(0.0865, 0.0865, 0.022, 20, 1, true),
+  thin: new THREE.CylinderGeometry(0.0862, 0.0862, 0.008, 20, 1, true),
   dot: new THREE.SphereGeometry(0.016, 8, 5),
   glint: new THREE.SphereGeometry(0.02, 6, 4),
   seg: new THREE.CylinderGeometry(0.02, 0.02, 0.031, 8),
@@ -29,8 +29,8 @@ const G = {
   loop: new THREE.SphereGeometry(0.06, 10, 8),
   knot: new THREE.SphereGeometry(0.03, 8, 6),
   tail: new THREE.BoxGeometry(0.035, 0.11, 0.015),
-  bell: new THREE.CylinderGeometry(0.025, 0.08, 0.11, 12),
-  rim: new THREE.TorusGeometry(0.078, 0.014, 6, 14),
+  bell: new THREE.LatheGeometry([[0, -0.056], [0.084, -0.056], [0.074, -0.05], [0.05, -0.035], [0.036, 0.0], [0.03, 0.04], [0.022, 0.056], [0, 0.058]].map(([x, y]) => new THREE.Vector2(x, y)), 16),
+  rim: new THREE.TorusGeometry(0.078, 0.014, 6, 20),
   clap: new THREE.SphereGeometry(0.024, 8, 6),
   leaf: new THREE.ConeGeometry(0.03, 0.08, 4),
   star: new THREE.ExtrudeGeometry(starShape(0.045, 0.105), { depth: 0.03, bevelEnabled: false }),
@@ -45,6 +45,7 @@ function add(g, geo, hex, x, y, z) {
 // 방울: 꼭지와 고리, 가운데 띠나 물방울 무늬, 반짝이는 점
 const bauble = (hex, trim, dots) => (g) => {
   add(g, G.ball, hex, 0, -0.03, 0.05); add(g, G.cap, GOLD, 0, 0.06, 0.05); add(g, G.ring, GOLD, 0, 0.085, 0.05);
+  for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; add(g, G.dot, GOLD, Math.cos(a) * 0.021, 0.046, 0.05 + Math.sin(a) * 0.021).scale.set(0.45, 0.9, 0.45); } // 꼭지 아래의 작은 왕관 테
   if (dots) for (let k = 0; k < 7; k++) { const a = (k / 7) * Math.PI * 2; add(g, G.dot, trim, Math.cos(a) * 0.074, -0.03 + (k % 2 ? 0.022 : -0.022), 0.05 + Math.sin(a) * 0.074); }
   else { add(g, G.band, trim, 0, -0.03, 0.05); add(g, G.thin, WHITE, 0, -0.008, 0.05).scale.set(0.965, 1, 0.965); add(g, G.thin, WHITE, 0, -0.052, 0.05).scale.set(0.965, 1, 0.965); }
   add(g, G.glint, 0xFFFFFF, -0.03, 0.005, 0.122).scale.set(1, 1.5, 0.35);

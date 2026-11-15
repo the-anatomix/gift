@@ -20,7 +20,7 @@ async function open(ctx, q) {
   return p;
 }
 const frames = (p) => T(p, () => window.__tree.frames);
-const look = (p) => T(p, () => ({ fx: window.__look.fx, glow: window.__look.glow, tilt: window.__look.tilt, q: window.__tree.quality, calls: window.__tree.calls }));
+const look = (p) => T(p, () => ({ fx: window.__look.fx, glow: window.__look.glow, q: window.__tree.quality, calls: window.__tree.calls }));
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
@@ -42,7 +42,6 @@ const look = (p) => T(p, () => ({ fx: window.__look.fx, glow: window.__look.glow
     const f0 = await frames(A); await sleep(1500);
     check('켠 채로 계속 그려지고 오류 없음', (await frames(A)) > f0 && errors.length === 0, errors);
     check('그리기 호출 수는 방을 그린 것만 셈 (후처리 몇 번은 빼고)', a.calls > 20 && a.calls < 400, a.calls);
-    check('내려다보는 시점에서는 미니어처 흐림이 켜짐', await until(async () => (await look(A)).tilt > 0.7, 4000), await look(A));
     check('불꽃이 일렁이는 시간 값이 흐름', await until(async () => { const t0 = await T(A, () => window.__look.time); await sleep(300); return (await T(A, () => window.__look.time)) > t0; }, 3000));
     await T(A, () => window.__tree.dispatch({ t: 'lights', set: 'multi', blink: 'on' }, 'load'));
     await sleep(800); await T(A, () => window.__tree.snapView());
@@ -60,7 +59,8 @@ const look = (p) => T(p, () => ({ fx: window.__look.fx, glow: window.__look.glow
 
     /* 1인칭 */
     await T(A, () => window.__tree.setPov(true));
-    check('1인칭에서는 미니어처 흐림이 꺼짐', await until(async () => (await look(A)).tilt === 0, 4000), await look(A));
+    const f4 = await frames(A); await sleep(1200);
+    check('1인칭에서도 켠 채로 그려짐', (await frames(A)) > f4 && (await look(A)).fx);
     await T(A, () => { const t = window.__tree; t.me.place(-0.6, -1.2); t.aim(0.35, -0.25); });
     await sleep(1200);
     await A.screenshot({ path: path.join(OUT, 'look-fx-fire.png') });

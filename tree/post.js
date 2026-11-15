@@ -25,15 +25,6 @@ void main() {
   gl_FragColor = vec4(min(c * k, vec3(24.0)), 1.0);
 }`;
 
-// 그대로 반으로 줄이기 (네 점 평균). 미니어처처럼 위아래를 흐리게 할 때 쓴다
-const HALF = /* glsl */`
-uniform sampler2D tSrc; uniform vec2 texel;
-varying vec2 vUv;
-void main() {
-  gl_FragColor = 0.25 * (texture2D(tSrc, vUv + texel * vec2(-1.0, -1.0)) + texture2D(tSrc, vUv + texel * vec2(1.0, -1.0))
-                       + texture2D(tSrc, vUv + texel * vec2(-1.0, 1.0)) + texture2D(tSrc, vUv + texel * vec2(1.0, 1.0)));
-}`;
-
 // 이중 필터 흐리기(작게 줄이기): 가운데 4번 + 네 귀퉁이
 const DOWN = /* glsl */`
 uniform sampler2D tSrc; uniform vec2 texel;
@@ -66,25 +57,21 @@ void main() {
 
 // 합치기와 색 다듬기
 const FINAL = /* glsl */`
-uniform sampler2D tScene, tBloom, tSoft; uniform float bloom, vig, aspect, sat, con, time, tilt;
+uniform sampler2D tScene, tBloom; uniform float bloom, vig, aspect, sat, con, time;
 varying vec2 vUv;
 vec3 toSRGB(vec3 c) { return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
-// 0.8 아래는 그대로, 그 위만 부드럽게 눌러 담는다(색은 그대로, 아주 밝으면 조금 하얗게)
+// 0.8 아래는 그대로, 그 위만 부드럽게 눌러 담는다(색은 그대로, 아주 밝으면 주황→노랑→하양 쪽으로 조금)
 vec3 shoulder(vec3 c) {
   float peak = max(c.r, max(c.g, c.b));
   const float S = 0.8;
   if (peak <= S) return c;
   float d = 1.0 - S, np = 1.0 - d * d / (peak + d - S);
-  vec3 o = c * (np / peak);
-  return mix(o, vec3(np), 1.0 - 1.0 / (0.07 * (peak - np) + 1.0));
+  // 아주 밝은 색은 조금 엷어지되, 약한 색 성분을 제 비율대로(거듭제곱으로) 올린다. 회색 쪽으로 섞으면 불꽃이 분홍으로 바랜다
+  return np * pow(max(c / peak, 1e-5), vec3(1.0 / (1.0 + 0.3 * (peak - S))));
 }
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + time) * 43758.5453); }
 void main() {
   vec4 sc = texture2D(tScene, vUv);
-  if (tilt > 0.0) { // 미니어처: 화면 위아래 끝으로 갈수록 살짝 흐리게 (가운데 띠는 또렷하게)
-    float k = smoothstep(0.24, 0.52, abs(vUv.y - 0.48)) * tilt;
-    sc = mix(sc, texture2D(tSoft, vUv), k);
-  }
   vec3 c = sc.rgb + texture2D(tBloom, vUv).rgb * bloom;
   c = toSRGB(shoulder(max(c, 0.0)));
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
@@ -113,15 +100,14 @@ export function makePost(renderer) {
   const down = mk(DOWN, { tSrc: { value: null }, texel: { value: new THREE.Vector2() } });
   const up = mk(UP, { tSrc: { value: null }, texel: { value: new THREE.Vector2() }, spread: { value: 1 } }, { blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor });
   const fin = mk(FINAL, {
-    tScene: { value: null }, tBloom: { value: null }, bloom: { value: 0.7 }, vig: { value: 0.2 }, aspect: { value: 1 },
-    sat: { value: 1.1 }, con: { value: 0.12 }, time: { value: 0 }, tSoft: { value: null }, tilt: { value: 0 },
+    tScene: { value: null }, tBloom: { value: null }, bloom: { value: 0.6 }, vig: { value: 0.2 }, aspect: { value: 1 },
+    sat: { value: 1.1 }, con: { value: 0.12 }, time: { value: 0 },
   }, { transparent: false, blending: THREE.NoBlending });
-  const half = mk(HALF, { tSrc: { value: null }, texel: { value: new THREE.Vector2() } });
 
   // 밝기를 1 넘게 담을 수 있는 그림(반정밀도 소수)을 그릴 수 있으면 그것으로, 아니면 보통 그림으로 (빛 번짐이 조금 약해질 뿐이다)
   const ext = renderer.extensions, TYPE = ext.has('EXT_color_buffer_float') || ext.has('EXT_color_buffer_half_float') ? THREE.HalfFloatType : THREE.UnsignedByteType;
   const opt = { type: TYPE, depthBuffer: false, stencilBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter };
-  let rt = null; const mips = [], soft = []; // soft = 흐린 장면 (반, 4분의 1 크기)
+  let rt = null; const mips = [];
   const size = new THREE.Vector2();
   let w = 0, h = 0, on = false;
   function fit() {
@@ -140,7 +126,6 @@ export function makePost(renderer) {
     for (let k = 0; k < LEVELS; k++) {
       mw = Math.max(1, Math.round(mw / 2)); mh = Math.max(1, Math.round(mh / 2));
       if (!mips[k]) mips[k] = new THREE.WebGLRenderTarget(mw, mh, opt); else mips[k].setSize(mw, mh);
-      if (k < 2) { if (!soft[k]) soft[k] = new THREE.WebGLRenderTarget(mw, mh, opt); else soft[k].setSize(mw, mh); }
     }
     fin.uniforms.aspect.value = w / Math.max(1, h);
     return true;
@@ -153,15 +138,13 @@ export function makePost(renderer) {
   };
   let calls = 0;
   function set(v) {
-    on = !!v; FX.glow.value = on ? FX.hot : 1;
-    if (!on) { rt && rt.dispose(); mips.forEach((m) => m.dispose()); soft.forEach((m) => m.dispose()); rt = null; mips.length = 0; soft.length = 0; w = h = 0; }
+    on = !!v; FX.glow.value = on ? FX.hot : 1; FX.pat.value = on ? 1 : 0;
+    if (!on) { rt && rt.dispose(); mips.forEach((m) => m.dispose()); rt = null; mips.length = 0; w = h = 0; }
   }
   return {
     get on() { return on; },
     get calls() { return calls; }, // 방을 그리는 데 든 그리기 호출 수 (후처리 몇 번은 빼고)
     set,
-    // 미니어처 흐림 (0 = 끔, 1 = 다). 내려다보는 시점에서만 켠다 (app.js)
-    get tilt() { return fin.uniforms.tilt.value; }, set tilt(v) { fin.uniforms.tilt.value = v; },
     render(scene, cam, t) {
       FX.t.value = (t || 0) % 3600;
       renderer.getDrawingBufferSize(size); FX.px.value = size.y;
@@ -182,11 +165,6 @@ export function makePost(renderer) {
       for (let k = LEVELS - 1; k > 0; k--) {
         up.uniforms.tSrc.value = mips[k].texture; up.uniforms.texel.value.set(0.5 / mips[k].width, 0.5 / mips[k].height); up.uniforms.spread.value = 1;
         pass(up, mips[k - 1], false);
-      }
-      if (fin.uniforms.tilt.value > 0) { // 장면을 반 → 4분의 1 로 줄여 흐린 그림을 만든다
-        let src = rt.texture, sw = w, sh = h;
-        for (let k = 0; k < 2; k++) { half.uniforms.tSrc.value = src; half.uniforms.texel.value.set(0.5 / sw, 0.5 / sh); pass(half, soft[k]); src = soft[k].texture; sw = soft[k].width; sh = soft[k].height; }
-        fin.uniforms.tSoft.value = soft[1].texture;
       }
       fin.uniforms.tScene.value = rt.texture; fin.uniforms.tBloom.value = mips[0].texture; fin.uniforms.time.value = (t || 0) % 7;
       pass(fin, null, false);

@@ -1895,7 +1895,6 @@ function frame(now) {
   lights.tick(dt); cinema.tick(); gameroom.tick(); photos.tick(dt);
 
   if (dirty) { renderer.shadowMap.needsUpdate = true; dirty = false; }
-  { const tg = usingEye() || mode === 'look' ? 0 : mode === 'tree' ? 0.35 : 0.8; post.tilt += (tg - post.tilt) * Math.min(1, dt * 6); if (Math.abs(tg - post.tilt) < 0.01) post.tilt = tg; } // 내려다볼 때만 미니어처 흐림
   post.render(scene, cam(), clock);
   if (quality === 'high' && !post.on) quality = 'mid'; // 이 기기에서는 화면 다듬기를 할 수 없었다
   party.shot(); // 단체 사진: 방금 그린 화면을 같은 그림 안에서 찍는다
@@ -1966,7 +1965,7 @@ window.__admin = {
   get tag() { return admin.tag; }, get tk() { return admin.tk(); }, get list() { return [...S.adm]; }, get here() { return duo.admins; }, get absent() { return admin.absent(); },
   grant: (id, on) => admin.grant(id, on !== false), clearAbsent: () => admin.clearAbsent(), tagOf: (tk) => admin.tagOf(tk),
 };
-window.__look = { get fx() { return post.on; }, get glow() { return LOOK.glow.value; }, get tilt() { return post.tilt; }, get time() { return LOOK.t.value; } }; // 화면 다듬기 (post.js) 검사용
+window.__look = { get fx() { return post.on; }, get glow() { return LOOK.glow.value; }, get time() { return LOOK.t.value; } }; // 화면 다듬기 (post.js) 검사용
 window.__party = Object.assign(party.test, { bright: () => ({ hemi: hemi.intensity, sun: sun.intensity, glow: glow.intensity }) });
 window.__tree = {
   nameOf: (id) => nameOf(id),
