@@ -51,7 +51,7 @@ function josa(w, a, b) {
 export const INGS = [
   { id: 'beef', name: '소고기', icon: '🥩', col: 0x8B3A2B }, { id: 'pork', name: '돼지고기', icon: '🥓', col: 0xE9A27E },
   { id: 'chicken', name: '닭고기', icon: '🍗', col: 0xE2B36E }, { id: 'salmon', name: '연어', icon: '🐟', col: 0xF28C5B },
-  { id: 'shrimp', name: '새우', icon: '🦐', col: 0xF5875F }, { id: 'tofu', name: '두부', icon: '⬜', col: 0xF4EEDC },
+  { id: 'shrimp', name: '새우', icon: '🦐', col: 0xF5875F }, { id: 'tofu', name: '두부', icon: '🧊', col: 0xF4EEDC },
   { id: 'egg', name: '달걀', icon: '🥚', col: 0xF7D046 }, { id: 'kimchi', name: '김치', icon: '🥬', col: 0xD24A2F },
   { id: 'cheese', name: '치즈', icon: '🧀', col: 0xF6C445 }, { id: 'tomato', name: '토마토', icon: '🍅', col: 0xD9382E },
   { id: 'mushroom', name: '버섯', icon: '🍄', col: 0xB08A64 }, { id: 'potato', name: '감자', icon: '🥔', col: 0xE8C66A },
@@ -80,7 +80,7 @@ export const DISHES = [
   D('bul', '불고기', '🥩', 'fry,grill', 'beef,onion', 'mushroom,rice,chili', 'stir', 0x7A3B22, 35),
   D('jey', '제육볶음', '🌶️', 'fry', 'pork,chili', 'onion,kimchi,rice', 'stir', 0xB8452A, 34),
   D('mpd', '마파두부', '🌶️', 'fry', 'tofu,chili', 'pork,beef,onion,rice', 'tofu', 0xC8432A, 33),
-  D('tbu', '두부 부침', '⬜', 'fry', 'tofu', 'egg,onion,chili,kimchi', 'tofu', 0xE8C88A, 29),
+  D('tbu', '두부 부침', '🍳', 'fry', 'tofu', 'egg,onion,chili,kimchi', 'tofu', 0xE8C88A, 29),
   D('ptc', '감자전', '🥔', 'fry', 'potato', 'onion,chili,cheese', 'pancake', 0xE6BE62, 31),
   D('kjn', '김치전', '🥬', 'fry', 'kimchi', 'onion,chili,pork,shrimp,egg', 'pancake', 0xDB6B3C, 32),
   D('nfr', '볶음면', '🍜', 'fry', 'noodle', 'onion,mushroom,pork,beef,shrimp,chili,egg', 'pasta', 0xC98A45, 31),
