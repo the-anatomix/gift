@@ -190,7 +190,7 @@ async function suite(browser, label, query, twoContexts) {
   const E = await open(ctxB, url('e', room));
   check('정원이 차면 더 들어오지 못하고 안내를 봄', await until(async () => (await mode(E)) === 'full', 15000) && (await E.textContent('#net')) === '방이 찼어요', await mode(E));
   await E.tap('#tabs button[data-m="duo"]'); await sleep(200);
-  await E.tap('#duoLeave'); await ready(E);
+  await E.tap('#duoLeave'); await sleep(700); await ready(E);
   check('"내 방으로 가기"를 누르면 혼자 노는 내 방으로, 다른 사람들의 연결은 그대로', (await mode(E)) === 'solo' && (await E.evaluate(() => location.hash)) === '' && (await counts(E)).items === 0 && (await mode(A)) === 'on' && (await seen(A)) === 3);
   await E.close();
 
@@ -246,12 +246,12 @@ async function suite(browser, label, query, twoContexts) {
   await A4.tap('#tabs button[data-m="duo"]'); await sleep(200);
   check('연결 중에도 초대할 수 있고, 내가 만든 방이면 "혼자 놀기" 단추가 보임', (await A4.textContent('#duoLeave')) === '혼자 놀기' && (await A4.isVisible('#duoInvite')) && (await A4.isVisible('#duoInviteV')) && (await A4.textContent('#duoMain')).includes('2명') && (await audit(A4)).length === 0, await audit(A4));
   await A4.screenshot({ path: path.join(__dirname, 'out', `duo-on-${label}.png`) });
-  await A4.tap('#duoLeave'); await ready(A4);
+  await A4.tap('#duoLeave'); await sleep(700); await ready(A4);
   check('방을 만든 사람이 나가면 지금 방 모습 그대로 혼자 이어서 꾸밈', (await mode(A4)) === 'solo' && (await A4.evaluate(() => location.hash)) === '' && (await counts(A4)).items === nA && !(await A4.isVisible('#net')));
   await B4.tap('#tabs button[data-m="duo"]'); await sleep(200);
   await until(async () => (await mode(B4)) === 'waiting', 12000);
   check('초대받은 사람의 단추는 "내 방으로 가기"', (await B4.textContent('#duoLeave')) === '내 방으로 가기');
-  await B4.tap('#duoLeave'); await ready(B4);
+  await B4.tap('#duoLeave'); await sleep(700); await ready(B4);
   check('초대받은 사람이 나가면 자기 방(혼자 꾸미던 방)으로 돌아감', (await mode(B4)) === 'solo' && (await counts(B4)).items === 0);
   await A4.reload(); await ready(A4);
   check('나간 뒤 다시 열어도 혼자 노는 방 그대로', (await mode(A4)) === 'solo' && (await counts(A4)).items === nA);

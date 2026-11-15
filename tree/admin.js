@@ -42,7 +42,7 @@ export function sha256(text) {
 }
 
 export function makeAdmin(K) {
-  const SEC = K.key('sec'), PASS = K.key('pass');
+  const SEC = K.key('sec'), PASS = K.key('pass'), FPASS = K.key('fpass');
   let sec = K.store.get(SEC);
   if (typeof sec !== 'string' || !/^[a-f0-9]{48}$/.test(sec)) {
     sec = Array.from(crypto.getRandomValues(new Uint8Array(24)), (x) => x.toString(16).padStart(2, '0')).join('');
@@ -66,6 +66,14 @@ export function makeAdmin(K) {
     if (!r || list.includes(r) === on) return;
     K.store.set(PASS, on ? [...list, r] : list.filter((x) => x !== r));
   }
+  // 방장이 자동 입장을 허락해 준 방들 (hood.js 의 친구 목록에서 켠다. 공동 관리자와 달리 들어오는 것만 된다). 이것도 이 기기에만 남긴다
+  const fpasses = () => { const a = K.store.get(FPASS); return Array.isArray(a) ? a.filter((x) => typeof x === 'string').slice(-40) : []; };
+  function setFPass(on) {
+    const r = K.room(), list = fpasses();
+    if (!r || list.includes(r) === on) return false;
+    K.store.set(FPASS, on ? [...list, r] : list.filter((x) => x !== r));
+    return true;
+  }
   // 방장인지: 지금 방의 주인 자리에 있거나, 혼자 노는 내 방 (app.js 의 예전 판정과 같다. 공동 관리자는 들어가지 않는다)
   const isHost = () => { const d = K.duo(); return d.role === 'host' || (!d.role && (!K.room() || K.mine())); };
   // 내가 이 방의 공동 관리자인지 (손님으로 들어와 있을 때)
@@ -78,8 +86,11 @@ export function makeAdmin(K) {
     canManage: () => isHost() || isMe(),
     // 공동 관리자를 지정·해제할 수 있는지: 방을 만든 방장만 (주인 자리를 잠깐 대신 맡은 사람은 못 한다)
     isOwner: () => { const d = K.duo(); return d.role === 'host' && K.mine(); },
-    hasPass: () => { const r = K.room(); return !!r && passes().includes(r); },
-    passLost: () => setPass(false),
+    hasPass: () => { const r = K.room(); return !!r && (passes().includes(r) || fpasses().includes(r)); },
+    passLost: () => { setPass(false); setFPass(false); },
+    // 방장이 자동 입장을 허락했다·거뒀다 (바뀌었으면 true)
+    friendPass: (on) => setFPass(!!on),
+    get autoIn() { const r = K.room(); return !!r && fpasses().includes(r); },
     // 방장: 방 안의 사람 pid 를 지정(on)하거나 해제한다
     grant(pid, on) {
       if (!A.isOwner()) return false;

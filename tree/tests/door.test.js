@@ -57,7 +57,7 @@ const audit = (p) => p.evaluate(() => {
     const bp = await T(B, () => { const p = window.__door.bellPoint(); return window.__tree.screenOf(p[0], p[2], p[1]); });
     check('초인종이 화면 안에 보임', bp.x > 10 && bp.x < 365 && bp.y > 60 && bp.y < 600, bp);
     await B.touchscreen.tap(bp.x, bp.y);
-    check('집 앞의 초인종을 누르면 방장에게 "문 앞에 있어요" 알림과 두 단추가 뜸', await until(async () => (await T(A, () => window.__duo.knocks.length)) === 1 && (await A.isVisible('#knock')), 5000) && (await A.textContent('#knock')).includes('같이 꾸미러 온') && (await A.locator('#knock button').count()) === 2 && (await A.textContent('#toast')).includes('딩동') && (await audit(A)).length === 0, await audit(A));
+    check('집 앞의 초인종을 누르면 방장에게 "문 앞에 있어요" 알림과 단추 셋(들어오게 하기·늘 들이기·돌려보내기)이 뜸', await until(async () => (await T(A, () => window.__duo.knocks.length)) === 1 && (await A.isVisible('#knock')), 5000) && (await A.textContent('#knock')).includes('같이 꾸미러 온') && (await A.locator('#knock button').count()) === 3 && (await A.textContent('#knock')).includes('늘 들이기') && (await A.textContent('#toast')).includes('딩동') && (await audit(A)).length === 0, await audit(A));
     check('누른 사람은 기다리라는 안내를 보고, 아직 방 안은 아님', (await T(B, () => window.__duo.rang)) && (await B.textContent('#doorMain')).includes('기다려요') && (await B.textContent('#bell')).includes('다시 누르기') && (await mode(B)) === 'door' && (await T(A, () => window.__duo.others.length)) === 0);
     await A.screenshot({ path: path.join(__dirname, 'out', 'door-knock.png') });
     await A.tap('#knock button.main');
@@ -87,9 +87,9 @@ const audit = (p) => p.evaluate(() => {
     await C.tap('#bell');
     check('구경 링크로 온 사람도 초인종을 눌러야 하고, 방장에게 "구경하러 온"으로 보임', await until(async () => (await T(A, () => window.__duo.knocks.length)) === 1, 20000) && (await A.textContent('#knock')).includes('구경하러 온'));
     check('방 안의 다른 사람에게도 딩동 알림이 감', await until(async () => (await B.textContent('#toast')).includes('딩동'), 15000));
-    await A.tap('#knock button:not(.main)');
+    await A.tap('#knock button:has-text("돌려보내기")');
     check('방장이 "돌려보내기"를 누르면 들어오지 못하고 안내를 봄', await until(async () => (await mode(C)) === 'denied', 5000) && (await C.textContent('#doorMain')).includes('들어갈 수 없어요') && (await C.textContent('#doorSub')).includes('열어 주지 않았어요') && !(await C.isVisible('#bell')) && (await C.isVisible('#doorHome')) && (await T(A, () => window.__duo.others.length)) === 1 && !(await A.isVisible('#knock')) && (await audit(C)).length === 0);
-    await C.tap('#doorHome'); await ready(C);
+    await C.tap('#doorHome'); await sleep(700); await ready(C); // 나간다는 말을 보낸 뒤 0.2초쯤 있다가 새로 연다
     check('"내 방으로 가기"를 누르면 내 방으로 돌아감', (await mode(C)) === 'solo' && !(await T(C, () => window.__door.shown)) && (await C.isVisible('#tabs')));
     await C.close();
 

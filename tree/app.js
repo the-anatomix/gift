@@ -37,6 +37,7 @@ import { makeLights } from './lights.js';
 import { makeCinema } from './cinema.js';
 import { makePhotos } from './photo.js';
 import { makeAdmin } from './admin.js';
+import { makeHood } from './hood.js';
 import { ADMINS } from './catalog.js';
 import { makeCheers } from './cheers.js';
 import { makePizza } from './pizza.js';
@@ -110,6 +111,9 @@ if (typeof dev !== 'string' || !/^[a-z0-9]{6,24}$/.test(dev)) { dev = Array.from
 // 같이 꾸미는 방: 주소의 #r=방이름-열쇠(같이 꾸미기) 또는 #v=방이름(구경).
 // cur = 이 기기가 지금 들어가 있는 방 { id, mine(내가 만든 방인지), key(꾸밀 수 있는 열쇠), view(구경으로 들어왔는지) }.
 // 방마다 따로 저장한다(혼자 꾸민 내 방은 ROOM_KEY, 같이 꾸미는 방은 ROOM_KEY-방이름). 구경하는 방은 저장하지 않는다.
+// 이웃 (hood.js): 내 집의 주소(한 번 정해지면 그대로), 친구 목록, 이웃집 목록
+const hood = makeHood({ store, key });
+let leaving = false; // 다른 집으로 가는 중: 그동안은 저장하지 않는다 (지금 방이 엉뚱한 자리에 적히지 않게)
 let cur = store.get(CUR_KEY);
 if (!cur || typeof cur !== 'object' || !ROOM_RE.test(cur.id || '')) cur = null;
 else {
@@ -120,9 +124,17 @@ else {
 {
   const m = /^#r=([a-z0-9]{6,20})(?:-([a-z0-9]{4,12}))?$/.exec(location.hash), v = /^#v=([a-z0-9]{6,20})$/.exec(location.hash);
   const id = m ? m[1] : v ? v[1] : null;
+  if (cur && cur.mine && !hood.home) { hood.setHome(cur.id, cur.key, true); for (const d of cur.banned) hood.ban(d, ''); } // 이웃이 생기기 전에 만든 방: 그 방이 내 집이다 (내보낸 사람도 친구 목록으로 옮긴다)
   if (id && (!cur || cur.id !== id)) { // 다른 방의 링크로 들어옴
-    if (cur) store.del(ROOM_KEY + '-' + cur.id);
-    cur = { id, mine: false, key: m ? m[2] || '' : '', view: !m, friends: [], banned: [] };
+    if (cur && !cur.mine && !hood.has(cur.id)) store.del(ROOM_KEY + '-' + cur.id); // 내 집과 이웃집으로 적어 둔 집의 사본은 남긴다
+    if (hood.isHome(id)) { // 내 집의 주소로 돌아옴 (닫아 두었으면 혼자 꾸미던 모습 그대로 다시 연다)
+      cur = { id, mine: true, key: hood.home.key, view: false, friends: [], banned: [] };
+      if (!hood.home.open && store.get(ROOM_KEY)) store.set(ROOM_KEY + '-' + id, store.get(ROOM_KEY));
+      hood.setOpen(true);
+    } else { // 친구 집. 이웃집으로 적어 둔 집이면 전에 받은 열쇠를 쓴다(구경 링크로 다시 와도 꾸미는 사람으로)
+      const h = hood.hoods.find((x) => x.id === id), k = m ? m[2] || (h ? h.key : '') : h ? h.key : '';
+      cur = { id, mine: false, key: k, view: !m && !k, friends: [], banned: [] };
+    }
     store.set(CUR_KEY, cur);
   } else if (m && cur && cur.view) { // 구경하던 방의 꾸미기 링크를 받음
     cur = { id, mine: false, key: m[2] || '', view: false, friends: cur.friends, banned: cur.banned };
@@ -156,7 +168,7 @@ let dirty = true;                // 그림자를 다시 그려야 하는지
 let saveK = 0;
 // 기기에 남기는 모양. up = 마당과 2층의 기본 가구를 이미 놓아 본 방이라는 표시
 const forDisk = () => ({ ...serialize(S), up: 1 });
-const saveSoon = () => { clearTimeout(saveK); if (cur && cur.view) return; saveK = setTimeout(() => store.set(slot(), forDisk()), 300); }; // 구경하는 방은 내 기기에 남기지 않는다
+const saveSoon = () => { clearTimeout(saveK); if ((cur && cur.view) || leaving) return; saveK = setTimeout(() => { if (!leaving) store.set(slot(), forDisk()); }, 300); }; // 구경하는 방은 내 기기에 남기지 않는다
 
 // 걸을 수 있는 칸을 다시 계산한다 (트리 + 놓인 가구)
 function rebuildGrid() {
@@ -854,13 +866,29 @@ const duo = makeDuo({
   gotKey(k) { // 공동 관리자가 되어 방 열쇠를 받았다: 다음부터 꾸미는 사람으로 들어오고 방을 기기에 남긴다
     if (!cur || cur.mine) return;
     cur.key = k; cur.view = false; store.set(CUR_KEY, cur);
+    if (hood.has(cur.id)) hood.visit({ id: cur.id, key: k }); // 이웃집 목록의 주소도 꾸미기 주소로
     history.replaceState(null, '', location.pathname + location.search + '#r=' + cur.id + '-' + k);
     saveSoon();
   },
   // 초인종과 입장
   dev: () => dev,
-  banned: (d) => !!cur && cur.banned.includes(d),
-  ban(d) { if (!cur) return; cur.friends = cur.friends.filter((x) => x !== d); if (!cur.banned.includes(d)) cur.banned.push(d); store.set(CUR_KEY, cur); },
+  // 내보낸 사람: 방을 맡은 기기의 cur.banned(기기 이름)와, 내 집이면 친구 목록의 표시(표나 기기 이름)
+  banned: (d, tag) => !!cur && ((!!d && cur.banned.includes(d)) || (cur.mine && hood.banned(d, tag))),
+  ban(d, tag) {
+    if (!cur) return;
+    if (d) { cur.friends = cur.friends.filter((x) => x !== d); if (!cur.banned.includes(d)) cur.banned.push(d); store.set(CUR_KEY, cur); }
+    if (cur.mine) hood.ban(d, tag);
+  },
+  // 친구 목록·이웃집 목록 (hood.js)
+  cleanName: (lk) => (lk && typeof lk === 'object' && cleanWords(lk.name, NOTE.name)) || '',
+  autoIn: (tag) => !!cur && cur.mine && hood.autoOk(tag),                       // 내 집에서 자동 입장을 켜 준 친구인지
+  joined(p) { if (cur && cur.mine) { hood.seen(p); paintHood(); } },             // 내 집에 들어온 친구를 적어 둔다
+  visited(mine, lk) {                                                           // 친구 집에 들어갔다: 이웃집으로 적어 둔다
+    if (!cur || cur.mine) return;
+    for (const old of hood.visit({ id: cur.id, key: cur.key, name: mine ? (lk && typeof lk === 'object' && cleanWords(lk.name, NOTE.name)) || '' : '' })) store.del(ROOM_KEY + '-' + old);
+    paintHood();
+  },
+  passSet(on) { if (admin.friendPass(on)) toast(on ? '방장이 자동 입장을 허락했어요 🚪 다음부터 초인종 없이 들어와요' : '자동 입장이 꺼졌어요. 다음부터는 초인종을 눌러요'); },
   bell: (again) => ding(again),
   admitted() { // 문이 열렸다: 걸어 들어간 다음에 방에 들어선다
     if (!outside.shown) { comeIn(); return; }
@@ -929,7 +957,7 @@ function syncDoor() {
     applyPov(); measure(false);
   } else if (!at && mode === 'door' && !outside.opening) leaveDoor();
   if (mode !== 'door' || outside.opening) return;
-  if (m === 'denied') paintDoor('지금은 들어갈 수 없어요', duo.why === 'kick' ? '방장이 방에서 내보냈어요.' : duo.why === 'ban' ? '이 방에는 다시 들어갈 수 없어요.' : '방장이 문을 열어 주지 않았어요.');
+  if (m === 'denied') paintDoor('지금은 들어갈 수 없어요', duo.why === 'kick' ? '방장이 방에서 내보냈어요.' : duo.why === 'ban' ? '이 방에는 다시 들어갈 수 없어요.' : duo.why === 'dup' ? '같은 기기의 다른 창에서 이 방에 다시 들어왔어요.' : '방장이 문을 열어 주지 않았어요.');
   else if (duo.rang) paintDoor('딩동! 문을 열어 줄 때까지 기다려요', '방장이 문을 열어 주면 들어가요.');
   else paintDoor('친구네 집 앞이에요', '초인종을 눌러 주세요.');
 }
@@ -963,7 +991,12 @@ function paintPeople() {
     for (const [label, fn, main, id] of btns) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (main ? ' main' : ''); b.textContent = label; b.dataset.pid = id; if (label.startsWith('🔑')) b.dataset.adm = '1'; b.addEventListener('click', fn); r.appendChild(b); }
     return r;
   };
-  for (const k of duo.knocks) box.appendChild(row(`🔔 ${k.want === 'view' ? '구경하러 온' : '같이 꾸미러 온'} 친구가 문 앞에 있어요`, [['들어오게 하기', () => duo.admit(k.id), true, k.id], ['돌려보내기', () => duo.deny(k.id), false, k.id]]));
+  for (const k of duo.knocks) {
+    const btns = [['들어오게 하기', () => duo.admit(k.id), true, k.id], ['돌려보내기', () => duo.deny(k.id), false, k.id]];
+    // 내 집의 방장: 들이면서 다음부터는 초인종 없이 들어오게 한다 (친구 목록의 자동 입장. hood.js)
+    if (admin.isOwner() && k.tag) btns.splice(1, 0, ['늘 들이기', () => { hood.seen({ tag: k.tag, dev: k.dev, name: k.name }); hood.setAuto(hood.idOf(k.tag, k.dev), true); duo.admit(k.id); toast(`${k.name || '친구'}님은 다음부터 초인종 없이 들어와요 🚪`); }, false, k.id]);
+    box.appendChild(row(`🔔 ${k.want === 'view' ? '구경하러 온' : '같이 꾸미러 온'} ${k.name ? k.name + '님이' : '친구가'} 문 앞에 있어요`, btns));
+  }
   const was = box.hidden;
   box.hidden = !duo.knocks.length;
   if (was !== box.hidden) measure(false); // 아래 판 높이가 바뀌었다
@@ -980,13 +1013,94 @@ function paintPeople() {
   if (owner && admin.absent().length) list.appendChild(row(`🔑 지금 없는 공동 관리자 ${admin.absent().length}명`, [['모두 해제', () => admin.clearAbsent(), false, 'absent']]));
   list.hidden = !list.childElementCount;
   $('duoPeopleRow').hidden = !list.childElementCount;
+  paintHood();
   if (mode === 'duo') measure(false);
 }
+
+/* ───────── 이웃: 이웃집 목록과 친구 목록 ("같이" 판. hood.js) ───────── */
+let hoodOpen = ''; // 펼친 목록: '' | 'hood'(이웃집) | 'fr'(친구 목록)
+// 다른 집으로 간다(주소의 # 뒷부분. '' 이면 혼자 노는 내 방). 가기 전에 지금 방을 적어 두고, 남은 사람들에게 나간다고 알린다
+function moveTo(hash) {
+  if (leaving) return;
+  clearTimeout(saveK);
+  if (!(cur && cur.view) && duo.mode !== 'door' && duo.mode !== 'denied') store.set(slot(), forDisk());
+  leaving = true;
+  duo.bye();
+  setTimeout(() => { history.replaceState(null, '', location.pathname + location.search + hash); location.reload(); }, 220); // 나간다는 말이 건너갈 틈을 준다
+}
+const homeHash = () => (hood.home && hood.home.open ? '#r=' + hood.home.id + '-' + hood.home.key : '');
+function paintHood() {
+  const hl = $('hoodList'), fl = $('frList');
+  if (!hl) return;
+  const away = !!cur && !cur.mine, hs = hood.hoods, frs = !away ? hood.friends : [];
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
+  const button = (label, fn, o = {}) => {
+    const b = mk('button', 'btn' + (o.main ? ' main' : ''), label);
+    b.type = 'button'; b.addEventListener('click', fn);
+    if (o.pressed !== undefined) b.setAttribute('aria-pressed', String(o.pressed));
+    if (o.label) b.setAttribute('aria-label', o.label);
+    if (o.act) b.dataset.act = o.act;
+    if (o.off) b.disabled = true;
+    return b;
+  };
+  const head = (main, sub) => { const h = mk('div', 'hint', main); if (sub) h.appendChild(mk('small', '', sub)); return h; };
+  $('hoodBtn').hidden = !(hs.length || away); $('frBtn').hidden = !frs.length;
+  if (hoodOpen === 'hood' && $('hoodBtn').hidden) hoodOpen = '';
+  if (hoodOpen === 'fr' && $('frBtn').hidden) hoodOpen = '';
+  $('hoodBar').hidden = $('hoodBtn').hidden && $('frBtn').hidden;
+  $('hoodBtn').textContent = `🏘️ 이웃집${hs.length ? ' ' + hs.length : ''}`; $('frBtn').textContent = `👥 친구 목록 ${frs.length}`;
+  $('hoodBtn').setAttribute('aria-expanded', String(hoodOpen === 'hood')); $('frBtn').setAttribute('aria-expanded', String(hoodOpen === 'fr'));
+  hl.hidden = hoodOpen !== 'hood'; fl.hidden = hoodOpen !== 'fr';
+  hl.textContent = ''; fl.textContent = '';
+  if (hoodOpen === 'hood') { // 이웃집: 내 집(다른 집에 가 있을 때)과 가 본 친구 집들
+    if (away) { const r = mk('div', 'row fr'); r.dataset.hood = 'home'; r.append(head('🏠 내 집', homeHash() ? '친구들에게 열어 둔 내 집으로 돌아가요.' : '혼자 꾸미는 내 방으로 돌아가요.'), button('가기', () => leaveRoom(), { main: true, act: 'go' })); hl.appendChild(r); }
+    for (const h of hs) {
+      const here = !!cur && cur.id === h.id, r = mk('div', 'row fr');
+      r.dataset.hood = h.id;
+      r.append(head(`🏡 ${h.name || '친구'}네 집`, here ? '지금 여기 있어요' : h.key ? '같이 꾸미는 집' : '구경하는 집'));
+      if (!here) r.append(button('가기', () => moveTo(hood.hashOf(h)), { main: true, act: 'go' }), button('✕', () => { hood.leave(h.id); store.del(ROOM_KEY + '-' + h.id); paintHood(); if (mode === 'duo') measure(false); }, { label: `${h.name || '친구'}네 집을 목록에서 지우기`, act: 'del' }));
+      hl.appendChild(r);
+    }
+  }
+  if (hoodOpen === 'fr') { // 친구 목록: 내 집에 왔던 사람들 (지금 없는 사람도). 자동 입장·공동 관리자·내보내기를 여기서 정한다
+    const ppl = duo.people, door = duo.knocks, same = (f) => (x) => (!!f.tag && x.tag === f.tag) || (!!f.dev && x.dev === f.dev);
+    const boss = admin.isOwner() || !duo.role; // 내 집을 내가 맡고 있을 때만 공동 관리자를 정한다
+    for (const f of frs) {
+      const p = ppl.find(same(f)), k = !p && door.find(same(f)), isAdm = !!f.tag && S.adm.has(f.tag), name = f.name || '친구';
+      const d = new Date(f.at), when = f.at ? `마지막으로 온 날 ${d.getMonth() + 1}월 ${d.getDate()}일` : '';
+      const e = mk('div', 'fr'); e.dataset.fr = f.id;
+      e.appendChild(head(`${name}${isAdm ? ' 🔑' : ''}${f.auto ? ' 🚪' : ''}`, f.ban ? '내보낸 사람이에요. 다시 들어올 수 없어요' : p ? '지금 방에 있어요' : k ? '지금 문 앞에 있어요' : when));
+      const bs = mk('div', 'btns');
+      bs.appendChild(button('🚪 자동입장', () => {
+        if (!hood.setAuto(f.id, !f.auto)) { toast('이 친구는 자동 입장을 켤 수 없어요. 친구가 새로 고친 뒤에 다시 와야 해요'); return; }
+        toast(!f.auto ? `${name}님은 다음부터 초인종 없이 들어와요 🚪` : `${name}님의 자동 입장을 껐어요`);
+        if (k && !f.auto) duo.admit(k.id); // 문 앞에 있었으면 바로 들인다
+        duo.told(); paintHood();
+      }, { pressed: f.auto, off: !f.tag || f.ban, label: `${name}: 자동 입장 ${f.auto ? '끄기' : '켜기'}`, act: 'auto' }));
+      if (boss && f.tag && !f.ban) bs.appendChild(button('🔑 관리자', () => {
+        if (!isAdm && S.adm.size >= ADMINS) { toast(`공동 관리자는 ${ADMINS}명까지예요`); return; }
+        dispatch({ t: 'adm', tag: f.tag, on: !isAdm });
+        toast(!isAdm ? `${name}님을 공동 관리자로 지정했어요 🔑 문을 열어 주고 내보낼 수 있어요` : `${name}님을 공동 관리자에서 해제했어요`);
+        paintHood();
+      }, { pressed: isAdm, label: `${name}: 공동 관리자 ${isAdm ? '해제' : '지정'}`, act: 'adm' }));
+      if (p && duo.role === 'host') bs.appendChild(button('내보내기', () => duo.kick(p.id), { act: 'kick' }));
+      else if (f.ban) bs.appendChild(button('다시 받기', () => { hood.setBan(f.id, false); if (cur && f.dev) { cur.banned = cur.banned.filter((x) => x !== f.dev); store.set(CUR_KEY, cur); } toast(`${name}님이 다시 들어올 수 있어요`); paintHood(); }, { act: 'unban' }));
+      else bs.appendChild(button('🚫 막기', () => { if (k) duo.deny(k.id); hood.setBan(f.id, true); if (isAdm && boss) dispatch({ t: 'adm', tag: f.tag, on: false }); toast(`${name}님은 이제 들어올 수 없어요`); duo.told(); paintHood(); }, { act: 'ban' }));
+      if (!p) bs.appendChild(button('✕', () => { hood.forget(f.id); duo.told(); paintHood(); if (mode === 'duo') measure(false); }, { label: `${name}: 목록에서 지우기`, act: 'del' }));
+      e.appendChild(bs);
+      fl.appendChild(e);
+    }
+  }
+}
+for (const [id, k] of [['hoodBtn', 'hood'], ['frBtn', 'fr']]) $(id).addEventListener('click', () => { hoodOpen = hoodOpen === k ? '' : k; paintHood(); measure(false); });
 
 // 친구 초대: 처음이면 지금 방을 같이 꾸미는 방으로 만들고, 링크를 보낸다. edit = 같이 꾸미기 링크(아니면 구경 링크)
 async function invite(edit = true) {
   if (!cur) {
-    const id = duo.create();
+    // 내 집의 주소는 한 번 정해지면 그대로 쓴다: 친구가 이웃집으로 적어 둔 주소가 계속 통하게 (hood.js)
+    const h = hood.home, id = h ? h.id : duo.create();
+    if (h) duo.start(id, { key: h.key, want: 'edit' });
+    hood.setHome(id, duo.key, true);
     cur = { id, mine: true, key: duo.key, view: false, friends: [], banned: [] };
     store.set(CUR_KEY, cur);
     store.set(slot(), forDisk());
@@ -1001,15 +1115,18 @@ async function invite(edit = true) {
   manualUrl = url; paintDuo();
 }
 // 방에서 나가기: 내가 만든 방이면 지금 모습 그대로 혼자 이어서 꾸미고, 친구 방이면 내 방으로 돌아간다
+// (내 집의 주소는 그대로 남아서 다음에 초대하면 같은 주소로 열린다. 친구 방은 이웃집 목록에 남아 다시 갈 수 있고, 내 집을 열어 두었으면 그 집으로 돌아간다)
 function leaveRoom() {
-  if (!cur) return;
+  if (!cur || leaving) return;
   clearTimeout(saveK);
-  if (cur.mine) store.set(ROOM_KEY, forDisk());
-  store.del(slot()); store.del(CUR_KEY);
-  cur = null;
+  const mine = cur.mine, back = mine ? '' : homeHash();
+  if (mine) { store.set(ROOM_KEY, forDisk()); hood.setOpen(false); }
+  if (mine || cur.view || !hood.has(cur.id)) store.del(slot()); // 이웃집으로 적어 둔 집의 사본은 남긴다
+  else if (duo.mode === 'on') store.set(slot(), forDisk());
+  store.del(CUR_KEY);
+  leaving = true;
   duo.leave();
-  history.replaceState(null, '', location.pathname + location.search);
-  location.reload();
+  setTimeout(() => { history.replaceState(null, '', location.pathname + location.search + back); location.reload(); }, 220); // 나간다는 말이 건너갈 틈을 준다
 }
 const DUO_TEXT = {
   solo: ['친구들이랑 같이 놀기', `링크를 보내면 친구가 이 방에 들어와요. 같이 꾸미는 사람은 ${ECAP}명까지, 구경까지 모두 ${CAP}명까지.`, ''],
@@ -2043,6 +2160,11 @@ window.__cook = cook.test; // 요리 대결 (cookoff.js)
 window.__lights = Object.assign(lights.test, { toggle: (lv) => lights.toggle(lv), near: () => { const a = lights.near(); return a ? a.label : null; }, lamp: () => [...LAMP] });
 window.__photo = { choose: (id, f) => photos.choose(id, f), reset: (id) => photos.reset(id), get: (h) => photos.get(h), get count() { return photos.count; }, of: (id) => S.pics.get(id) || '', shown: (id) => cinema.picShown(id), tidy: () => photos.tidy() };
 window.__cinema = { convert: () => cinema.convert(), get has() { return cinema.has; }, get theater() { return cinema.theater; }, get beam() { return cinema.beam; }, get fixtures() { return cinema.fixtures; }, get decoShown() { return room.floors[2].deco.every((d) => d.visible); }, artShown: (id) => cinema.artShown(id), get sitting() { return !!(me.rest && me.rest.sit); } };
+window.__hood = {
+  get home() { return hood.home; }, get friends() { return hood.friends; }, get hoods() { return hood.hoods; }, get open() { return hoodOpen; }, get autoIn() { return admin.autoIn; },
+  setAuto: (id, on) => { const ok = hood.setAuto(id, on !== false); duo.told(); paintHood(); return ok; }, setBan: (id, on) => { const ok = hood.setBan(id, on !== false); paintHood(); return ok; },
+  go: (id) => { const h = hood.hoods.find((x) => x.id === id); if (h) moveTo(hood.hashOf(h)); return !!h; }, show: (k) => { hoodOpen = k; paintHood(); measure(false); },
+};
 window.__admin = {
   get isMe() { return admin.isMe(); }, get isOwner() { return admin.isOwner(); }, get canManage() { return admin.canManage(); }, get hasPass() { return admin.hasPass(); },
   get tag() { return admin.tag; }, get tk() { return admin.tk(); }, get list() { return [...S.adm]; }, get here() { return duo.admins; }, get absent() { return admin.absent(); },
