@@ -152,7 +152,7 @@ export function makeGames(K) {
   const isOut = (id = me()) => !!G && G.out.includes(id);
   const alive = () => (G ? G.pl.filter((id) => !G.out.includes(id)) : []);
   const amSanta = () => !!G && G.g === 'santa' && inGame() && G.t === tagOf(G.gid, me());
-  const amRef = () => !!G && G.ref === me();
+  const amRef = () => !!G && !!R && G.ref === me(); // R 은 판을 시작한 심판 기기에만 있다 (막 들어와 아직 내 이름을 못 받은 기기는 심판 이름과 같아 보일 수 있다)
   // 숨바꼭질에서 아직 안 찾힌 숨는 사람인지
   const hiding = (id) => !!G && G.g === 'hide' && G.ph !== 'over' && G.pl.includes(id) && id !== G.sk && !G.out.includes(id);
   const closetOf = (id) => (id === me() && pend ? pend.it : G && G.cl ? G.cl[id] || '' : '');
