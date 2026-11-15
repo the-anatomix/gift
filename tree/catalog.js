@@ -80,6 +80,13 @@ FURNITURE.push(
   { id: 'bunny3', name: '토끼 인형 (노랑)', icon: '🐰', w: 1, d: 1, set: 'game', solid: true },
   { id: 'bigbunny', name: '큰 토끼 인형', icon: '🐇', w: 2, d: 2, set: 'game', solid: true },
 );
+// 요리 대결 (놀이는 cookoff.js, 모양은 furniture.js). set = 요리 대결 묶음(표시일 뿐이다): 가구 탭에서 누구나 어느 층에든 놓는다.
+// 조리대에서 재료와 조리법을 골라 요리하고, 심사석에서 심사받는다. 재료 진열대에서 재료를 미리 담아 갈 수도 있다
+FURNITURE.push(
+  { id: 'cookst', name: '요리 대결 조리대', icon: '🥘', w: 2, d: 1, set: 'cook', solid: true, play: 'cook' },
+  { id: 'pantry', name: '재료 진열대', icon: '🥕', w: 2, d: 1, set: 'cook', solid: true, play: 'pantry' },
+  { id: 'judge', name: '심사석', icon: '🍽️', w: 3, d: 1, set: 'cook', solid: true, play: 'judge' },
+);
 // 4층 게임방의 배치 [종류, 집 기준 i, j, 돌린 횟수]. 사다리 구멍 (27, 13)·올라선 칸 (28, 13)·스위치 앞(27, 0)은 비워 둔다
 export const GAMEROOM = [
   ['arcade', 3, 0, 0], ['arcade', 5, 0, 0], ['arcade', 7, 0, 0], ['claw', 11, 0, 0], ['claw', 13, 0, 0], ['dart', 17, 0, 0], ['dart', 20, 0, 0],
