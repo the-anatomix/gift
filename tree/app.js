@@ -1130,6 +1130,7 @@ const games = makeGames({
   items: () => S.items, orns: () => S.orns, orn: (id) => ornObj.get(id), screenOf, eye: () => usingEye(),
   caster(px, py) { aimRay(px, py); return ray; },
   fx: (m) => duo.fx(m), toast: (m) => toast(m), dirty: () => { dirty = true; },
+  scene, grid: () => grid, level: () => myLv, goTo: (x, z) => goTo(x, z), // 선물 찾기: 숨길 자리, 선물 모양, 누르면 걸어가기
 });
 // 닉네임과 머리 위 이름표 (names.js), 이름별 순위 (rank.js)
 const names = makeNames({

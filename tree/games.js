@@ -1,4 +1,4 @@
-// 같이 놀기: 방 사람들이 한 판씩 같이 하는 놀이. 숨바꼭질(2명 이상), 몰래 산타(3명 이상).
+// 같이 놀기: 방 사람들이 한 판씩 같이 하는 놀이. 선물 찾기(혼자서도), 숨바꼭질(2명 이상), 몰래 산타(3명 이상).
 //
 // 틀 (두 놀이가 같이 쓴다)
 //   - 도구 단추 "🎲 같이 놀기" → 놀이 고르기 판. 꾸밀 수 있는 사람이 시작하고, 시작한 사람의 화면이 그 판의 "심판"이다.
@@ -20,9 +20,15 @@
 //   훔친 장식은 판 동안 모두의 화면에서 안 보이기만 하고(방의 상태는 그대로), 판이 끝나면 돌아온다.
 //   누구나 한 판에 한 번 "🔔 모이기": 이야기(TALK) → 투표(VOTE). 가장 많은 표를 받은 사람이 몰래 산타면 시민 승, 아니면 그 사람은 빠지고 계속.
 //   목표만큼 훔치거나 시간(SANTA)이 끝날 때까지 안 잡히면 몰래 산타 승. 몰래 산타가 누구인지는 심판만 알고, 모두에게는 짧은 표(tag)로만 보낸다.
+// 선물 찾기: 집 곳곳(1~4층·마당)에 반짝이는 선물 HUNT_N 개를 심판이 숨긴다(걸어서 갈 수 있는 곳, 벽·가구 옆). 걸어가 닿으면 줍는다.
+//   주운 사람 화면이 심판에게 { a: 'grab', n } 을 보내고, 심판이 먼저 온 것만 받는다. 판 도중에 온 사람도 주우면 같이 하는 사람이 된다.
+//   모두 주우면 끝, 아니면 HUNT 가 지나면 끝. 혼자면 다 찾은 시간이 기록(이 기기, localStorage 'tree.huntBest'), 여럿이면 많이 주운 사람이 1등.
+//   상태 띠에 층마다 남은 선물 수가 나온다. 혼자 노는 내 방(연결 없음)에서도 할 수 있다(심판 = 나).
 // app.js 가 넘겨주는 창구 K 로 아바타·장식·소식을 다룬다.
-import { cellOf, zoneOf, levelOf, X0, Z0, CELL } from './path.js';
+import { cellOf, zoneOf, levelOf, levelOfCell, centerOf, toWorld, X0, Z0, CELL, GX, GZ, LADDERS, YARD } from './path.js';
 import { kindOf, footprint } from './state.js';
+import { THREE, G as GLOSS, glowAt } from './kit.js';
+import { sfx } from './sfx.js';
 
 const $ = (id) => document.getElementById(id);
 const now = () => (typeof window.__now === 'function' ? window.__now() : Date.now());
@@ -30,11 +36,15 @@ const SEC = 1000;
 export const HIDE = 20 * SEC, SEEK = 120 * SEC;                                     // 숨바꼭질: 숨는 시간, 찾는 시간
 export const SANTA = 300 * SEC, STEAL = 15 * SEC, TALK = 30 * SEC, VOTE = 20 * SEC; // 몰래 산타: 판 시간, 훔치는 간격, 이야기, 투표
 export const FIND_R = 1.5;   // 술래가 찾을 수 있는 거리
+export const HUNT = 180 * SEC, HUNT_N = 8;   // 선물 찾기: 판 시간, 선물 수
+export const GRAB_R = 0.5;   // 선물에 이만큼 다가가면 줍는다
+const BEST_KEY = 'tree.huntBest';
 const TREE_R = 2.4;          // 트리 (0, 0) 에서 이만큼 안이면 슬쩍할 수 있다
 const NEAR = 0.8;            // 가구 앞이라고 보는 거리 (app.js 의 nearAction 과 같다)
 const GOAL = 5;              // 몰래 산타가 훔칠 장식 수 (장식이 적으면 있는 만큼)
 const BEAT = 4 * SEC;        // 심판이 상태를 다시 알리는 간격
 export const GAMES = {
+  hunt: { name: '선물 찾기', icon: '🎁', need: 1, solo: true, desc: '집 곳곳(1~4층·마당)에 반짝이는 선물 8개가 숨었어요. 걸어가 닿으면 주워요. 3분. 혼자면 기록 도전, 같이면 누가 더 많이!' },
   hide: { name: '숨바꼭질', icon: '🙈', need: 2, desc: '술래 한 명이 숨은 사람을 찾아요. 숨기 20초, 찾기 2분. 옷장에도 숨을 수 있어요.' },
   santa: { name: '몰래 산타', icon: '🎅', need: 3, desc: '누군가 몰래 트리 장식을 훔쳐요. 채팅·보이스로 범인을 찾아요. 5분. 4~8명이 가장 재미있어요.' },
 };
@@ -69,6 +79,8 @@ export function makeGames(K) {
   const shrunk = new Set();           // 옷장에 숨어서 작게 만든 아바타
   const hidOrn = new Set();           // 숨겨 둔 장식 id
   const tags = new Map();             // 찾힌 사람 머리 위 표시 (id → 요소)
+  const gifts = new Map();            // 선물 찾기: 숨은 선물 (번호 → { g, body, x, z, pop })
+  const grabbing = new Map();         // 선물 찾기: 줍겠다고 보낸 선물 (번호 → 보낸 때)
 
   /* ───────── 화면 ───────── */
   const css = document.createElement('style');
@@ -107,7 +119,7 @@ export function makeGames(K) {
   const pickP = el('div', { id: 'gamePick', class: 'gameP', role: 'dialog', 'aria-label': '같이 놀기' });
   pickP.hidden = true;
   pickP.innerHTML = '<div class="sheet"><h2>🎲 같이 놀기 <small id="gamePickSub"></small></h2>'
-    + Object.entries(GAMES).map(([id, g]) => `<button type="button" class="btn opt" data-g="${id}"><b>${g.icon}</b><span>${g.name} · ${g.need}명 이상<small>${g.desc}</small></span></button>`).join('')
+    + Object.entries(GAMES).map(([id, g]) => `<button type="button" class="btn opt" data-g="${id}"><b>${g.icon}</b><span>${g.name} · ${g.solo ? '혼자서도 · 같이도' : g.need + '명 이상'}<small>${g.desc}</small></span></button>`).join('')
     + '<div class="hint"><small id="gamePickWhy"></small></div><div class="row"><button type="button" class="btn" id="gamePickClose" style="flex:1">닫기</button></div></div>';
   const voteP = el('div', { id: 'gameVote', class: 'gameP', role: 'dialog', 'aria-label': '투표' });
   voteP.hidden = true;
@@ -135,7 +147,7 @@ export function makeGames(K) {
     const [i, j] = cellOf(a.x, a.z);
     return zoneOf(i, j) === 'yard' ? 'yard' : 'f0';
   }
-  const AREA = { f0: '1층', f1: '2층', f2: '3층', yard: '마당' };
+  const AREA = { f0: '1층', f1: '2층', f2: '3층', f3: '4층', yard: '마당' };
   const inGame = (id = me()) => !!G && G.pl.includes(id);
   const isOut = (id = me()) => !!G && G.out.includes(id);
   const alive = () => (G ? G.pl.filter((id) => !G.out.includes(id)) : []);
@@ -151,6 +163,7 @@ export function makeGames(K) {
   function snap() {
     const s = { a: 's', gid: G.gid, g: G.g, ref: G.ref, ph: G.ph, left: Math.max(0, Math.round(G.end - now())), pl: G.pl, out: G.out };
     if (G.g === 'hide') { s.sk = G.sk; s.cl = G.cl; }
+    else if (G.g === 'hunt') { s.sp = G.sp; s.got = G.got; if (G.ph === 'over') s.tk = G.tk; }
     else { s.t = G.t; s.goal = G.goal; s.st = G.st; s.used = G.used; s.mc = G.mc; s.lo = G.lo; s.by = G.by; s.vn = R.votes.size; s.main = Math.max(0, Math.round(G.ph === 'play' ? G.end - now() : R.mainLeft)); }
     if (G.ph === 'over') Object.assign(s, { win: G.win, who: G.who, why: G.why });
     return s;
@@ -167,9 +180,9 @@ export function makeGames(K) {
   function why(kind) {
     const g = GAMES[kind];
     if (G) return `지금 ${GAMES[G.g].name} 중이에요. 끝나면 새로 시작할 수 있어요`;
-    if (!K.online()) return '친구를 초대해서 같이 있어야 놀 수 있어요 (아래 "같이" 탭)';
+    if (!K.online() && !g.solo) return '친구를 초대해서 같이 있어야 놀 수 있어요 (아래 "같이" 탭)';
     if (!K.canEdit()) return '놀이는 꾸밀 수 있는 사람이 시작해요';
-    const n = K.others().size + 1;
+    const n = K.online() ? K.others().size + 1 : 1;
     if (n < g.need) return `${josa(g.name, '은', '는')} ${g.need}명 이상이어야 해요 (지금 ${n}명)`;
     if (kind === 'santa' && !K.orns().size) return '트리에 장식이 있어야 몰래 산타를 할 수 있어요';
     return '';
@@ -178,10 +191,13 @@ export function makeGames(K) {
     if (!GAMES[kind]) return false;
     const w = why(kind);
     if (w) { K.toast(w); return false; }
-    const pl = [me(), ...K.others().keys()].filter(okId);
+    const pl = [me(), ...(K.online() ? K.others().keys() : [])].filter(okId);
+    let sp = null;
+    if (kind === 'hunt') { sp = huntSpots(); if (sp.length < 3) { K.toast('선물을 숨길 곳이 없어요'); return false; } }
     G = { gid: now().toString(36) + Math.random().toString(36).slice(2, 5), g: kind, ref: me(), pl, out: [], ph: '', end: 0 };
     R = { votes: new Map(), last: now(), mainLeft: 0, seen: new Set(pl), beat: 0 };
-    if (kind === 'hide') { G.sk = pick(pl); G.cl = {}; G.ph = 'hide'; G.end = now() + HIDE; }
+    if (kind === 'hunt') Object.assign(G, { sp, got: sp.map(() => ''), ph: 'play', end: now() + HUNT, t0: now() });
+    else if (kind === 'hide') { G.sk = pick(pl); G.cl = {}; G.ph = 'hide'; G.end = now() + HIDE; }
     else {
       R.santa = pick(pl);
       Object.assign(G, { t: tagOf(G.gid, R.santa), goal: Math.min(GOAL, K.orns().size), st: [], used: [], mc: 0, lo: '', by: '', ph: 'play', end: now() + SANTA });
@@ -193,7 +209,8 @@ export function makeGames(K) {
   // 판을 끝낸다 (심판만). win 과 그 까닭을 정해 모두에게 알린다
   function finish(win, text) {
     const prev = copy();
-    G.ph = 'over'; G.win = win; G.why = text; G.who = G.g === 'santa' ? R.santa : G.sk; G.end = now();
+    G.ph = 'over'; G.win = win; G.why = text; G.who = G.g === 'santa' ? R.santa : G.g === 'hide' ? G.sk : ''; G.end = now();
+    if (G.g === 'hunt') G.tk = Math.max(0, now() - G.t0);
     push(prev);
   }
   // 판을 취소한다. 심판이면 모두에게 알린다
@@ -208,7 +225,9 @@ export function makeGames(K) {
 
   /* ───────── 심판: 하고 싶은 일을 받는다 ───────── */
   function ask(m, from) {
-    if (!G || !amRef() || m.gid !== G.gid || G.ph === 'over' || !G.pl.includes(from) || G.out.includes(from)) return;
+    if (!G || !amRef() || m.gid !== G.gid || G.ph === 'over') return;
+    if (G.g === 'hunt') { grab(m, from); return; }
+    if (!G.pl.includes(from) || G.out.includes(from)) return;
     const prev = copy();
     if (G.g === 'hide') {
       if (m.a === 'cl') { // 옷장에 들어감('it' 가구 id) / 나옴('')
@@ -246,6 +265,18 @@ export function makeGames(K) {
       push(prev);
     }
   }
+  // 선물 찾기: 먼저 온 사람이 줍는다. 판 도중에 온 사람도 주우면 같이 하는 사람이 된다
+  function grab(m, from) {
+    const n = m.n;
+    if (m.a !== 'grab' || G.ph !== 'play' || !okId(from) || !here(from)) return;
+    if (!Number.isInteger(n) || n < 0 || n >= G.sp.length || G.got[n]) return;
+    if (!G.pl.includes(from) && G.pl.length >= 16) return;
+    const prev = copy();
+    if (!G.pl.includes(from)) G.pl.push(from);
+    G.got[n] = from;
+    if (G.got.every(Boolean)) { finish('all', '선물을 모두 찾았어요!'); return; }
+    push(prev);
+  }
   // 몰래 산타: 표를 센다
   function tally() {
     const prev = copy(), n = new Map();
@@ -282,6 +313,7 @@ export function makeGames(K) {
     for (const id of K.others().keys()) if (!R.seen.has(id)) { R.seen.add(id); fresh = true; }
     // 단계가 끝남
     if (t >= G.end) {
+      if (G.g === 'hunt') { finish('time', '시간이 끝났어요'); return; }
       if (G.g === 'hide') {
         if (G.ph === 'hide') { G.ph = 'seek'; G.end = t + SEEK; push(prev); return; }
         if (G.ph === 'seek') { finish('hiders', '시간이 끝났어요. 숨은 사람이 이겼어요!'); return; }
@@ -308,6 +340,12 @@ export function makeGames(K) {
       if (!okId(s.sk)) return;
       g.sk = s.sk; g.cl = {};
       if (s.cl && typeof s.cl === 'object') for (const [id, it] of Object.entries(s.cl)) if (okId(id) && typeof it === 'string' && it.length <= 12) g.cl[id] = it;
+    } else if (s.g === 'hunt') {
+      if (!Array.isArray(s.sp) || !Array.isArray(s.got) || !s.sp.length || s.sp.length > 12 || s.got.length !== s.sp.length) return;
+      const sp = s.sp.map((p) => (Array.isArray(p) && p.length === 2 && p.every((v) => Number.isFinite(v)) ? [+p[0], +p[1]] : null));
+      if (sp.some((p) => !p)) return;
+      g.sp = sp; g.got = s.got.map((x) => (okId(x) ? x : ''));
+      if (s.ph === 'over') g.tk = Math.max(0, +s.tk || 0);
     } else {
       if (typeof s.t !== 'string' || !Array.isArray(s.st) || !okIds(s.used)) return;
       Object.assign(g, { t: s.t, goal: s.goal | 0, st: s.st.filter((x) => typeof x === 'string').slice(0, 10), used: s.used, mc: s.mc | 0, lo: typeof s.lo === 'string' ? s.lo : '', by: okId(s.by) ? s.by : '', vn: s.vn | 0, main: s.main | 0 });
@@ -325,7 +363,10 @@ export function makeGames(K) {
     document.body.classList.add('gm');
     if (fresh) {
       pickP.hidden = true; endP.hidden = true; voted = -1; sameArea = false;
-      if (G.g === 'hide') {
+      if (G.g === 'hunt') {
+        K.toast(`🎁 집 곳곳에 숨은 선물 ${G.sp.length}개를 찾아요!`);
+        sfx('bells');
+      } else if (G.g === 'hide') {
         if (!inGame()) K.toast('숨바꼭질이 시작됐어요. 이번 판은 구경해요');
         else if (G.sk === me()) K.toast('🙈 술래가 됐어요! 20초 동안 눈을 가려요');
         else K.toast(`🙈 숨바꼭질! 술래는 ${who(G.sk)}. 20초 안에 숨어요`);
@@ -336,7 +377,17 @@ export function makeGames(K) {
         else K.toast('🎅 누군가 장식을 훔치고 있어요! 범인을 찾아요');
       }
     }
-    if (G.g === 'hide') {
+    if (G.g === 'hunt') {
+      if (!fresh && prev && prev.got) for (let n = 0; n < G.got.length; n++) {
+        if (!G.got[n] || prev.got[n]) continue;
+        const id = G.got[n], left = G.got.filter((x) => !x).length, mine = G.got.filter((x) => x === me()).length;
+        grabbing.delete(n);
+        popGift(n);
+        if (G.ph === 'over') continue;
+        if (id === me()) { K.toast(`🎁 찾았다! 내 선물 ${mine}개 · 남은 선물 ${left}개`); sfx('giftOpen'); }
+        else { K.toast(`🎁 ${subj(id)} 선물을 찾았어요 · 남은 선물 ${left}개`); sfx('pop', avatarOf(id)); }
+      }
+    } else if (G.g === 'hide') {
       if (prev && !fresh && prev.ph === 'hide' && G.ph === 'seek') K.toast(G.sk === me() ? '🔎 찾기 시작! 숨은 사람을 찾아요' : '술래가 찾기 시작했어요! 들키지 마요');
       if (G.ph === 'hide' && G.sk === me() && !anchor) anchor = [K.me.x, K.me.z];
       if (!fresh && prev && G.out.length > prev.out.length) {
@@ -364,7 +415,7 @@ export function makeGames(K) {
   function over() {
     const g = G;
     let main = '', lines = [];
-    if (g.g === 'hide') {
+    if (g.g === 'hunt') { /* 아래 huntResult */ } else if (g.g === 'hide') {
       const left = g.pl.filter((id) => id !== g.sk && !g.out.includes(id));
       main = g.win === 'seeker' ? `🔎 술래(${who(g.sk)}) 승리!` : '🙈 숨은 사람 승리!';
       lines.push(g.why);
@@ -376,10 +427,36 @@ export function makeGames(K) {
       lines.push(`훔친 장식 ${g.st.length}/${g.goal}`);
       if (inGame()) lines.push((g.win === 'santa') === (g.who === me()) ? '🎉 이겼어요!' : '아쉽게 졌어요');
     }
+    if (g.g === 'hunt') [main, lines] = huntResult(g);
     ended.add(g.gid);
     clear();
     showEnd(main, lines.join('\n'));
   }
+  // 선물 찾기 결과: 혼자면 걸린 시간과 내 최고 기록, 여럿이면 순위
+  function huntResult(g) {
+    const n = g.sp.length, cnt = new Map();
+    for (const id of g.got) if (id) cnt.set(id, (cnt.get(id) || 0) + 1);
+    const rank = [...cnt].sort((a, b) => b[1] - a[1]), mine = cnt.get(me()) || 0, lines = [];
+    if (g.pl.length <= 1 && rank.length <= 1) {
+      const all = mine === n;
+      lines.push(g.why);
+      if (all) {
+        lines.push(`걸린 시간 ${fmt(g.tk)}`);
+        const best = bestHunt();
+        if (!best || g.tk < best) { saveBest(g.tk); lines.push(best ? `🏆 내 최고 기록! (전에는 ${fmt(best)})` : '🏆 첫 기록이에요! 다음엔 더 빨리?'); }
+        else lines.push(`내 최고 기록은 ${fmt(best)}`);
+      } else lines.push('다음엔 다 찾아봐요! 위 띠에 층마다 남은 선물 수가 나와요');
+      return [all ? `🎉 선물 ${n}개를 다 찾았어요!` : `🎁 선물 ${mine}/${n}개 찾았어요`, lines];
+    }
+    const topN = rank.length ? rank[0][1] : 0, best = rank.filter(([, c]) => c === topN).map(([id]) => id);
+    const main = !topN ? '🎁 아무도 선물을 못 찾았어요' : best.length > 1 ? `🎁 ${names(best)} 공동 1등! (선물 ${topN}개)` : `🏆 ${josa(who(best[0]), '이', '가')} 1등! (선물 ${topN}개)`;
+    lines.push(g.why);
+    if (rank.length) lines.push(rank.slice(0, 6).map(([id, c], k) => `${['🥇', '🥈', '🥉'][k] || '·'} ${who(id)} ${c}개`).join('  '));
+    if (g.pl.includes(me())) lines.push(topN && best.includes(me()) ? '🎉 이겼어요!' : `나는 ${mine}개 찾았어요`);
+    return [main, lines];
+  }
+  function bestHunt() { try { const v = +localStorage.getItem(BEST_KEY); return v > 0 ? v : 0; } catch (_) { return 0; } }
+  function saveBest(ms) { try { localStorage.setItem(BEST_KEY, String(Math.round(ms))); } catch (_) {} }
   function showEnd(main, sub) {
     $('gameEndMain').textContent = main;
     const box = $('gameEndSub');
@@ -397,6 +474,8 @@ export function makeGames(K) {
     hidOrn.clear();
     for (const t of tags.values()) t.remove();
     tags.clear();
+    for (const v of gifts.values()) v.g.removeFromParent();
+    gifts.clear(); grabbing.clear();
     band.hidden = true; blind.hidden = true; voteP.hidden = true; band.classList.remove('warn');
     document.body.classList.remove('gm');
     K.dirty();
@@ -404,6 +483,12 @@ export function makeGames(K) {
 
   /* ───────── 상태 띠, 투표 판 ───────── */
   function roleText() {
+    if (G.g === 'hunt') {
+      const rest = {}, cur = area(K.me);
+      G.sp.forEach(([x, z], n) => { if (!G.got[n]) { const a = area({ x, z }); rest[a] = (rest[a] || 0) + 1; } });
+      const t = Object.keys(AREA).filter((a) => rest[a]).map((a) => `${a === cur ? '📍' : ''}${AREA[a]} ${rest[a]}`).join(' · ');
+      return t ? `남은 선물 ${t}` : '남은 선물 없음'; // 📍 = 내가 있는 곳
+    }
     if (!inGame()) return '이번 판은 구경 중';
     if (G.g === 'hide') {
       if (G.sk === me()) return G.ph === 'hide' ? '너는 술래 · 눈 가리는 중' : `너는 술래 · 찾은 사람 ${G.out.length}/${G.pl.length - 1}`;
@@ -423,6 +508,7 @@ export function makeGames(K) {
     if (G.g === 'santa' && G.ph === 'talk') clk = `이야기 ${fmt(left)}`;
     if (G.g === 'santa' && G.ph === 'vote') clk = `투표 ${fmt(left)}`;
     if (G.g === 'hide' && G.ph === 'hide') clk = `숨는 중 ${fmt(left)}`;
+    if (G.g === 'hunt') clk = `${fmt(left)} · 내 선물 ${G.got.filter((x) => x === me()).length}개`;
     $('gameName').textContent = `${g.icon} ${g.name}`;
     $('gameClock').textContent = clk;
     $('gameRole').textContent = roleText();
@@ -548,6 +634,16 @@ export function makeGames(K) {
   function tap(px, py) {
     if (!G || G.ph === 'over') return false;
     if (anchor) { if (closetOf(me())) K.toast('옷장 안이에요. 나오려면 "🚪 옷장에서 나오기"'); return true; } // 움직일 수 없다
+    if (G.g === 'hunt') { // 선물을 누르면 그리로 걸어간다
+      const list = [...gifts.values()].filter((v) => v.g.visible && !v.pop);
+      const hits = list.length ? K.caster(px, py).intersectObjects(list.map((v) => v.body), true) : [];
+      if (!hits.length) return false;
+      let o = hits[0].object, v = null;
+      for (; o && !v; o = o.parent) v = list.find((q) => q.body === o) || null;
+      if (!v) return false;
+      K.goTo(v.x, v.z);
+      return true;
+    }
     if (G.g !== 'hide' || G.sk !== me() || G.ph !== 'seek') return false;
     const ray = K.caster(px, py), list = [...K.others()].filter(([id, a]) => hiding(id) && !closetOf(id) && a.root.visible);
     const hits = ray.intersectObjects(list.map(([, a]) => a.root), true);
@@ -563,7 +659,7 @@ export function makeGames(K) {
   /* ───────── 매 장면 ───────── */
   function tick() {
     if (!G) return;
-    if (!K.online()) { cancel('연결이 끊겨서 판이 취소됐어요', false); return; }
+    if (!K.online() && G.g !== 'hunt') { cancel('연결이 끊겨서 판이 취소됐어요', false); return; }
     if (amRef()) { referee(); if (!G) return; }
     else if (!here(G.ref)) { cancel(`심판(${K.nameOf(G.ref)})이 나가서 판이 취소됐어요`, false); return; }
     if (pend && now() - pend.at > 4000) pend = null; // 답이 안 오면 심판이 정한 대로
@@ -575,7 +671,8 @@ export function makeGames(K) {
       if (Math.hypot(K.me.x - anchor[0], K.me.z - anchor[1]) > 1e-4) K.me.place(anchor[0], anchor[1]);
     } else anchor = null;
     // 옷장에 숨은 사람은 아무에게도 안 보인다 (작게 만들어 둔다. 층마다 보이고 숨는 것은 app.js 가 따로 한다)
-    if (G.g === 'hide') {
+    if (G.g === 'hunt') { huntTick(); if (!G) return; }
+    else if (G.g === 'hide') {
       const want = new Set(G.pl.filter((id) => hiding(id) && closetOf(id)).map(avatarOf).filter(Boolean));
       for (const a of want) if (!shrunk.has(a)) { a.root.scale.setScalar(0.001); shrunk.add(a); K.dirty(); }
       for (const a of [...shrunk]) if (!want.has(a)) { a.root.scale.setScalar(1); shrunk.delete(a); K.dirty(); }
@@ -603,6 +700,83 @@ export function makeGames(K) {
     }
     const t = now();
     if (t - uiAt > 200) { uiAt = t; paint(); }
+  }
+
+  /* ───────── 선물 찾기 ───────── */
+  // 숨길 자리: 내가 선 칸에서 걸어서(사다리 포함) 갈 수 있는 빈칸 가운데 벽이나 가구 옆인 칸. 층·마당에 고루, 서로 떨어지게
+  function huntSpots() {
+    const grid = K.grid(), [si, sj] = cellOf(K.me.x, K.me.z);
+    const start = grid.free(si, sj) ? [si, sj] : grid.nearestFree(si, sj, K.me.x, K.me.z);
+    if (!start) return [];
+    const seen = new Uint8Array(GX * GZ), q = [start], link = new Map(), cand = { f0: [], f1: [], f2: [], f3: [], yard: [] };
+    for (const L of LADDERS) { link.set(L.a.join(), L.b); link.set(L.b.join(), L.a); }
+    const nearLadder = (i, j) => LADDERS.some((L) => Math.max(Math.abs(L.a[0] - i), Math.abs(L.a[1] - j)) <= 1 || Math.max(Math.abs(L.b[0] - i), Math.abs(L.b[1] - j)) <= 1);
+    seen[start[1] * GX + start[0]] = 1;
+    for (let h = 0; h < q.length; h++) {
+      const [i, j] = q[h], nb = [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]], l = link.get(i + ',' + j);
+      if (l) nb.push(l);
+      for (const [a, b] of nb) if (grid.free(a, b) && !seen[b * GX + a]) { seen[b * GX + a] = 1; q.push([a, b]); }
+      let tuck = 0;
+      for (const [a, b] of [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]]) if (!grid.free(a, b)) tuck++;
+      const z = zoneOf(i, j), ar = z === 'yard' ? 'yard' : 'f' + levelOfCell(i);
+      if (tuck >= 1 && tuck <= 2 && cand[ar] && j !== YARD.wall && !nearLadder(i, j)) cand[ar].push([i, j]);
+    }
+    const out = [], ok = (x, z) => Math.hypot(x - K.me.x, z - K.me.z) >= 2.5 && out.every(([a, b]) => Math.hypot(a - x, b - z) >= 2.2);
+    const order = ['f0', 'f1', 'yard', 'f2', 'f3', 'f0', 'f1', 'f2', 'yard', 'f3', 'f0', 'f2'];
+    for (let pass = 0; pass < 3 && out.length < HUNT_N; pass++) {
+      for (const ar of order) {
+        if (out.length >= HUNT_N) break;
+        const c = cand[ar];
+        for (let t = 0; c.length && t < 40; t++) {
+          const [x, z] = centerOf(...c[Math.floor(Math.random() * c.length)]);
+          if (ok(x, z)) { out.push([+x.toFixed(2), +z.toFixed(2)]); break; }
+        }
+      }
+    }
+    return out;
+  }
+  // 선물 모양: 반들반들한 금빛 상자, 빨간 리본과 나비 매듭, 둘레의 반짝이는 빛
+  let kit = null;
+  function giftObj(x, z) {
+    if (!kit) kit = { box: new THREE.BoxGeometry(0.2, 0.17, 0.2), lid: new THREE.BoxGeometry(0.216, 0.045, 0.216), r1: new THREE.BoxGeometry(0.05, 0.176, 0.206), r2: new THREE.BoxGeometry(0.206, 0.176, 0.05),
+      bow: new THREE.TorusGeometry(0.036, 0.014, 6, 12), gold: GLOSS(0xF2B93B), lidC: GLOSS(0xF7CC5A), red: GLOSS(0xD23A30) };
+    const g = new THREE.Group(), body = new THREE.Group(), [wx, wy, wz] = toWorld(x, z);
+    g.position.set(wx, wy, wz); g.add(body);
+    const add = (geo, mat, px, py, pz) => { const m = new THREE.Mesh(geo, mat); m.position.set(px, py, pz); body.add(m); return m; };
+    add(kit.box, kit.gold, 0, 0.085, 0); add(kit.lid, kit.lidC, 0, 0.18, 0);
+    add(kit.r1, kit.red, 0, 0.087, 0); add(kit.r2, kit.red, 0, 0.087, 0);
+    for (const sd of [-1, 1]) { const b = add(kit.bow, kit.red, sd * 0.034, 0.222, 0); b.rotation.set(0, Math.PI / 2, sd * 0.6); b.scale.set(1, 0.8, 1.2); }
+    glowAt(g, 0, 0.16, 0, 0.95, 0xFFE08A, 0.55);
+    K.scene.add(g);
+    return { g, body, x, z, pop: 0, ph: Math.random() * 6.3 };
+  }
+  function popGift(n) { const v = gifts.get(n); if (v && !v.pop) v.pop = now(); }
+  function huntTick() {
+    const t = now(), lv = K.level();
+    G.sp.forEach(([x, z], n) => { if (!G.got[n] && !gifts.has(n)) gifts.set(n, giftObj(x, z)); });
+    for (const [n, v] of gifts) {
+      if (G.got[n] && !v.pop) v.pop = t;
+      if (v.pop) { // 주우면 톡 튀어 오르며 작아진다
+        const k = Math.min(1, (t - v.pop) / 450);
+        v.body.position.y = 0.06 + k * 0.5; v.g.scale.setScalar(Math.max(0.001, 1 - k));
+        if (k >= 1) { v.g.removeFromParent(); gifts.delete(n); }
+        continue;
+      }
+      v.g.visible = levelOf(v.x) === lv; // 내가 있는 층의 선물만 (마당은 1층과 같이)
+      v.body.position.y = 0.05 + Math.sin(t / 380 + v.ph) * 0.035; // 둥실둥실
+      v.body.rotation.y = t / 900 + v.ph;
+    }
+    if (G.ph !== 'play') return;
+    for (const [n, at] of grabbing) if (t - at > 3000) grabbing.delete(n); // 답이 없으면 다시 줍는다
+    if (K.me.hop) return; // 사다리를 타는 중에는 줍지 않는다
+    for (let n = 0; n < G.sp.length; n++) {
+      if (G.got[n] || grabbing.has(n)) continue;
+      const [x, z] = G.sp[n];
+      if (levelOf(x) !== levelOf(K.me.x) || Math.hypot(K.me.x - x, K.me.z - z) > GRAB_R) continue;
+      grabbing.set(n, t);
+      toRef({ a: 'grab', n });
+      if (!G || G.ph !== 'play') return; // 마지막 선물이었으면 판이 바로 끝난다 (심판인 내 화면)
+    }
   }
 
   /* ───────── 친구에게서 온 소식 ───────── */
@@ -638,7 +812,8 @@ export function makeGames(K) {
     const n = K.online() ? K.others().size + 1 : 1;
     $('gamePickSub').textContent = `지금 ${n}명`;
     const w = G ? why('hide') : ['hide', 'santa'].map(why).find((x) => x) || '';
-    $('gamePickWhy').textContent = G ? w : !K.online() || !K.canEdit() ? w : Object.keys(GAMES).every((k) => !why(k)) ? '고르면 바로 시작해요. 시작한 사람의 화면이 심판이에요.' : w;
+    $('gamePickWhy').textContent = G ? w : !K.canEdit() ? w : !K.online() ? '🎁 선물 찾기는 혼자서도 할 수 있어요. 숨바꼭질·몰래 산타는 친구를 초대해야 해요 (아래 "같이" 탭)'
+      : Object.keys(GAMES).every((k) => !why(k)) ? '고르면 바로 시작해요. 시작한 사람의 화면이 심판이에요.' : w;
     pickP.hidden = false;
   }
   btn.addEventListener('click', openPick);
@@ -663,6 +838,8 @@ export function makeGames(K) {
     start, cancel: (t) => cancel(t || '심판이 판을 그만했어요'), openPick, closeEnd: () => { endP.hidden = true; },
     action: () => { const a = action(); return a ? a.label : null; }, act: () => { const a = action(); if (a) a.run(); return !!a; },
     find, closet, steal, meet, vote, tap, quiet, why,
+    gifts: () => [...gifts.entries()].map(([n, v]) => ({ n, x: v.x, z: v.z, shown: v.g.visible, pop: !!v.pop })), get best() { return bestHunt(); },
+    peer: (m, from) => peerFx({ k: 'gm', v: JSON.stringify(m) }, from), // 친구에게서 온 소식처럼 넣어 보기
   };
   return { tick, peerFx, action, tap, muffle, quiet, tagged: (id) => tags.has(id), get on() { return !!G; } };
 }
