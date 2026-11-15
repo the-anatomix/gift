@@ -32,7 +32,7 @@ const Q = new URLSearchParams(location.search);
 const NET = Q.get('net') === 'bc' ? 'bc' : 'peer';
 const num = (k, d) => { const v = parseInt(Q.get(k), 10); return v > 0 ? v : d; };
 // connect: 이만큼 기다려도 안 이어지면 포기, silent: 이만큼 소식이 없으면 끊긴 것으로 본다
-const T = { connect: num('ct', 12000), silent: num('st', 9000), ping: 2000, retry: num('rt', 3000) };
+const T = { connect: num('ct', 20000), silent: num('st', 9000), ping: 2000, retry: num('rt', 3000) };
 export const CAP = num('cap', 8);    // 방에 들어올 수 있는 사람 수 (주인 포함)
 export const ECAP = num('ecap', 4);  // 그중 꾸밀 수 있는 사람 수 (주인 포함)
 const OPT = { cap: CAP };

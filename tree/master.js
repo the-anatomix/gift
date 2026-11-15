@@ -1,5 +1,5 @@
-// 마스터키: 이 기기에서만 켜는 숨은 열쇠. 1층 거실 뒤쪽 구석 바닥에 놓인 작은 금빛 열쇠를 누르고 암호를 넣으면 켜진다
-//   (제목 "트리 같이 꾸미기" 를 빠르게 일곱 번 눌러도 된다). 한 번 켜면 이 기기에서는 끌 때까지 그대로이고, 아래 탭에 "🔑 마스터" 가 생긴다.
+// 마스터키: 이 기기에서만 켜는 숨은 열쇠. 제목 "트리 같이 꾸미기" 를 빠르게 일곱 번 누르고 암호를 넣으면 켜진다
+//   (예전에 1층 바닥에 있던 금빛 열쇠는 없앴다). 한 번 켜면 이 기기에서는 끌 때까지 그대로이고, 아래 탭에 "🔑 마스터" 가 생긴다.
 //   켜면(권한을 모두 가진다):
 //     LOCK 어드벤트 달력으로 잠긴 가구·장식·전구·벽지·바닥을 잠금 없이 쓴다 (달력 칸은 그대로라 다른 사람은 예전처럼 하루에 한 칸씩 연다)
 //     FIRE 불꽃놀이를 아무 날에나 터뜨린다 (불꽃놀이 단추는 이 권한이 있는 사람에게만 보인다)
@@ -11,11 +11,9 @@
 //   마스터 탭에서 방에 있는 사람마다 이 권한들을 따로 켜고 끌 수 있다. 받은 권한은 그 사람 기기에 남아 다음에도 그대로다.
 //   소식: { k: 'mk', v: '<받는 사람 id>:<권한 숫자>' } 주기, { k: 'mk', v: '?' } 지금 권한 묻기, { k: 'mk', v: '=<권한 숫자>' } 답.
 // 암호는 코드에 해시(SHA-256)로만 둔다. 사이트 코드는 누구나 볼 수 있고 소식도 흉내 낼 수 있으니 완벽한 보안은 아니고, 모르는 사람이 우연히 켜지 못하게 하는 정도다.
-import { THREE } from './kit.js';
 const NS = (() => { try { const n = new URLSearchParams(location.search).get('ns'); return n ? '.' + n : ''; } catch (_) { return ''; } })(); // 자동 검사는 ?ns= 로 창마다 저장값을 나눈다
 const HASH = '784fab8e1ed8c33f4f76b49522a65591e94c9d7834cd8a4ad625fbc1a87bdb10', SLOT = 'tree.master' + NS, GRANT = 'tree.grant' + NS;
 export const LOCK = 1, FIRE = 2, SKY = 4, GIFT = 8, SUIT = 16, SLED = 32, CINE = 64, BUILD = 128, ALL = 255;
-export const KEY_AT = { x: -3.72, y: 0.03, z: -3.72 };
 const get = (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } };
 export function isMaster() { return get(SLOT) === HASH; }
 export function can(bit) { return isMaster() || ((parseInt(get(GRANT), 10) || 0) & bit) !== 0; }
@@ -23,7 +21,7 @@ async function sha(s) {
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
   return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
 }
-// K = { toast, sky: { time(), setTime(v) }, lamp: { on(lv), toggle(lv), count() 지금 층 수 }, changed(), scene, ray(px, py), shown(), fx(m), myId(), others(): [id], nameOf(id), setMode(m), mode(), resized() }
+// K = { toast, sky: { time(), setTime(v) }, lamp: { on(lv), toggle(lv), count() 지금 층 수 }, changed(), fx(m), myId(), others(): [id], nameOf(id), setMode(m), mode(), resized() }
 export function makeMaster(K) {
   const $ = (id) => document.getElementById(id);
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
@@ -144,24 +142,9 @@ export function makeMaster(K) {
       if (isMaster()) open(); else ask();
     });
   }
-  /* 숨은 열쇠: 거실 뒤쪽 구석 바닥의 작은 금빛 열쇠 (그리기 한 번) */
-  const mat = new THREE.MeshStandardMaterial({ color: 0xE9B93A, metalness: 0.7, roughness: 0.3 });
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.012, 6, 14), mat), stem = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.014, 0.018), mat), tooth = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.014, 0.04), mat);
-  ring.rotation.x = Math.PI / 2; stem.position.x = 0.085; tooth.position.set(0.12, 0, 0.022);
-  const key = new THREE.Group();
-  key.add(ring, stem, tooth); key.position.set(KEY_AT.x, KEY_AT.y, KEY_AT.z); key.rotation.y = 0.6;
-  if (K.scene) K.scene.add(key);
-  const hit = new THREE.Sphere(new THREE.Vector3(KEY_AT.x + 0.05, KEY_AT.y, KEY_AT.z + 0.03), 0.16); // 손가락으로도 누를 수 있게 조금 넉넉히
-  function tap(px, py) {
-    if (!K.shown()) return false;
-    const r = K.ray(px, py);
-    if (!r || !r.intersectsSphere(hit)) return false;
-    if (isMaster()) open(); else ask();
-    return true;
-  }
   // 판이 보이는 동안에는 사람 목록을 따라가고, 열릴 때 한 번 다른 사람들의 권한을 묻는다
   let wasOpen = false;
   setInterval(() => { const on = !panel.hidden; if (on) { if (!wasOpen && isMaster()) K.fx({ k: 'mk', v: '?' }); paint(); } wasOpen = on; }, 500);
   paint();
-  return { open, tap, peerFx, paint, get on() { return isMaster(); }, test: { get given() { return [...given]; }, key: KEY_AT } };
+  return { open, peerFx, paint, get on() { return isMaster(); }, test: { get given() { return [...given]; } } };
 }

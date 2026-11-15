@@ -1,4 +1,4 @@
-// 마스터키 검사: 숨은 열쇠·제목 일곱 번 → 암호 → 마스터 탭, 잠금 없이 쓰기(다른 사람 달력은 그대로), 불꽃놀이 단추, 하늘 낮·밤(친구에게도), 선물 미리 열기, 사람별 권한 주기(비행 슈트 🚀·썰매 🦌 포함). 실행: cd tree/tests && node master.test.js
+// 마스터키 검사: 제목 일곱 번 → 암호 (바닥 열쇠는 없음) → 마스터 탭, 잠금 없이 쓰기(다른 사람 달력은 그대로), 불꽃놀이 단추, 하늘 낮·밤(친구에게도), 선물 미리 열기, 사람별 권한 주기(비행 슈트 🚀·썰매 🦌 포함). 실행: cd tree/tests && node master.test.js
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8191, BASE = `http://localhost:${PORT}/tree/`;
@@ -30,12 +30,19 @@ const server = http.createServer((q, s) => { let f = path.join(ROOT, decodeURICo
     /* 암호 */
     const W = await open(ctx, `${BASE}?net=bc&door=0&ns=mw`, { pass: '틀린암호' });
     check('처음에는 마스터 탭이 없고 잠긴 것이 있음', !(await W.isVisible('#tabs button[data-m="master"]')) && (await locks(W)) > 0, await locks(W));
-    const kp = await T(W, () => { const k = window.__master.key, s = window.__tree.screenOf(k.x + 0.05, k.z + 0.03, k.y); return [s.x, s.y]; });
-    await W.touchscreen.tap(kp[0], kp[1]); await sleep(500);
-    check('숨은 열쇠를 눌러도 틀린 암호로는 켜지지 않음', !(await T(W, () => window.__master.on)) && (await W.textContent('#toast')).includes('맞지 않아요'), [kp, await W.textContent('#toast')]);
-    for (let i = 0; i < 7; i++) await W.click('#top .brand');
+    { // 예전 금빛 열쇠 자리(1층 북서 구석 바닥)를 눌러도 암호를 묻지 않는다: 열쇠는 없앴다
+      let asked = false; const seen = () => { asked = true; }; W.on('dialog', seen);
+      const kp = await T(W, () => { const s = window.__tree.screenOf(-3.67, -3.69, 0.03); return [s.x, s.y]; });
+      await W.touchscreen.tap(kp[0], kp[1]); await sleep(500);
+      W.off('dialog', seen);
+      check('바닥의 금빛 열쇠는 없음 (그 자리를 눌러도 암호를 묻지 않음)', !asked && !(await T(W, () => window.__master.on)) && !(await T(W, () => 'key' in window.__master)), kp);
+    }
+    let asked7 = 0; const seen7 = () => { asked7++; }; W.on('dialog', seen7);
+    const bb = await W.locator('#top .brand').boundingBox(); // 5초 안에 일곱 번: 느린 검사 기기에서도 되게 자리를 바로 누른다
+    for (let i = 0; i < 7; i++) await W.mouse.click(bb.x + 30, bb.y + bb.height / 2);
     await sleep(400);
-    check('제목 일곱 번도 같은 암호 물음 (틀리면 안 켜짐)', !(await T(W, () => window.__master.on)));
+    W.off('dialog', seen7);
+    check('제목 일곱 번이면 암호를 물음 (틀리면 안 켜짐)', asked7 === 1 && !(await T(W, () => window.__master.on)), asked7);
     await W.close();
 
     /* 켠 사람 */
