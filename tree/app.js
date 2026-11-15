@@ -1960,7 +1960,7 @@ function frame(now) {
   }
   bulbs.tick(clock);
   if (room.tickDoors(dt, [me, ...others.values()])) dirty = true; // 방문: 누가 다가오면 열린다
-  { const p = outside.tick(dt); if (p && outside.opening) pose = p; } // 문이 열려 걸어 들어가는 동안의 카메라 (다 들어간 뒤에는 건드리지 않는다)
+  { const p = outside.tick(Math.min(raw / 1000, 0.25)); if (p && outside.opening) pose = p; } // 문이 열려 걸어 들어가는 동안의 카메라 (다 들어간 뒤에는 건드리지 않는다). 실제 시간으로 간다: 느린 기기에서도 2초 남짓이면 들어온다
   for (const [id, v] of cakeObj) { const c = S.cakes.get(id); if (c && c.lit > 0) flicker(v, clock); }
   placeBubbles();
   play.tick(dt);

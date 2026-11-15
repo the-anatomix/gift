@@ -119,7 +119,7 @@ const audit = (p) => p.evaluate(() => {
     await T(B, () => window.__tree.dispatch({ t: 'put', id: 'admscr', k: 'screen', i: 64 + 0, j: 5, r: 1 }));
     check('공동 관리자가 영화관 소품(스크린)을 직접 놓으면 방장의 방에도 놓임', await until(async () => (await T(A, () => window.__cinema.has)) && (await hash(A)) === (await hash(B)), 8000));
     await T(B, () => window.__tree.setMode(null));
-    check('공동 관리자가 불을 끄면 모두에게 꺼짐', (await T(B, () => window.__lights.toggle(2))) && await until(async () => (await T(A, () => window.__lights.lamps.join())) === '1,1,0', 4000));
+    check('공동 관리자가 불을 끄면 모두에게 꺼짐', (await T(B, () => window.__lights.toggle(2))) && await until(async () => (await T(A, () => window.__lights.lamps.join())) === '1,1,0,1', 4000));
     check('불꽃놀이는 마스터키를 켠 사람만: 공동 관리자도 못 터뜨림', !(await T(B, () => window.__sky.press())), await T(B, () => document.getElementById('toast').textContent));
 
     /* 흉내 내기 막기 */

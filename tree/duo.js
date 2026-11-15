@@ -58,7 +58,7 @@ export function makeDuo(K) {
   let why = '', rang = false;                // 들어갈 수 없는 까닭, 초인종을 눌렀는지
   let admIds = new Set(), doorList = []; // 손님: 주인이 알려 준 공동 관리자들과 (내가 공동 관리자일 때) 문 앞 사람들
   const adm = (p) => !!p && !!p.tag && !!K.isAdm && K.isAdm(p.tag); // 주인: 그 손님이 공동 관리자인지 (tk 를 받아 확인한 표로만 가린다)
-  let gen = 0, tries = 0, last = 0, connectT = 0, retryT = 0, retries = 0, misses = 0;
+  let gen = 0, tries = 0, last = 0, connectT = 0, retryT = 0, retries = 0, misses = 0, fulls = 0, tickAt = 0;
   const peers = new Map(); // 주인만: pid → { edit, hello, last, slot }
   const set = (m) => { mode = m; K.status(); };
   const isObj = (m) => !!m && typeof m === 'object';
@@ -73,12 +73,14 @@ export function makeDuo(K) {
     tries = again ? tries + 1 : 1;
     clearTimeout(connectT); clearTimeout(retryT);
     if (link) link.close();
+    if (room !== id) rang = false; // 다른 방으로 가면 아까 누른 초인종은 잊는다
     link = null; room = id; role = null; peers.clear(); admIds = new Set(); doorList = [];
     if (opt.key !== undefined) key = opt.key;
     if (opt.want) want = opt.want;
     set('connecting');
     // 정해진 시간 안에 이어지지 않으면 끊긴 것으로 본다 (주인으로 기다리는 중이면 그대로 둔다)
-    connectT = setTimeout(() => { if (my === gen && mode === 'connecting') lost(); }, T.connect);
+    // (시간이 다 됐을 때 이미 와서 줄 서 있는 말이 있으면 그것부터 읽도록 아주 잠깐 더 기다린다: 화면이 무거우면 타이머와 말이 한꺼번에 밀린다)
+    connectT = setTimeout(() => { connectT = setTimeout(() => { if (my === gen && mode === 'connecting') lost(); }, 400); }, T.connect);
     const h = await openRoom(NET, id, {
       role(r) {
         if (my !== gen) return;
@@ -98,17 +100,24 @@ export function makeDuo(K) {
       },
       open() { // 손님: 주인과 이어짐
         if (my !== gen) return;
-        clearTimeout(connectT); last = performance.now(); tries = 0; retries = 0; misses = 0;
-        rang = false;
+        clearTimeout(connectT); last = performance.now(); tries = 0; retries = 0; misses = 0; fulls = 0;
+        const re = rang; rang = false;
         set('door'); // 문 앞에 섰다. 초인종을 눌러 허락을 받아야 들어간다
         if (!DOOR) knock();
         else if (K.hasPass && K.hasPass()) knock(true); // 공동 관리자는 초인종 없이 바로 들어간다
+        else if (re) knock(); // 초인종을 누르고 기다리다 끊겨 다시 이어졌으면, 주인에게 다시 알린다 (안 그러면 누른 게 사라진다)
       },
       join(pid) { if (my === gen) peers.set(pid, { edit: false, hello: false, last: performance.now(), slot: freeSlot() }); },
       leave(pid) { if (my === gen) left(pid); },
       msg(m, pid) { if (my !== gen) return; if (role === 'host') { fromGuest(m, pid); tell(); } else fromHost(m); },
       close() { if (my === gen && mode !== 'full' && mode !== 'solo' && mode !== 'away' && mode !== 'denied') lost(); },
-      full() { if (my !== gen) return; clearTimeout(connectT); gen++; try { h.close(); } catch (_) { /* 무시 */ } if (link === h) link = null; set('full'); },
+      full() {
+        if (my !== gen) return;
+        clearTimeout(connectT); gen++; try { h.close(); } catch (_) { /* 무시 */ } if (link === h) link = null;
+        // 다시 들어가는 길이면 주인 쪽에 아까의 내 자리가 아직 남아 있을 수 있다: 잠깐 뒤 두 번까지 다시 해 본다
+        if ((again || retries > 0) && fulls < 2 && room === id) { fulls++; set('connecting'); retryT = setTimeout(() => { if (room === id && mode === 'connecting') start(id, {}, true); }, T.retry); return; }
+        set('full');
+      },
     }, OPT);
     if (my !== gen) { if (mode !== 'full' && mode !== 'away' && mode !== 'denied') h.close(); return; }
     link = h;
@@ -339,7 +348,9 @@ export function makeDuo(K) {
     link.send(mode === 'door' ? { t: 'ping' } : { t: 'ping', h: K.hash() });
     tell();
     if (document.hidden) return;
-    const now = performance.now();
+    const now = performance.now(), slept = now - tickAt > T.ping * 2.5; tickAt = now;
+    // 화면이 무거워 타이머가 한참 밀렸으면(처음 그릴 때 등) 그동안 못 받은 말이 아직 줄 서 있다: 이번에는 끊긴 것으로 보지 않는다
+    if (slept) { last = Math.max(last, now - T.silent / 2); for (const p of peers.values()) p.last = Math.max(p.last, now - T.silent / 2); return; }
     if (role === 'host') { for (const [pid, p] of [...peers]) if (now - p.last > T.silent) { link.drop(pid); left(pid); } }
     else if (now - last > T.silent) lost();
   }, T.ping);

@@ -92,14 +92,14 @@ async function peerRoom(room, cb, opt) {
 function bcRoom(room, cb, opt) {
   const ch = new BroadcastChannel(PREFIX + room);
   const id = Math.random().toString(36).slice(2, 10), cap = opt.cap || 8;
-  let role = null, host = null, closed = false, seq = 0;
+  let role = null, host = null, asked = null, closed = false, seq = 0; // asked = 들어가겠다고 한 주인 (아직 받아 주기 전)
   const pids = new Map();        // 주인: 상대의 채널 이름 → pid
   const post = (m) => { if (!closed) ch.postMessage(Object.assign({ from: id }, m)); };
   ch.onmessage = (ev) => {
     const m = ev.data;
     if (closed || !m || (m.to && m.to !== id)) return;
     if (m.x === 'probe') { if (role === 'host') post({ x: 'host', to: m.from }); }
-    else if (m.x === 'host') { if (!role) { role = 'guest'; cb.role('guest'); post({ x: 'join', to: m.from }); } }
+    else if (m.x === 'host') { if (!role) { role = 'guest'; cb.role('guest'); asked = m.from; post({ x: 'join', to: m.from }); } }
     else if (m.x === 'join') {
       if (role !== 'host') return;
       if (!pids.has(m.from) && pids.size >= cap - 1) { post({ x: 'full', to: m.from }); return; }
@@ -114,13 +114,15 @@ function bcRoom(room, cb, opt) {
       else if (m.from === host) { host = null; cb.close('closed'); }
     }
     else if (m.x === 'data') {
-      if (role === 'host') { const pid = pids.get(m.from); if (pid) cb.msg(m.d, pid); }
+      // 주인이 이미 내보낸(오래 소식이 없던) 사람의 말이면 끊겼다고 알려 다시 들어오게 한다
+      if (role === 'host') { const pid = pids.get(m.from); if (pid) cb.msg(m.d, pid); else post({ x: 'bye', to: m.from }); }
       else if (m.from === host) cb.msg(m.d);
     }
   };
   post({ x: 'probe' });
   setTimeout(() => { if (!role && !closed) { role = 'host'; cb.role('host'); } }, 300);
-  const bye = () => { if (role === 'host') { for (const to of pids.keys()) post({ x: 'bye', to }); } else if (host) post({ x: 'bye', to: host }); };
+  // 나간다고 알린다. 손님은 아직 받아 주기 전이어도 알린다 (안 그러면 주인 쪽에 빈 자리가 남아 정원을 차지한다)
+  const bye = () => { if (role === 'host') { for (const to of pids.keys()) post({ x: 'bye', to }); } else if (host || asked) post({ x: 'bye', to: host || asked }); };
   addEventListener('pagehide', bye);
   return {
     send(d, to) {
@@ -129,7 +131,7 @@ function bcRoom(room, cb, opt) {
     },
     drop(to) {
       if (role !== 'host') { host = null; return; }
-      for (const [chan, pid] of [...pids]) if (!to || pid === to) pids.delete(chan);
+      for (const [chan, pid] of [...pids]) if (!to || pid === to) { pids.delete(chan); post({ x: 'bye', to: chan }); } // 끊었다고 알린다 (PeerJS 는 연결을 닫으면 상대가 안다)
     },
     close() { bye(); closed = true; removeEventListener('pagehide', bye); ch.close(); },
     peer: () => null, pj: () => '', remote: () => '', // 이 연결로는 소리와 영상을 보낼 수 없다

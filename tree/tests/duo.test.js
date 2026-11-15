@@ -175,7 +175,7 @@ async function suite(browser, label, query, twoContexts) {
 
   /* 네 번째: 꾸미는 사람이 한 명 더 */
   const D = await open(ctxB, url('d', room));
-  check('같이 꾸미기 링크로 세 번째 꾸미는 사람이 들어옴', await until(async () => (await mode(D)) === 'on' && (await T(D, () => window.__duo.canEdit)) === true && (await T(D, () => window.__duo.others)).length > 0, 15000) && await same(A, D));
+  check('같이 꾸미기 링크로 세 번째 꾸미는 사람이 들어옴', await until(async () => (await mode(D)) === 'on' && (await T(D, () => window.__duo.canEdit)) === true && (await T(D, () => window.__duo.others)).length > 0, 15000) && await same(A, D), { m: await mode(D), e: await T(D, () => window.__duo.canEdit), n: (await T(D, () => window.__duo.others)).length, a: await hash(A), d: await hash(D), why: await T(D, () => window.__duo.why) });
   await sleep(400);
   check('네 사람이 서로 보임', await until(async () => (await seen(A)) === 3 && (await seen(B)) === 3 && (await seen(C)) === 3 && (await seen(D)) === 3, 5000) && (await T(A, () => window.__duo.editors)) === 3, { s: [await seen(A), await seen(B), await seen(C), await seen(D)], e: await T(A, () => window.__duo.editors) });
   await put(D, 'd1', 'plant', 15, 15);
