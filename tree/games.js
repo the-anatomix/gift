@@ -25,7 +25,7 @@
 //   모두 주우면 끝, 아니면 HUNT 가 지나면 끝. 혼자면 다 찾은 시간이 기록(이 기기, localStorage 'tree.huntBest'), 여럿이면 많이 주운 사람이 1등.
 //   상태 띠에 층마다 남은 선물 수가 나온다. 혼자 노는 내 방(연결 없음)에서도 할 수 있다(심판 = 나).
 // app.js 가 넘겨주는 창구 K 로 아바타·장식·소식을 다룬다.
-import { cellOf, zoneOf, levelOf, levelOfCell, centerOf, toWorld, X0, Z0, CELL, GX, GZ, LADDERS, YARD } from './path.js';
+import { cellOf, zoneOf, levelOf, levelOfCell, levelCount, centerOf, toWorld, X0, Z0, CELL, GX, GZ, liveLadders, YARD } from './path.js';
 import { kindOf, footprint } from './state.js';
 import { THREE, G as GLOSS, glowAt } from './kit.js';
 import { sfx } from './sfx.js';
@@ -147,7 +147,8 @@ export function makeGames(K) {
     const [i, j] = cellOf(a.x, a.z);
     return zoneOf(i, j) === 'yard' ? 'yard' : 'f0';
   }
-  const AREA = { f0: '1층', f1: '2층', f2: '3층', f3: '4층', yard: '마당' };
+  const AREAS = () => [...Array(levelCount()).keys()].map((k) => 'f' + k).concat('yard'); // 1층부터 맨 위 층까지, 그리고 마당
+  const areaName = (a) => (a === 'yard' ? '마당' : `${+a.slice(1) + 1}층`);
   const inGame = (id = me()) => !!G && G.pl.includes(id);
   const isOut = (id = me()) => !!G && G.out.includes(id);
   const alive = () => (G ? G.pl.filter((id) => !G.out.includes(id)) : []);
@@ -486,7 +487,7 @@ export function makeGames(K) {
     if (G.g === 'hunt') {
       const rest = {}, cur = area(K.me);
       G.sp.forEach(([x, z], n) => { if (!G.got[n]) { const a = area({ x, z }); rest[a] = (rest[a] || 0) + 1; } });
-      const t = Object.keys(AREA).filter((a) => rest[a]).map((a) => `${a === cur ? '📍' : ''}${AREA[a]} ${rest[a]}`).join(' · ');
+      const t = AREAS().filter((a) => rest[a]).map((a) => `${a === cur ? '📍' : ''}${areaName(a)} ${rest[a]}`).join(' · ');
       return t ? `남은 선물 ${t}` : '남은 선물 없음'; // 📍 = 내가 있는 곳
     }
     if (!inGame()) return '이번 판은 구경 중';
@@ -708,9 +709,10 @@ export function makeGames(K) {
     const grid = K.grid(), [si, sj] = cellOf(K.me.x, K.me.z);
     const start = grid.free(si, sj) ? [si, sj] : grid.nearestFree(si, sj, K.me.x, K.me.z);
     if (!start) return [];
-    const seen = new Uint8Array(GX * GZ), q = [start], link = new Map(), cand = { f0: [], f1: [], f2: [], f3: [], yard: [] };
-    for (const L of LADDERS) { link.set(L.a.join(), L.b); link.set(L.b.join(), L.a); }
-    const nearLadder = (i, j) => LADDERS.some((L) => Math.max(Math.abs(L.a[0] - i), Math.abs(L.a[1] - j)) <= 1 || Math.max(Math.abs(L.b[0] - i), Math.abs(L.b[1] - j)) <= 1);
+    const seen = new Uint8Array(GX * GZ), q = [start], link = new Map(), cand = Object.fromEntries(AREAS().map((a) => [a, []]));
+    const lads = liveLadders(); // 지금 있는 층의 사다리만 (마스터키로 층을 더하면 늘어난다)
+    for (const L of lads) { link.set(L.a.join(), L.b); link.set(L.b.join(), L.a); }
+    const nearLadder = (i, j) => lads.some((L) => Math.max(Math.abs(L.a[0] - i), Math.abs(L.a[1] - j)) <= 1 || Math.max(Math.abs(L.b[0] - i), Math.abs(L.b[1] - j)) <= 1);
     seen[start[1] * GX + start[0]] = 1;
     for (let h = 0; h < q.length; h++) {
       const [i, j] = q[h], nb = [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]], l = link.get(i + ',' + j);
@@ -722,7 +724,7 @@ export function makeGames(K) {
       if (tuck >= 1 && tuck <= 2 && cand[ar] && j !== YARD.wall && !nearLadder(i, j)) cand[ar].push([i, j]);
     }
     const out = [], ok = (x, z) => Math.hypot(x - K.me.x, z - K.me.z) >= 2.5 && out.every(([a, b]) => Math.hypot(a - x, b - z) >= 2.2);
-    const order = ['f0', 'f1', 'yard', 'f2', 'f3', 'f0', 'f1', 'f2', 'yard', 'f3', 'f0', 'f2'];
+    const ups = AREAS().filter((a) => a !== 'f0' && a !== 'yard'), order = ['f0', ...ups.slice(0, 1), 'yard', ...ups.slice(1), 'f0', ...ups, 'yard', 'f0'];
     for (let pass = 0; pass < 3 && out.length < HUNT_N; pass++) {
       for (const ar of order) {
         if (out.length >= HUNT_N) break;
