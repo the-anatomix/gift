@@ -25,7 +25,9 @@ function loadScript(src) {
 async function peerRoom(room, cb, opt) {
   let peer = null, role = null, closed = false, seq = 0;
   let conn = null;               // 손님: 주인과의 연결
-  const conns = new Map();       // 주인: pid → 연결
+  const conns = new Map();       // 주인: pid → 연결 (이어지는 중인 것까지)
+  const live = new Set();        // 주인: 실제로 이어진 손님 pid
+  const PEND = opt.pend || 25000; // 이만큼 지나도 안 이어진 연결 시도는 버린다 (검사는 opt.pend 로 줄인다)
   const hostId = PREFIX + room, cap = opt.cap || 8;
   const o = opt.broker ? { host: opt.broker.host, port: opt.broker.port, path: '/', secure: false } : {};
   const fail = (why) => { if (!closed) cb.close(why); };
@@ -35,21 +37,31 @@ async function peerRoom(room, cb, opt) {
     peer = new window.Peer(hostId, o);
     peer.on('open', () => { role = 'host'; cb.role('host'); });
     peer.on('connection', (c) => {
-      if (conns.size >= cap - 1) { // 정원이 참
-        c.on('open', () => { put(c, { t: 'full' }); setTimeout(() => c.close(), 600); });
-        return;
-      }
+      // 정원은 실제로 이어진 사람만 센다. 이어지는 중에 멈춘 시도(손님이 다시 시도하며 버린 것)까지 세면
+      // 재시도가 쌓여 아무도 없는데도 방이 찬 것으로 보인다. 그런 시도는 PEND 뒤에 정리한다.
+      if (conns.size >= cap * 3) { try { c.close(); } catch (_) { /* 무시 */ } return; } // 너무 많이 몰리면 그냥 끊는다
       const pid = 'g' + (++seq).toString(36);
       conns.set(pid, c);
-      c.on('open', () => { if (conns.get(pid) === c && !closed) cb.join(pid); });
+      const t = setTimeout(() => { if (conns.get(pid) === c && !c.open) { conns.delete(pid); try { c.close(); } catch (_) { /* 무시 */ } } }, PEND);
+      c.on('open', () => {
+        clearTimeout(t);
+        if (conns.get(pid) !== c || closed) return;
+        if (live.size >= cap - 1) { // 정원이 참
+          conns.delete(pid);
+          put(c, { t: 'full' }); setTimeout(() => { try { c.close(); } catch (_) { /* 무시 */ } }, 600);
+          return;
+        }
+        live.add(pid);
+        cb.join(pid);
+      });
       c.on('data', (d) => { if (conns.get(pid) === c && !closed && d && typeof d === 'object') cb.msg(d, pid); });
-      const gone = () => { if (conns.get(pid) === c) { conns.delete(pid); if (!closed) cb.leave(pid); } };
+      const gone = () => { clearTimeout(t); if (conns.get(pid) === c) { conns.delete(pid); if (live.delete(pid) && !closed) cb.leave(pid); } };
       c.on('close', gone); c.on('error', gone);
     });
     peer.on('disconnected', () => { if (!closed && !peer.destroyed) { try { peer.reconnect(); } catch (_) { /* 무시 */ } } });
     peer.on('error', (e) => {
       if (e.type === 'unavailable-id' && !role) { try { peer.destroy(); } catch (_) { /* 무시 */ } asGuest(); return; }
-      if (!conns.size) fail(e.type || 'error');
+      if (!live.size) fail(e.type || 'error');
     });
   }
   function asGuest() {
@@ -78,9 +90,9 @@ async function peerRoom(room, cb, opt) {
     },
     drop(to) {
       if (role !== 'host') { const c = conn; conn = null; if (c) { try { c.close(); } catch (_) { /* 무시 */ } } return; }
-      for (const pid of to ? [to] : [...conns.keys()]) { const c = conns.get(pid); conns.delete(pid); if (c) { try { c.close(); } catch (_) { /* 무시 */ } } }
+      for (const pid of to ? [to] : [...conns.keys()]) { const c = conns.get(pid); conns.delete(pid); live.delete(pid); if (c) { try { c.close(); } catch (_) { /* 무시 */ } } }
     },
-    close() { closed = true; conn = null; conns.clear(); if (peer) { try { peer.destroy(); } catch (_) { /* 무시 */ } } },
+    close() { closed = true; conn = null; conns.clear(); live.clear(); if (peer) { try { peer.destroy(); } catch (_) { /* 무시 */ } } },
     // 소리와 영상을 직접 주고받을 때 쓴다(media.js): 내 PeerJS, 내 PeerJS 이름, 손님 pid 의 PeerJS 이름
     peer: () => (closed ? null : peer), pj: () => (peer && peer.id) || '', remote: (pid) => { const c = conns.get(pid); return c ? c.peer : ''; },
   };

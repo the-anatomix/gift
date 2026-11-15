@@ -1251,7 +1251,6 @@ const advent = makeAdvent({
 // 숨은 마스터키 (master.js): 제목을 일곱 번 누른다
 const master = makeMaster({
   toast: (m) => toast(m), sky: { time: () => sky.time, setTime: (v) => sky.setTime(v) }, fire: () => sky.openFire(), dawn: () => sky.dawn(), lamp: { on: (lv) => lights.isOn(lv), toggle: (lv) => lights.toggle(lv), count: () => S.levels }, changed: () => { advent.repaint(); wardrobe.paint(); dirty = true; },
-  scene, ray(px, py) { aimRay(px, py); return ray.ray; }, shown: () => myLv === 0,
   fx: (m) => duo.fx(m), myId: () => duo.me, others: () => [...others.keys()], nameOf: (id) => nameOf(id), setMode: (m) => setMode(m), mode: () => mode,
   resized: () => { if (mode === 'master') measure(false); },
 });
@@ -1635,7 +1634,6 @@ function lift(e, ok) {
   if (mode === 'play') { play.tap(e.clientX, e.clientY); return; }
   if (snow.tap(e.clientX, e.clientY)) return; // 눈싸움 모드: 걸어가는 대신 눈덩이를 던진다
   if (games.tap(e.clientX, e.clientY)) return; // 숨바꼭질: 술래가 숨은 사람을 누름
-  if (mode === null && master.tap(e.clientX, e.clientY)) return; // 숨은 열쇠 (master.js)
   if ((mode === null || mode === 'gift') && gift.tap(e.clientX, e.clientY)) return; // 트리 밑 선물 상자
   if (mode === 'fridge' && food.tap(e.clientX, e.clientY)) return; // 열린 냉장고 안의 음식
   if (mode === null && !fly.on && !train.on) { const id = pickItem(e.clientX, e.clientY); if (id && useItem(id)) return; } // 케이크 내려놓기, 놀 수 있는 가구, 침대, 냉장고
@@ -2033,7 +2031,7 @@ window.__play = Object.assign(play.test, {
 });
 Object.defineProperties(window.__play, { on: { get: () => play.on }, posed: { get: () => !!pose }, id: { get: () => play.id }, spot: { get: () => play.spot } });
 window.__sky = sky.test;
-window.__master = { get on() { return master.on; }, get given() { return master.test.given; }, key: master.test.key };
+window.__master = { get on() { return master.on; }, get given() { return master.test.given; } };
 window.__food = food.test; window.__pizza = pizza.test; window.__game4 = gameroom.test; window.__pool = pool.test; window.__game4.convert = () => gameroom.convert();
 window.__cheers = cheers.test;
 window.__build = build.test; // 층 더하기·지우기와 층 테마 (build.js)
