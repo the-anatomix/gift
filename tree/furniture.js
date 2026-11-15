@@ -1,6 +1,6 @@
 // 가구 모양. 도형만으로 만든다. 바닥 자리 한가운데가 (0, 0), 앞쪽이 +z, 바닥이 y = 0.
 // 차지하는 칸 수는 catalog.js 의 FURNITURE 와 맞춘다(한 칸 0.5).
-import { THREE, M, T, L, E, F, G, flameGeo, sparks, put, rbox, cbox, cyl, ball, bake, pool, glowAt } from './kit.js';
+import { THREE, M, T, L, E, F, G, SN, flameGeo, sparks, put, rbox, cbox, cyl, ball, bake, pool, glowAt } from './kit.js';
 import { DART, TV } from './catalog.js';
 
 // TV 화면 재질: 모든 TV 가 같이 쓴다. 무엇을 비출지는 play.js 가 정한다.
@@ -63,6 +63,8 @@ function rugTexture() {
   return rugTex;
 }
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+const dome = (r, w = 10, h = 6) => new THREE.SphereGeometry(r, w, h, 0, Math.PI * 2, 0, Math.PI / 2); // 위쪽 반구
+const GLASS = new THREE.MeshLambertMaterial({ color: 0xCFEFF7, transparent: true, opacity: 0.22, depthWrite: false }); // 재료 진열대의 유리문
 const WD = (hex = WOOD) => T(hex, 'wood'), FB = (hex) => T(hex, 'fabric');
 const BLACK = 0x2B2420, WHITE = 0xFFFAF2, METAL = 0x8C8478;
 // 불빛 번짐: 등과 불 둘레의 옅은 빛 (kit.js 의 glowAt)
@@ -587,7 +589,201 @@ const B = {
     top.rotation.x = -Math.PI / 2;
     for (const s of [-1, 1]) for (let k = 0; k < 16; k++) put(box(0.05, 0.008, 0.022), CREAM, s * 0.745, 0.026, -0.43 + k * 0.0573, g, false); // 양 끝의 술
   },
+  // 요리 대결 (놀이는 cookoff.js): 조리대, 재료 진열대, 심사석
+  cookst(g) { // 2 × 1, 화구 둘(냄비·프라이팬)과 도마가 있는 빨간 조리대. 불꽃은 요리하는 동안만 켠다
+    const STEEL = 0xD3D8DD;
+    put(cbox(0.98, 0.8, 0.46, 0.03), G(0xB8352B), 0, 0.42, 0, g);
+    put(box(0.96, 0.08, 0.42), 0x4A3A34, 0, 0.04, 0, g, false);                        // 걸레받이
+    put(cbox(1.0, 0.05, 0.5, 0.015), G(STEEL), 0, 0.845, 0, g);                         // 스테인리스 윗판 (윗면 0.87)
+    for (const s of [-1, 1]) { // 앞의 서랍 둘과 금빛 손잡이, 초록 띠
+      put(box(0.44, 0.5, 0.02), 0xC4473A, 0.24 * s, 0.37, 0.235, g, false);
+      put(box(0.44, 0.12, 0.02), 0xC4473A, 0.24 * s, 0.7, 0.235, g, false);
+      put(cyl(0.009, 0.009, 0.16, 6), GOLD, 0.24 * s, 0.7, 0.255, g, false).rotation.z = Math.PI / 2;
+      put(cyl(0.009, 0.009, 0.12, 6), GOLD, 0.24 * s, 0.52, 0.255, g, false).rotation.z = Math.PI / 2;
+    }
+    put(box(0.98, 0.03, 0.022), GREEN, 0, 0.61, 0.24, g, false);
+    for (let k = -4; k <= 4; k++) put(ball(0.012, 5, 3), k % 2 ? GOLD : WHITE, k * 0.1, 0.61, 0.252, g, false); // 띠의 작은 구슬
+    // 왼쪽 화구판: 검은 유리, 화구 둘 (냄비 -0.37, 프라이팬 -0.14)
+    put(box(0.46, 0.012, 0.42), G(0x24262B), -0.25, 0.874, 0, g, false);
+    const POT = [-0.37, -0.07], PAN = [-0.14, 0.07];
+    for (const [x, z] of [POT, PAN]) {
+      put(new THREE.TorusGeometry(0.075, 0.01, 5, 16), 0x55504B, x, 0.885, z, g, false).rotation.x = Math.PI / 2;
+      for (let k = 0; k < 4; k++) put(box(0.15, 0.01, 0.012), 0x55504B, x, 0.889, z, g, false).rotation.y = k * Math.PI / 4;
+    }
+    for (const [x, c] of [[-0.42, RED], [-0.33, RED], [-0.1, 0x4A423C]]) { put(cyl(0.022, 0.022, 0.025, 8), c, x, 0.79, 0.255, g, false).rotation.x = Math.PI / 2; put(box(0.005, 0.026, 0.004), WHITE, x, 0.79, 0.27, g, false); } // 불 조절 손잡이
+    // 냄비 (끓이기·찌기)
+    put(cyl(0.085, 0.075, 0.11, 18), G(0xB9C0C6), POT[0], 0.95, POT[1], g);
+    put(new THREE.TorusGeometry(0.084, 0.006, 5, 18), G(0xE1E5E8), POT[0], 1.005, POT[1], g, false).rotation.x = Math.PI / 2;
+    put(cyl(0.077, 0.077, 0.004, 18), 0x3A3F45, POT[0], 0.99, POT[1], g, false);         // 냄비 속 (요리할 때 그 위에 재료가 오른다)
+    for (const s of [-1, 1]) put(cbox(0.04, 0.016, 0.03, 0.006), BLACK, POT[0] + 0.1 * s, 0.985, POT[1], g, false);
+    // 프라이팬 (볶기·굽기·튀기기)
+    put(cyl(0.09, 0.072, 0.03, 18), G(0x3A3F4A), PAN[0], 0.905, PAN[1], g);
+    put(cyl(0.083, 0.083, 0.004, 18), 0x2A2E36, PAN[0], 0.92, PAN[1], g, false);
+    { const h = put(cbox(0.17, 0.018, 0.03, 0.008), WD(DARK), PAN[0] + 0.15, 0.915, PAN[1] + 0.11, g, false); h.rotation.y = -0.62; }
+    // 불꽃: 화구마다 파란 가스 불꽃 고리 (cookoff.js 가 요리하는 동안만 보인다)
+    const flame = (x, z) => {
+      const f = new THREE.Group(); f.userData.own = true; f.visible = false; g.add(f);
+      for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, r = 0.062; put(flameGeo(0.012, 0.045, 5), F(k % 2 ? 0x3D8BFF : 0x5FA8FF), x + Math.cos(a) * r, 0.886, z + Math.sin(a) * r, f, false); }
+      for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.4, r = 0.05; put(flameGeo(0.009, 0.03, 5), F(0xFFB347), x + Math.cos(a) * r, 0.888, z + Math.sin(a) * r, f, false); }
+      glowAt(f, x, 0.9, z, 0.36, 0xFF9A40, 0.45, true);
+      return f;
+    };
+    const potF = flame(...POT), panF = flame(...PAN);
+    // 오른쪽: 도마와 칼, 썬 채소, 양념 병, 조리 도구 통
+    put(cbox(0.3, 0.02, 0.19, 0.008), WD(0xD9B285), 0.2, 0.88, -0.075, g);
+    put(box(0.012, 0.004, 0.13), 0xD8DDE2, 0.31, 0.892, -0.08, g, false).rotation.y = 0.25; put(box(0.016, 0.014, 0.07), DARK, 0.29, 0.896, 0.02, g, false).rotation.y = 0.25;
+    for (const [x, z, c] of [[0.11, -0.1, 0xF28C28], [0.13, -0.06, 0xF28C28], [0.15, -0.11, 0xF28C28], [0.19, -0.04, 0x4CA64C], [0.21, -0.08, 0x4CA64C]]) put(box(0.022, 0.016, 0.022), c, x, 0.898, z, g, false); // 당근·파
+    put(dome(0.035), 0xD9382E, 0.24, 0.89, -0.12, g, false).scale.y = 0.9;   // 반 쪼갠 토마토
+    put(cyl(0.032, 0.032, 0.002, 10), 0xF29C8C, 0.24, 0.891, -0.12, g, false);
+    for (const [x, c] of [[0.03, WHITE], [0.07, 0x3A3633]]) { put(cyl(0.017, 0.02, 0.06, 8), c, x, 0.9, -0.17, g, false); put(cyl(0.012, 0.017, 0.02, 8), METAL, x, 0.94, -0.17, g, false); } // 소금·후추
+    put(cyl(0.022, 0.026, 0.13, 8), 0xE7C25A, -0.01, 0.935, -0.19, g, false); put(cyl(0.008, 0.012, 0.04, 6), 0x2F7D56, -0.01, 1.02, -0.19, g, false); // 기름 병
+    put(cyl(0.045, 0.04, 0.12, 12), G(STEEL), 0.42, 0.93, -0.16, g);                    // 조리 도구 통
+    put(cyl(0.007, 0.007, 0.22, 5), WD(DARK), 0.4, 1.04, -0.17, g, false).rotation.z = 0.18; put(box(0.06, 0.07, 0.008), 0x3A3633, 0.38, 1.16, -0.17, g, false).rotation.z = 0.18; // 뒤집개
+    put(cyl(0.006, 0.006, 0.24, 5), METAL, 0.44, 1.05, -0.15, g, false).rotation.z = -0.15; put(new THREE.SphereGeometry(0.03, 8, 5, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), METAL, 0.462, 1.18, -0.15, g, false); // 국자
+    put(cyl(0.007, 0.007, 0.2, 5), WD(WOOD), 0.43, 1.03, -0.18, g, false).rotation.x = -0.15;  // 나무 주걱
+    // 뒷벽 판: 걸이 막대와 걸린 도구, 위의 솔가지 장식
+    put(box(1.0, 0.32, 0.02), G(0xE9EDF0), 0, 1.03, -0.24, g, false);
+    for (let k = -4; k <= 4; k++) put(box(0.003, 0.32, 0.004), 0xCDD3D8, k * 0.11, 1.03, -0.228, g, false);
+    put(cyl(0.008, 0.008, 0.8, 6), GOLD, 0, 1.12, -0.215, g, false).rotation.z = Math.PI / 2;
+    for (const [x, c] of [[-0.3, 0x3A3633], [-0.12, METAL], [0.08, RED]]) { put(cyl(0.004, 0.004, 0.05, 4), METAL, x, 1.1, -0.212, g, false); put(cbox(0.05, 0.1, 0.012, 0.01), c, x, 1.03, -0.21, g, false); } // 걸린 도구 (뒤집개·거품기·장갑)
+    put(cbox(1.02, 0.07, 0.07, 0.03), M(0x2F7D56, true), 0, 1.2, -0.22, g);
+    for (let k = 0; k < 7; k++) put(ball(0.022, 6, 4), k % 2 ? GOLD : RED, -0.45 + k * 0.15, 1.2, -0.18, g, false);
+    g.userData.cook = {
+      pot: [POT[0], 0.99, POT[1]], pan: [PAN[0], 0.92, PAN[1]], fl: { pot: potF, pan: panF },
+      spots: [[0.2, 0.87, 0.14], [0.42, 0.87, 0.1], [0.2, 0.89, -0.075]], // 다 된 요리 접시를 놓는 자리 (앞 오른쪽부터)
+    };
+    pool(g, 0, 0.02, 1.3, 0.8);
+  },
+  pantry(g) { // 2 × 1, 재료 진열대: 왼쪽은 나무 선반(채소·밥·면·달걀), 오른쪽은 유리문 냉장 칸(고기·생선·새우·치즈)
+    const H = 1.5;
+    put(new THREE.BoxGeometry(0.6, H, 0.03), WD(WOOD_D), -0.2, H / 2, -0.215, g);      // 선반 뒤판
+    for (const x of [-0.49, 0.09]) put(cbox(0.04, H, 0.44, 0.015), WD(WOOD_D), x, H / 2, 0, g);
+    const rows = [0.06, 0.5, 0.94, 1.38];
+    for (const y of rows) put(new THREE.BoxGeometry(0.56, 0.035, 0.4), WD(WOOD), -0.2, y, 0, g);
+    put(cbox(0.66, 0.05, 0.46, 0.02), WD(WOOD_D), -0.2, H + 0.02, 0, g);
+    // 아래 칸: 쌀자루, 감자 상자, 양파 바구니
+    put(cbox(0.15, 0.24, 0.12, 0.04), 0xF4EBDD, -0.38, 0.2, 0.02, g); put(box(0.09, 0.07, 0.004), RED, -0.38, 0.2, 0.082, g, false);
+    put(ball(0.07, 8, 5), 0xF4EBDD, -0.38, 0.32, 0.02, g, false).scale.set(1, 0.4, 0.8);
+    put(cbox(0.17, 0.09, 0.15, 0.01), WD(0xB98A55), -0.19, 0.125, 0.04, g);
+    for (const [x, z] of [[-0.23, 0.01], [-0.16, 0.0], [-0.21, 0.07], [-0.14, 0.07], [-0.18, 0.035]]) put(ball(0.035, 7, 5), 0xC9A063, x, 0.18, z, g, false).scale.set(1.15, 0.85, 1);
+    put(cyl(0.08, 0.065, 0.08, 10), T(0xC9A06A, 'plank'), -0.0, 0.12, 0.04, g);
+    for (const [x, z] of [[-0.03, 0.02], [0.03, 0.04], [0.0, 0.08]]) { put(ball(0.035, 7, 5), 0xEBD9B8, x, 0.18, z, g, false); put(new THREE.ConeGeometry(0.012, 0.03, 5), 0xC9A86A, x, 0.22, z, g, false); }
+    // 가운데 칸: 토마토 그릇, 버섯, 고추, 김치 단지
+    put(cyl(0.09, 0.06, 0.05, 12), WHITE, -0.37, 0.545, 0.03, g);
+    for (const [x, z] of [[-0.4, 0.01], [-0.34, 0.02], [-0.37, 0.07], [-0.36, 0.0]]) put(ball(0.035, 8, 6), 0xD9382E, x, 0.6 + (z === 0 ? 0.03 : 0), z, g, false);
+    for (const [x, z] of [[-0.2, 0.02], [-0.15, 0.05], [-0.24, 0.07]]) { put(cyl(0.012, 0.014, 0.04, 6), 0xF1E6D2, x, 0.54, z, g, false); put(dome(0.03, 8, 5), 0xA4774E, x, 0.56, z, g, false); }
+    for (let k = 0; k < 4; k++) { const c = put(new THREE.CapsuleGeometry(0.011, 0.07, 3, 6), k % 3 ? 0xC8231B : 0x3E8A3E, -0.06 + k * 0.025, 0.535, 0.06 - k * 0.012, g, false); c.rotation.set(Math.PI / 2, 0, 0.4 + k * 0.2); }
+    put(cyl(0.055, 0.05, 0.13, 10), 0xE8EEF0, 0.0, 0.585, -0.06, g); put(cyl(0.048, 0.048, 0.1, 10), 0xC9442B, 0.0, 0.58, -0.06, g, false); put(cyl(0.058, 0.058, 0.025, 10), RED, 0.0, 0.66, -0.06, g, false); // 김치 단지
+    // 위 칸: 면 묶음, 달걀판, 두부
+    for (let k = 0; k < 3; k++) { put(box(0.05, 0.03, 0.2), 0xF2D9A0, -0.39 + k * 0.055, 0.975, 0.02, g, false); put(box(0.052, 0.032, 0.02), RED, -0.39 + k * 0.055, 0.975, 0.02, g, false); }
+    put(box(0.2, 0.025, 0.13), 0xD9C7A8, -0.17, 0.97, 0.03, g, false);
+    for (let a = 0; a < 3; a++) for (let b = 0; b < 2; b++) put(ball(0.024, 7, 5), 0xFBF2E2, -0.235 + a * 0.065, 0.995, 0.0 + b * 0.06, g, false).scale.y = 1.25;
+    put(cbox(0.1, 0.05, 0.08, 0.01), 0xF7F2E4, 0.0, 0.985, 0.04, g); put(box(0.11, 0.012, 0.09), 0xBFDDE8, 0.0, 0.962, 0.04, g, false);
+    // 맨 위: 작은 칠판 간판과 호랑가시
+    put(box(0.36, 0.16, 0.02), 0x2E3A33, -0.2, 1.47, -0.18, g, false); put(box(0.38, 0.18, 0.012), WD(DARK), -0.2, 1.47, -0.192, g, false);
+    for (const [x, c] of [[-0.3, 0xF6EEDD], [-0.24, 0xF7D154], [-0.18, 0xF29C8C], [-0.12, 0x9BC25A]]) put(box(0.04, 0.012, 0.003), c, x, 1.48, -0.168, g, false); // 분필 글씨
+    put(ball(0.05, 6, 4), M(0x2F7D56, true), 0.0, 1.56, 0.05, g, false).scale.set(1.5, 0.5, 1); for (const [x, z] of [[-0.02, 0.07], [0.02, 0.06]]) put(ball(0.016, 5, 3), RED, x, 1.58, z, g, false);
+    // 오른쪽 냉장 칸: 흰 몸통, 안쪽 불빛, 유리문 (생선·고기·새우·치즈)
+    put(rbox(0.4, H, 0.46, 0.025), G(0xEEF2F4), 0.3, H / 2, 0, g);
+    put(new THREE.BoxGeometry(0.34, H - 0.12, 0.02), 0xDCEFF6, 0.3, H / 2, 0.215, g, false); // 밝은 안쪽 (문 너머)
+    put(box(0.3, 0.02, 0.03), E(0xEAF8FF, 0.5), 0.3, H - 0.1, 0.23, g, false);
+    for (const y of [0.3, 0.68, 1.06]) put(box(0.34, 0.012, 0.06), 0xBFDDE8, 0.3, y, 0.23, g, false);
+    const fish = (y) => { put(cbox(0.2, 0.03, 0.035, 0.01), 0xF08A5D, 0.28, y + 0.03, 0.245, g, false); for (let k = 0; k < 4; k++) put(box(0.004, 0.032, 0.036), 0xFBD3BF, 0.21 + k * 0.045, y + 0.03, 0.246, g, false); };
+    fish(1.06);
+    put(cbox(0.13, 0.05, 0.035, 0.012), 0x8B3A2B, 0.25, 0.705, 0.245, g, false); for (const [x, y] of [[0.22, 0.71], [0.27, 0.7]]) put(box(0.03, 0.006, 0.037), 0xF1D1C6, x, y, 0.246, g, false); // 소고기 마블
+    put(cbox(0.1, 0.05, 0.035, 0.008), 0xE9A27E, 0.39, 0.705, 0.245, g, false); put(box(0.1, 0.008, 0.037), 0xFBEDE4, 0.39, 0.71, 0.246, g, false); // 삼겹살
+    for (let k = 0; k < 3; k++) put(new THREE.TorusGeometry(0.018, 0.008, 5, 8, Math.PI * 1.3), 0xF5875F, 0.22 + k * 0.05, 0.345, 0.245, g, false).rotation.z = 0.6;   // 새우
+    put(new THREE.CylinderGeometry(0.06, 0.06, 0.04, 10, 1, false, 0, Math.PI / 2.4), 0xF6C445, 0.38, 0.33, 0.235, g, false).rotation.y = -0.5; // 치즈 조각
+    for (let k = 0; k < 2; k++) { const d = put(new THREE.CapsuleGeometry(0.018, 0.05, 3, 6), 0xE9C27A, 0.24 + k * 0.07, 1.25, 0.245, g, false); d.rotation.z = 1.2; } // 닭다리
+    put(new THREE.BoxGeometry(0.36, H - 0.1, 0.006), GLASS, 0.3, H / 2, 0.262, g, false); // 유리
+    put(cyl(0.01, 0.01, 0.5, 6), METAL, 0.135, H / 2 + 0.1, 0.275, g, false);           // 문 손잡이
+    pool(g, 0, 0.02, 1.25, 0.8);
+  },
+  judge(g) { // 3 × 1, 심사석: 빨간 식탁보를 덮은 긴 탁자, 뒤에 심사위원 셋(산타 할아버지·진저 셰프·눈사람 미식가), 이름표·종·점수판
+    const TOP = 0.72, SEAT = [-0.48, 0, 0.48];
+    // 의자: 금빛 테를 두른 초록 등받이
+    for (const x of SEAT) {
+      put(cbox(0.3, 0.05, 0.2, 0.015), WD(WOOD_D), x, 0.45, -0.15, g);
+      for (const a of [-1, 1]) put(cyl(0.015, 0.012, 0.44, 6), WD(DARK), x + 0.12 * a, 0.22, -0.08, g, false);
+      put(cbox(0.32, 0.5, 0.04, 0.03), FB(GREEN), x, 0.78, -0.235, g);
+      put(cbox(0.36, 0.05, 0.05, 0.02), GOLD, x, 1.05, -0.235, g, false);
+      put(ball(0.03, 6, 4), GOLD, x, 1.1, -0.235, g, false);
+    }
+    // 심사위원: 탁자 뒤에 앉아 앞을 본다
+    const face = (x, y, z) => { for (const s of [-1, 1]) { put(ball(0.012, 5, 3), BLACK, x + 0.03 * s, y + 0.01, z + 0.07, g, false); put(ball(0.016, 5, 3), 0xF29C9C, x + 0.05 * s, y - 0.02, z + 0.06, g, false).scale.set(1, 0.6, 0.4); } };
+    { const x = SEAT[0]; // 산타 할아버지 (맛)
+      put(cyl(0.1, 0.13, 0.28, 12), FB(0xC8302A), x, 0.6, -0.14, g);
+      put(cyl(0.135, 0.135, 0.04, 12), BLACK, x, 0.52, -0.14, g, false); put(box(0.05, 0.045, 0.01), GOLD, x, 0.52, -0.005, g, false);
+      put(ball(0.085, 12, 9), 0xF5D3B8, x, 0.86, -0.14, g);
+      put(ball(0.075, 10, 7), WHITE, x, 0.81, -0.09, g, false).scale.set(1.1, 1.1, 0.7);   // 수염
+      put(ball(0.02, 6, 4), 0xF29C8C, x, 0.86, -0.06, g, false);                          // 코
+      face(x, 0.87, -0.15);
+      put(new THREE.TorusGeometry(0.08, 0.022, 6, 14), WHITE, x, 0.93, -0.14, g, false).rotation.x = Math.PI / 2;
+      const hat = put(new THREE.ConeGeometry(0.08, 0.17, 10), FB(0xC8302A), x + 0.02, 1.02, -0.15, g); hat.rotation.z = -0.35;
+      put(ball(0.025, 6, 4), WHITE, x + 0.07, 1.08, -0.15, g, false);
+    }
+    { const x = SEAT[1]; // 진저 셰프 (창의): 생강 과자 얼굴과 흰 요리사 모자
+      put(cyl(0.1, 0.12, 0.28, 12), WHITE, x, 0.6, -0.14, g);
+      for (const y of [0.66, 0.58]) put(ball(0.012, 5, 3), RED, x, y, -0.03, g, false);    // 단추
+      put(new THREE.TorusGeometry(0.06, 0.012, 5, 12, Math.PI), RED, x, 0.74, -0.08, g, false).rotation.z = Math.PI; // 목수건
+      put(ball(0.09, 12, 9), 0xB8743F, x, 0.86, -0.14, g);
+      for (const s of [-1, 1]) put(ball(0.014, 5, 3), WHITE, x + 0.032 * s, 0.875, -0.065, g, false);
+      put(new THREE.TorusGeometry(0.035, 0.007, 4, 10, Math.PI), WHITE, x, 0.845, -0.06, g, false).rotation.z = Math.PI; // 웃는 아이싱
+      put(cyl(0.075, 0.07, 0.1, 12), WHITE, x, 0.98, -0.14, g);
+      for (const [dx, dz] of [[-0.04, 0], [0.04, 0], [0, 0.03], [0, -0.03]]) put(ball(0.05, 8, 6), WHITE, x + dx, 1.05, -0.14 + dz, g, false); // 몽글몽글한 모자 윗부분
+    }
+    { const x = SEAT[2]; // 눈사람 미식가 (완성도)
+      put(ball(0.13, 12, 9), SN(), x, 0.6, -0.14, g);
+      put(ball(0.09, 12, 9), SN(), x, 0.84, -0.14, g);
+      put(new THREE.ConeGeometry(0.018, 0.08, 7), 0xF28C28, x, 0.84, -0.03, g, false).rotation.x = Math.PI / 2;
+      for (const s of [-1, 1]) put(ball(0.012, 5, 3), BLACK, x + 0.032 * s, 0.87, -0.065, g, false);
+      put(new THREE.TorusGeometry(0.085, 0.025, 6, 14), T(GREEN, 'knit'), x, 0.735, -0.14, g).rotation.x = Math.PI / 2;
+      put(cyl(0.1, 0.1, 0.015, 12), BLACK, x, 0.925, -0.14, g, false); put(cyl(0.065, 0.065, 0.1, 12), BLACK, x, 0.98, -0.14, g, false);
+      put(cyl(0.067, 0.067, 0.022, 12), RED, x, 0.945, -0.14, g, false);
+      put(box(0.025, 0.06, 0.006), 0x9BC25A, x + 0.04, 0.96, -0.08, g, false).rotation.z = 0.5;   // 모자의 호랑가시 잎
+    }
+    // 탁자: 빨간 식탁보가 앞으로 바닥까지 내려오고 금빛 띠와 별
+    put(cbox(1.46, 0.03, 0.32, 0.01), FB(0xB8322A), 0, TOP, 0.09, g);
+    put(box(1.46, 0.68, 0.02), FB(0xB8322A), 0, 0.37, 0.245, g);
+    for (const s of [-1, 1]) put(box(0.02, 0.68, 0.32), FB(0xB8322A), 0.72 * s, 0.37, 0.09, g, false);
+    put(box(1.47, 0.045, 0.026), GOLD, 0, 0.67, 0.25, g, false);
+    put(box(1.47, 0.025, 0.026), GOLD, 0, 0.04, 0.25, g, false);
+    { const sh = new THREE.Shape(); for (let k = 0; k < 10; k++) { const a = Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? 0.045 : 0.11; if (k) sh.lineTo(Math.cos(a) * r, Math.sin(a) * r); else sh.moveTo(Math.cos(a) * r, Math.sin(a) * r); } sh.closePath();
+      put(new THREE.ShapeGeometry(sh), G(GOLD), 0, 0.4, 0.256, g, false); }
+    for (const s of [-1, 1]) put(new THREE.TorusGeometry(0.06, 0.008, 4, 14), GOLD, 0.45 * s, 0.4, 0.256, g, false); // 양옆의 금빛 고리
+    put(box(1.1, 0.004, 0.2), WHITE, 0, TOP + 0.017, 0.08, g, false);                    // 가운데 흰 깔개
+    // 이름표 (맛·창의·완성도), 물잔, 종, 점수판
+    SEAT.forEach((x, k) => {
+      const tent = new THREE.Group(); tent.position.set(x, TOP + 0.016, 0.205); g.add(tent);
+      for (const s of [-1, 1]) { const p = put(box(0.17, 0.07, 0.004), WHITE, 0, 0.032, 0.012 * s, tent, false); p.rotation.x = 0.28 * s; }
+      const lab = put(new THREE.PlaneGeometry(0.16, 0.06), nameTag(k), 0, 0.034, 0.024, tent, false); lab.rotation.x = -0.28;
+      put(cyl(0.022, 0.018, 0.07, 10), 0xCFE8F2, x - 0.12, TOP + 0.05, -0.045, g, false);  // 물잔
+    });
+    put(cyl(0.05, 0.055, 0.015, 14), 0x3A3633, 0.64, TOP + 0.024, 0.17, g, false);        // 종 (탁자 오른쪽 앞)
+    put(dome(0.042, 12, 8), G(GOLD), 0.64, TOP + 0.03, 0.17, g, false);
+    put(cyl(0.006, 0.006, 0.02, 6), GOLD, 0.64, TOP + 0.08, 0.17, g, false); put(ball(0.01, 6, 4), GOLD, 0.64, TOP + 0.09, 0.17, g, false);
+    for (let k = 0; k < 3; k++) { put(box(0.09, 0.004, 0.07), WHITE, -0.66 + k * 0.012, TOP + 0.02 + k * 0.004, 0.13 - k * 0.01, g, false).rotation.y = 0.2 * k; } // 점수판 더미
+    put(cyl(0.006, 0.006, 0.1, 5), WD(WOOD), -0.6, TOP + 0.022, 0.17, g, false).rotation.set(Math.PI / 2, 0, 0.6);
+    g.userData.judge = {
+      spots: [[-0.24, TOP + 0.016, 0.08], [0.24, TOP + 0.016, 0.08], [0, TOP + 0.016, 0.07]], // 심사받는 접시를 놓는 자리 (이름표에 가리지 않게 심사위원 사이부터)
+      cards: SEAT.map((x) => [x, 1.2, -0.1]), // 점수판을 드는 자리 (심사위원 머리 위)
+    };
+    pool(g, 0, 0.02, 1.8, 0.8);
+  },
 };
+// 심사석 이름표 그림 (맛·창의·완성도). 한 번만 그려서 모든 심사석이 같이 쓴다
+const tags = [];
+function nameTag(k) {
+  if (tags[k]) return tags[k];
+  const c = document.createElement('canvas'); c.width = 256; c.height = 96;
+  const x = c.getContext('2d');
+  x.fillStyle = '#FFFAF2'; x.fillRect(0, 0, 256, 96);
+  x.fillStyle = ['#C8302A', '#B8743F', '#2F7D56'][k]; x.fillRect(0, 0, 256, 14); x.fillRect(0, 82, 256, 14);
+  x.fillStyle = '#2B2420'; x.font = 'bold 50px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(['맛', '창의', '완성도'][k], 128, 50);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return (tags[k] = new THREE.MeshBasicMaterial({ map: t }));
+}
 
 // 다른 모듈이 가구 모양을 더한다 (어드벤트 달력과 거기서 풀리는 특별 가구: advent.js)
 export function addShape(k, fn) { B[k] = fn; }
