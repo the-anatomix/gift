@@ -13,7 +13,7 @@
 // 암호는 코드에 해시(SHA-256)로만 둔다. 사이트 코드는 누구나 볼 수 있고 소식도 흉내 낼 수 있으니 완벽한 보안은 아니고, 모르는 사람이 우연히 켜지 못하게 하는 정도다.
 import { THREE } from './kit.js';
 const NS = (() => { try { const n = new URLSearchParams(location.search).get('ns'); return n ? '.' + n : ''; } catch (_) { return ''; } })(); // 자동 검사는 ?ns= 로 창마다 저장값을 나눈다
-const HASH = 'de94e28d7a302b52374831e94e8c70adddf861c691e77ab53f0646f55543a3e7', SLOT = 'tree.master' + NS, GRANT = 'tree.grant' + NS;
+const HASH = '784fab8e1ed8c33f4f76b49522a65591e94c9d7834cd8a4ad625fbc1a87bdb10', SLOT = 'tree.master' + NS, GRANT = 'tree.grant' + NS;
 export const LOCK = 1, FIRE = 2, SKY = 4, GIFT = 8, SUIT = 16, SLED = 32, CINE = 64, BUILD = 128, ALL = 255;
 export const KEY_AT = { x: -3.72, y: 0.03, z: -3.72 };
 const get = (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } };

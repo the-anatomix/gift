@@ -12,7 +12,7 @@ const ready = (p) => until(() => p.evaluate(() => !!(window.__tree && window.__d
 async function open(ctx, url) {
   const p = await ctx.newPage();
   await p.addInitScript(() => { window.__bare = true; }); // 기본 가구 없이 빈 방에서 시작한다
-  await p.addInitScript(() => { if (new URLSearchParams(location.search).get('ns') === 'fya') localStorage.setItem('tree.master.fya', 'de94e28d7a302b52374831e94e8c70adddf861c691e77ab53f0646f55543a3e7'); }); // 비행 슈트는 마스터키를 켠 사람만 (방장 창)
+  await p.addInitScript(() => { if (new URLSearchParams(location.search).get('ns') === 'fya') localStorage.setItem('tree.master.fya', '784fab8e1ed8c33f4f76b49522a65591e94c9d7834cd8a4ad625fbc1a87bdb10'); }); // 비행 슈트는 마스터키를 켠 사람만 (방장 창)
   p.on('pageerror', (e) => { errors.push(e.message); console.log('   (페이지 오류)', e.message); });
   await p.goto(url); await ready(p);
   if (await p.isVisible('#lookDone')) await p.click('#lookDone');

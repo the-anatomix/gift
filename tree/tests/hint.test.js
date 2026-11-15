@@ -25,7 +25,7 @@ const tapArrow = async (p, id, side) => { const a = (await H(p, id)).arrows.find
   try {
     const ctx = await browser.newContext({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true });
     const A = await ctx.newPage();
-    await A.addInitScript(() => localStorage.setItem('tree.master.hta', 'de94e28d7a302b52374831e94e8c70adddf861c691e77ab53f0646f55543a3e7')); // 달력으로 잠긴 가구가 없게
+    await A.addInitScript(() => localStorage.setItem('tree.master.hta', '784fab8e1ed8c33f4f76b49522a65591e94c9d7834cd8a4ad625fbc1a87bdb10')); // 달력으로 잠긴 가구가 없게
     A.on('pageerror', (e) => { errors.push(e.message); console.log('   (페이지 오류)', e.message); });
     await A.goto(`${BASE}?net=bc&door=0&ns=hta`);
     await until(() => A.evaluate(() => !!(window.__tree && window.__tree.frames > 3)), 30000);
