@@ -59,7 +59,7 @@ async function walkAndTrace(p, act) {
 
     /* 가구 */
     await A.tap('#tabs button[data-m="furn"]'); await sleep(300);
-    check('가구 탭을 누르면 가구 54가지(어드벤트 달력과 달력으로 풀리는 특별 가구 7가지, 영화관 소품, 요리 대결 가구, 게임방 가구 포함)가 나옴', (await A.isVisible('#furn')) && (await A.locator('#furnList .pick').count()) === 54 && (await T(A, () => window.__tree.mode)) === 'furn');
+    check('가구 탭을 누르면 가구 79가지(어드벤트 달력과 달력으로 풀리는 특별 가구 7가지, 영화관 소품, 요리 대결 가구, 게임방 가구, 테마 소품 25가지 포함)가 나옴', (await A.isVisible('#furn')) && (await A.locator('#furnList .pick').count()) === 79 && (await T(A, () => window.__tree.mode)) === 'furn');
     check('가구 판의 단추가 44px 이상', (await audit(A)).length === 0, await audit(A));
     // 목록: 접어 두면 옆으로 넘기고, "전체 보기"를 누르면 한 번에 다 보인다
     const shown = (sel) => A.evaluate((q) => { const box = document.querySelector(q), r = box.getBoundingClientRect();
@@ -272,7 +272,7 @@ async function walkAndTrace(p, act) {
     await B.mouse.move(fb.x, fb.y); await B.mouse.wheel(0, 300); await sleep(200);
     check('PC 에서는 목록 위에서 휠을 굴리면 옆으로 넘어감', (await B.evaluate(() => document.getElementById('furnList').scrollLeft)) > 100);
     await B.click('.more[data-list="furnList"]'); await sleep(200);
-    check('PC 에서도 "전체 보기"로 가구 32가지가 다 보임', await B.evaluate(() => { const box = document.getElementById('furnList').getBoundingClientRect(); return [...document.querySelectorAll('#furnList .pick')].every((b) => { const c = b.getBoundingClientRect(); return c.left >= box.left - 1 && c.right <= box.right + 1 && c.bottom <= innerHeight; }); }));
+    check('PC 에서도 "전체 보기"로 가구를 다 볼 수 있음 (목록은 화면 안, 넘치면 목록 안에서 위아래로 넘겨 맨 끝까지)', await B.evaluate(() => { const el = document.getElementById('furnList'), box = el.getBoundingClientRect(), all = [...el.querySelectorAll('.pick')]; if (box.bottom > innerHeight || !all.every((b) => { const c = b.getBoundingClientRect(); return c.left >= box.left - 1 && c.right <= box.right + 1; })) return false; el.scrollTop = el.scrollHeight; const c = all[all.length - 1].getBoundingClientRect(); el.scrollTop = 0; return c.bottom <= box.bottom + 1; }));
     await B.reload(); await ready(B);
     await B.click('#tabs button[data-m="furn"]'); await sleep(200);
     check('펼쳐 둔 것은 다시 열어도 그대로', await B.evaluate(() => document.getElementById('furnList').classList.contains('open')));

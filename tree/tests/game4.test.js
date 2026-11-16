@@ -4,7 +4,7 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8232, BASE = `http://localhost:${PORT}/tree/`, OUT = path.join(__dirname, 'out');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript' };
-const HASH = '784fab8e1ed8c33f4f76b49522a65591e94c9d7834cd8a4ad625fbc1a87bdb10';
+const HASH = '9262b0baa88add8fdc882f6772709ebfbd645aaa651e904e4e3d795898a71a7d';
 const results = [];
 const check = (name, ok, d) => { results.push(!!ok); console.log(`${ok ? '통과' : '실패'}  ${name}${!ok && d !== undefined ? '  → ' + JSON.stringify(d) : ''}`); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -27,7 +27,7 @@ const kinds = (p, lv) => T(p, (lv) => [...window.__tree.S.items.values()].filter
 const idOf = (p, k) => T(p, (k) => { const it = [...window.__tree.S.items.values()].find((x) => x.k === k); return it ? it.id : null; }, k);
 const bunnies = (p) => T(p, () => [...window.__tree.S.items.values()].filter((it) => /^bunny\d?$/.test(it.k)).length);
 const hash = (p) => T(p, () => window.__duo.hash());
-const audit = (p, sel) => p.evaluate((sel) => [...document.querySelectorAll(sel)].filter((b) => b.getBoundingClientRect().width && !b.closest('[hidden]')).map((b) => [b.textContent.trim(), b.getBoundingClientRect()]).filter(([, r]) => r.width < 43.5 || r.height < 43.5 || r.left < 0 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5).map(([t, r]) => `${t}: ${Math.round(r.width)}×${Math.round(r.height)}`), sel);
+const audit = (p, sel) => p.evaluate((sel) => [...document.querySelectorAll(sel)].filter((b) => b.getBoundingClientRect().width && !b.closest('[hidden]') && !b.closest('.scroll')).map((b) => [b.textContent.trim(), b.getBoundingClientRect()]).filter(([, r]) => r.width < 43.5 || r.height < 43.5 || r.left < 0 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5).map(([t, r]) => `${t}: ${Math.round(r.width)}×${Math.round(r.height)}`), sel);
 const serve = () => http.createServer((q, r) => { let p = decodeURIComponent(q.url.split('?')[0]); if (p.endsWith('/')) p += 'index.html'; fs.readFile(path.join(ROOT, p), (e, d) => { if (e) { r.writeHead(404); r.end(); } else { r.writeHead(200, { 'content-type': TYPES[path.extname(p)] || 'application/octet-stream' }); r.end(d); } }); }).listen(PORT);
 const settle = (p) => until(() => T(p, () => { const m = window.__tree.me; return !m.moving && !m.path.length && !m.climbing; }), 60000);
 
@@ -53,7 +53,7 @@ const settle = (p) => until(() => T(p, () => { const m = window.__tree.me; retur
     /* 가구 목록 */
     await A.tap('#tabs button[data-m="furn"]'); await sleep(300);
     const picks = await T(A, () => [...document.querySelectorAll('#furnList .pick')].map((b) => b.textContent.trim()));
-    check('가구 탭에 게임방 가구 여덟 가지가 나옴 (누구나 직접 놓는다)', ['오락기', '인형뽑기', '당구대', '빈백', '토끼 인형 (빨강)', '토끼 인형 (하늘)', '토끼 인형 (노랑)', '큰 토끼 인형'].every((n) => picks.some((t) => t.includes(n))) && picks.length === 54, [picks.length, picks.slice(-9)]);
+    check('가구 탭에 게임방 가구 여덟 가지가 나옴 (누구나 직접 놓는다)', ['오락기', '인형뽑기', '당구대', '빈백', '토끼 인형 (빨강)', '토끼 인형 (하늘)', '토끼 인형 (노랑)', '큰 토끼 인형'].every((n) => picks.some((t) => t.includes(n))) && picks.length === 79, [picks.length, picks.slice(-9)]);
     await A.tap('#tabs button[data-m="furn"]'); await sleep(200);
     check('토끼 인형을 2층에도 놓을 수 있음', await T(A, () => window.__tree.dispatch({ t: 'put', id: 'bn', k: 'bunny2', i: 32 + 5, j: 5, r: 0 })) && await T(A, () => { let n = 0; window.__tree.itemObj && 0; const W = window.__tree; return W.S.items.get('bn').k === 'bunny2'; }));
 

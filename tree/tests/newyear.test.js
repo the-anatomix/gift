@@ -4,7 +4,7 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8231, BASE = `http://localhost:${PORT}/tree/`, OUT = path.join(__dirname, 'out');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript' };
-const HASH = '784fab8e1ed8c33f4f76b49522a65591e94c9d7834cd8a4ad625fbc1a87bdb10';
+const HASH = '9262b0baa88add8fdc882f6772709ebfbd645aaa651e904e4e3d795898a71a7d';
 const results = [];
 const check = (name, ok, d) => { results.push(!!ok); console.log(`${ok ? '통과' : '실패'}  ${name}${!ok && d !== undefined ? '  → ' + JSON.stringify(d) : ''}`); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

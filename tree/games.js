@@ -29,6 +29,7 @@ import { cellOf, zoneOf, levelOf, levelOfCell, levelCount, centerOf, toWorld, X0
 import { kindOf, footprint } from './state.js';
 import { THREE, G as GLOSS, glowAt } from './kit.js';
 import { sfx } from './sfx.js';
+import { mark } from './quest.js';
 
 const $ = (id) => document.getElementById(id);
 const now = () => (typeof window.__now === 'function' ? window.__now() : Date.now());
@@ -421,12 +422,12 @@ export function makeGames(K) {
       main = g.win === 'seeker' ? `🔎 술래(${who(g.sk)}) 승리!` : '🙈 숨은 사람 승리!';
       lines.push(g.why);
       lines.push(`찾은 사람 ${g.out.length}/${g.pl.length - 1}` + (left.length ? ` · 끝까지 안 들킨 사람: ${names(left)}` : ''));
-      if (inGame()) lines.push((g.win === 'seeker') === (g.sk === me()) ? '🎉 이겼어요!' : '아쉽게 졌어요');
+      if (inGame()) { const won = (g.win === 'seeker') === (g.sk === me()); if (won) mark(g.sk === me() ? 'seek' : 'hider', g.gid); lines.push(won ? '🎉 이겼어요!' : '아쉽게 졌어요'); }
     } else {
       main = `🎅 몰래 산타는 ${g.who === me() ? '나였어요' : josa(who(g.who), '이었어요', '였어요')}!`;
       lines.push(g.win === 'town' ? '시민 승리! ' + g.why : '몰래 산타 승리! ' + g.why);
       lines.push(`훔친 장식 ${g.st.length}/${g.goal}`);
-      if (inGame()) lines.push((g.win === 'santa') === (g.who === me()) ? '🎉 이겼어요!' : '아쉽게 졌어요');
+      if (inGame()) { const won = (g.win === 'santa') === (g.who === me()); if (won) mark(g.who === me() ? 'santa' : 'town', g.gid); lines.push(won ? '🎉 이겼어요!' : '아쉽게 졌어요'); }
     }
     if (g.g === 'hunt') [main, lines] = huntResult(g);
     ended.add(g.gid);
@@ -442,6 +443,7 @@ export function makeGames(K) {
       const all = mine === n;
       lines.push(g.why);
       if (all) {
+        mark('hunt', g.gid);
         lines.push(`걸린 시간 ${fmt(g.tk)}`);
         const best = bestHunt();
         if (!best || g.tk < best) { saveBest(g.tk); lines.push(best ? `🏆 내 최고 기록! (전에는 ${fmt(best)})` : '🏆 첫 기록이에요! 다음엔 더 빨리?'); }

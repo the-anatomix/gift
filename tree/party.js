@@ -1,3 +1,4 @@
+import { mark } from './quest.js';
 // 방 사람들이 다 같이 보는 짧은 장면들: 트리 점등식, 단체 사진.
 //   점등식: 3·2·1 → 방이 어두워짐 → "점등!" 트리 전구가 켜지고 트리 둘레 빛이 확 밝아짐 → 방 밝기가 천천히 돌아옴. 눈과 반짝이가 내리고 오르골이 있으면 캐럴.
 //   단체 사진: 3·2·1 → 찰칵(하얀 번쩍임과 셔터 소리) → 각자 자기 화면을 찍어 폴라로이드로 보여 준다. 세는 동안 걷고 손을 흔들 수 있다.
@@ -111,7 +112,7 @@ export function makeParty(K) {
     }
     if (!show.lit) {
       show.lit = true;
-      big('점등!', 'word');
+      big('점등!', 'word'); if (show.mine) mark('light');
       tick(880, 0.5, 0.14); setTimeout(() => tick(1320, 0.6, 0.1), 90);
       if (show.mine && !K.lightsOn() && K.canEdit()) K.lightUp(); // 꺼져 있던 전구를 켠다 (방의 상태라 모두에게 간다)
       if (K.hasMusic()) K.song('jingle');

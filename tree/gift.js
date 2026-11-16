@@ -14,6 +14,7 @@ import { THREE, M, G, put, rbox, ball } from './kit.js';
 import { GIFT, WRAPS, NOTE } from './catalog.js';
 import { cleanWords, giftsList, cakesList } from './state.js';
 import { can, GIFT as MK_GIFT } from './master.js';
+import { mark } from './quest.js';
 
 // 지금 시각. 검사에서는 window.__now 로 날짜를 바꾼다 (날짜는 그 사람 기기의 현지 시간)
 const now = () => (typeof window.__now === 'function' ? window.__now() : Date.now());
@@ -181,7 +182,7 @@ export function makeGift(K) {
     if (withCake && !cake) { K.toast('조각이 남은 케이크가 없어요'); withCake = false; paint(); return false; }
     if (!K.op({ t: 'gift', id: K.newId(), to, from, text, wrap, at: Math.round(now()), cake: cake || '' })) { K.toast('선물을 두지 못했어요'); return false; }
     if (cleanWords(draft.from, GIFT.name) && from !== cleanWords(K.defName(), NOTE.name)) { if (K.setName) K.setName(from); else K.store.set(NAME_KEY, from); }
-    lastAt = performance.now();
+    lastAt = performance.now(); mark('gifts');
     draft = { to: '', from, text: '' }; withCake = false;
     for (const i of panel.querySelectorAll('input')) i.blur();
     view = 'list'; paint();

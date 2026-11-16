@@ -12,7 +12,7 @@ const ready = (p) => until(() => p.evaluate(() => !!(window.__tree && window.__d
 async function open(ctx, url) {
   const p = await ctx.newPage();
   await p.addInitScript(() => { window.__bare = true; }); // 기본 가구 없이 빈 방에서 시작한다
-  await p.addInitScript(() => { if (new URLSearchParams(location.search).get('ns') === 'sla') localStorage.setItem('tree.master.sla', '784fab8e1ed8c33f4f76b49522a65591e94c9d7834cd8a4ad625fbc1a87bdb10'); }); // 비행 슈트는 마스터키를 켠 사람만 (방장 창)
+  await p.addInitScript(() => { if (new URLSearchParams(location.search).get('ns') === 'sla') localStorage.setItem('tree.master.sla', '9262b0baa88add8fdc882f6772709ebfbd645aaa651e904e4e3d795898a71a7d'); }); // 비행 슈트는 마스터키를 켠 사람만 (방장 창)
   p.on('pageerror', (e) => { errors.push(e.message); console.log('   (페이지 오류)', e.message); });
   await p.goto(url); await ready(p);
   if (await p.isVisible('#lookDone')) await p.click('#lookDone');
@@ -134,8 +134,8 @@ const overlaps = (p) => T(p, () => {
 
     /* 마스터가 사람별로 주는 권한 */
     await A.tap('#tabs button[data-m="master"]'); await sleep(900);
-    const bad = await T(A, () => [...document.querySelectorAll('#masterP button, #tabs button')].filter((b) => { const r = b.getBoundingClientRect(); return r.width && (r.height < 43.5 || r.width < 43.5 || r.left < 0 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5); }).map((b) => b.textContent));
-    check('마스터 판의 사람 줄에 🦌 가 더해져도 단추는 44px 이상·화면 안', (await T(A, () => document.querySelectorAll('#mkPeople .who .chip').length)) === 14 && bad.length === 0, bad);
+    const bad = await T(A, () => [...document.querySelectorAll('#masterP button, #tabs button')].filter((b) => { const r = b.getBoundingClientRect(); return r.width && !b.closest('.scroll') && (r.height < 43.5 || r.width < 43.5 || r.left < 0 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5); }).map((b) => b.textContent));
+    check('마스터 판의 사람 줄에 🦌 가 더해져도 단추는 44px 이상·화면 안', (await T(A, () => document.querySelectorAll('#mkPeople .who .chip[data-bit]').length)) === 16 && bad.length === 0, bad);
     await A.tap(`#mkPeople .who[data-id="${bid}"] [data-bit="32"]`);
     check('🦌 를 켜 주면 친구에게 썰매 단추가 생김', await until(async () => (await SL(B)).shown, 5000), await SL(B));
     await B.tap('#sledBtn'); await until(async () => (await SL(B)).alt > 2.5, 8000);

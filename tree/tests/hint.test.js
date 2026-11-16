@@ -25,7 +25,7 @@ const tapArrow = async (p, id, side) => { const a = (await H(p, id)).arrows.find
   try {
     const ctx = await browser.newContext({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true });
     const A = await ctx.newPage();
-    await A.addInitScript(() => localStorage.setItem('tree.master.hta', '784fab8e1ed8c33f4f76b49522a65591e94c9d7834cd8a4ad625fbc1a87bdb10')); // 달력으로 잠긴 가구가 없게
+    await A.addInitScript(() => localStorage.setItem('tree.master.hta', '9262b0baa88add8fdc882f6772709ebfbd645aaa651e904e4e3d795898a71a7d')); // 달력으로 잠긴 가구가 없게
     A.on('pageerror', (e) => { errors.push(e.message); console.log('   (페이지 오류)', e.message); });
     await A.goto(`${BASE}?net=bc&door=0&ns=hta`);
     await until(() => A.evaluate(() => !!(window.__tree && window.__tree.frames > 3)), 30000);
@@ -42,7 +42,7 @@ const tapArrow = async (p, id, side) => { const a = (await H(p, id)).arrows.find
     await tapArrow(A, 'furnList', 'r');
     check('› 를 누르면 목록이 옆으로 넘어가고 ‹ 도 생김', await until(async () => { const h = await H(A, 'furnList'); return h.left > 100 && h.sides.includes('l'); }, 5000), await H(A, 'furnList'));
     check('띠를 눌러도 가구를 고르거나 판이 닫히지 않음', (await T(A, () => window.__tree.mode)) === 'furn' && (await T(A, () => window.__tree.ghost)) === null);
-    for (let k = 0; k < 22 && (await H(A, 'furnList')).sides.includes('r'); k++) { await tapArrow(A, 'furnList', 'r'); await sleep(700); }
+    for (let k = 0; k < 45 && (await H(A, 'furnList')).sides.includes('r'); k++) { await tapArrow(A, 'furnList', 'r'); await sleep(700); }
     const end = await H(A, 'furnList');
     check('끝까지 넘기면 › 가 사라지고 ‹ 만 남음', end.sides === 'l' && end.over - end.left <= 4, end);
     const last = await T(A, () => { const b = document.querySelector('#furnList > :last-child'); return b ? b.dataset.v || b.textContent : null; });

@@ -62,7 +62,7 @@ const shown = (p, id) => T(p, (id2) => ({ of: window.__photo.of(id2), ...window.
     const url = (ns, h) => `${BASE}?net=bc&door=0&ns=${ns}&st=3000&rt=500${h || ''}`;
 
     /* 그림 앞에서 "사진 바꾸기" */
-    await ctx.addInitScript(() => { if (new URLSearchParams(location.search).get('ns') === 'ph') localStorage.setItem('tree.master.ph', '784fab8e1ed8c33f4f76b49522a65591e94c9d7834cd8a4ad625fbc1a87bdb10'); }); // 방 주인은 마스터키를 켠 사람
+    await ctx.addInitScript(() => { if (new URLSearchParams(location.search).get('ns') === 'ph') localStorage.setItem('tree.master.ph', '9262b0baa88add8fdc882f6772709ebfbd645aaa651e904e4e3d795898a71a7d'); }); // 방 주인은 마스터키를 켠 사람
     const H = await open(ctx, url('ph'));
     await T(H, () => window.__cinema.convert()); await sleep(600); // 새 방의 3층은 다락방이라, 그림이 걸린 영화관을 먼저 차린다
     const all = await items(H), arts = all.filter((it) => it[1].startsWith('art') && it[4] === 0).sort((a, b) => a[2] - b[2]);

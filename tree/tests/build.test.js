@@ -6,7 +6,7 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8236, BASE = `http://localhost:${PORT}/tree/`;
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript' };
-const HASH = '784fab8e1ed8c33f4f76b49522a65591e94c9d7834cd8a4ad625fbc1a87bdb10'; // 마스터키를 켠 상태는 저장값을 직접 넣어 만든다 (암호는 적지 않는다)
+const HASH = '9262b0baa88add8fdc882f6772709ebfbd645aaa651e904e4e3d795898a71a7d'; // 마스터키를 켠 상태는 저장값을 직접 넣어 만든다 (암호는 적지 않는다)
 const results = [];
 const check = (name, ok, d) => { results.push(!!ok); console.log(`${ok ? '통과' : '실패'}  ${name}${!ok && d !== undefined ? '  → ' + JSON.stringify(d) : ''}`); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -71,7 +71,7 @@ const openMaster = async (p) => { if (!(await p.isVisible('#masterP'))) await p.
     check('친구(마스터 아님)에게는 마스터 탭도 층·테마 줄도 없고, 층을 더할 수 없음', !(await B.isVisible('#tabs button[data-m="master"]')) && !(await T(B, () => window.__build.shown)) && (await T(B, () => window.__build.add())) === 0 && (await levels(A)) === 4);
     await openMaster(A);
     const ui = await T(A, () => ({ lab: document.querySelector('#mkLevels .lab').textContent, del: document.getElementById('mkDel').disabled, add: document.getElementById('mkAdd').disabled, fl: [...document.querySelectorAll('#mkTheme [data-lv]')].map((b) => b.dataset.lv).join(), th: document.querySelectorAll('#mkThemes .chip').length }));
-    check('마스터 판에 "층" 줄(4층 집, ＋ 층 더하기, 맨 위 층 지우기는 꺼짐)과 "테마" 줄(2층만, 테마 여섯 가지)', (await A.isVisible('#mkLevels')) && (await A.isVisible('#mkTheme')) && (await A.isVisible('#mkThemes')) && ui.lab === '4층 집' && ui.del && !ui.add && ui.fl === '1' && ui.th === 6, ui);
+    check('마스터 판에 "층" 줄(4층 집, ＋ 층 더하기, 맨 위 층 지우기는 꺼짐)과 "테마" 줄(2층만, 테마 여덟 가지)', (await A.isVisible('#mkLevels')) && (await A.isVisible('#mkTheme')) && (await A.isVisible('#mkThemes')) && ui.lab === '4층 집' && ui.del && !ui.add && ui.fl === '1' && ui.th === 8, ui);
     check('마스터 판의 단추는 모두 44px 이상이고 화면 안 (375×812)', (await audit(A)).length === 0, await audit(A));
     await shot(A, 'panel');
 

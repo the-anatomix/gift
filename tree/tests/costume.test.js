@@ -1,4 +1,4 @@
-// 의상 검사 (옷 12가지 · 색 · 소품 · 고르는 판(폰) · 저장 · 친구에게 보이기 · 권한이 있는 사람만 입는 비행 슈트). 실행: cd tree/tests && node costume.test.js
+// 의상 검사 (옷 13가지 · 색 · 소품 · 고르는 판(폰) · 저장 · 친구에게 보이기 · 권한이 있는 사람만 입는 비행 슈트). 실행: cd tree/tests && node costume.test.js
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8199, BASE = `http://localhost:${PORT}/tree/`;
@@ -12,7 +12,7 @@ const ready = (p) => until(() => p.evaluate(() => !!(window.__tree && window.__d
 async function open(ctx, url) {
   const p = await ctx.newPage();
   await p.addInitScript(() => { window.__bare = true; }); // 기본 가구 없이 빈 방에서 시작한다
-  await p.addInitScript(() => { if (new URLSearchParams(location.search).get('ns') === 'ca') localStorage.setItem('tree.master.ca', '784fab8e1ed8c33f4f76b49522a65591e94c9d7834cd8a4ad625fbc1a87bdb10'); }); // 비행 슈트는 마스터키를 켠 사람만 (방장 창)
+  await p.addInitScript(() => { if (new URLSearchParams(location.search).get('ns') === 'ca') localStorage.setItem('tree.master.ca', '9262b0baa88add8fdc882f6772709ebfbd645aaa651e904e4e3d795898a71a7d'); }); // 비행 슈트는 마스터키를 켠 사람만 (방장 창)
   p.on('pageerror', (e) => { errors.push(e.message); console.log('   (페이지 오류)', e.message); });
   await p.goto(url); await ready(p);
   if (await p.isVisible('#lookDone')) await p.click('#lookDone');
@@ -47,8 +47,8 @@ const audit = (p) => p.evaluate(() => {
     /* 고르는 판 */
     await A.tap('#tabs button[data-m="look"]'); await sleep(400);
     const outfits = await A.locator('#pickOutfit .chip').allTextContents();
-    check('옷 12가지(평상복·산타·루돌프·눈사람·엘프·펭귄·곰 잠옷·한복·정장·후드티·패딩·비행 슈트)', outfits.length === 12 && ['눈사람', '엘프', '펭귄', '곰 잠옷', '한복', '정장', '후드티', '패딩', '비행 슈트'].every((n) => outfits.some((t) => t.includes(n))), outfits);
-    check('갈래 단추 6개(옷·색·모자·목·안경·등), 처음은 옷', (await A.locator('#cosTabs .chip').count()) === 6 && (await A.getAttribute('#cosTabs .chip[data-v="outfit"]', 'aria-pressed')) === 'true' && (await A.isVisible('#pickOutfit')) && !(await A.isVisible('#pickHat')));
+    check('옷 13가지(평상복·산타·루돌프·눈사람·엘프·펭귄·곰 잠옷·한복·정장·후드티·패딩·찜질복·비행 슈트)', outfits.length === 13 && ['눈사람', '엘프', '펭귄', '곰 잠옷', '한복', '정장', '후드티', '패딩', '비행 슈트'].every((n) => outfits.some((t) => t.includes(n))), outfits);
+    check('갈래 단추 7개(옷·색·모자·목·안경·등·양말), 처음은 옷', (await A.locator('#cosTabs .chip').count()) === 7 && (await A.getAttribute('#cosTabs .chip[data-v="outfit"]', 'aria-pressed')) === 'true' && (await A.isVisible('#pickOutfit')) && !(await A.isVisible('#pickHat')));
     check('고르기 판의 단추가 화면 안·44px 이상', (await audit(A)).length === 0, await audit(A));
     const sheetH = await T(A, () => document.getElementById('look').getBoundingClientRect().height);
     check('판이 폰 화면의 절반을 넘지 않음', sheetH < 330, sheetH);
@@ -81,7 +81,7 @@ const audit = (p) => p.evaluate(() => {
     const add = {};
     for (const [tab, box, ids] of [['hat', 'pickHat', ['beanie', 'cap', 'party', 'ribbon', 'crown', 'muff']], ['neck', 'pickNeck', ['scarf', 'bow', 'bell']], ['eye', 'pickEye', ['round', 'sun']], ['back', 'pickBack', ['pack', 'wing', 'cape']]]) {
       await A.tap(`#cosTabs .chip[data-v="${tab}"]`); await sleep(150);
-      if (tab === 'hat') check('모자 갈래: 없음 + 6가지, 단추 44px 이상', (await A.locator('#pickHat .pick').count()) === 7 && (await audit(A)).length === 0, await audit(A));
+      if (tab === 'hat') check('모자 갈래: 없음 + 7가지, 단추 44px 이상', (await A.locator('#pickHat .pick').count()) === 8 && (await audit(A)).length === 0, await audit(A));
       for (const id of ids) { await A.tap(`#${box} .pick[data-v="${id}"]`); await sleep(60); add[id] = (await meshes(A)) - nb; await A.tap(`#${box} .pick[data-v=""]`); await sleep(40); }
     }
     check('소품 14가지(모자 6·목 3·안경 2·등 3)를 하나씩 쓰면 몸에 붙고, "없음"을 누르면 떨어짐', Object.keys(add).length === 14 && Object.values(add).every((n) => n >= 1 && n <= 8) && (await meshes(A)) === nb, add);

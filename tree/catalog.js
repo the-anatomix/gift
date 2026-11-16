@@ -2,8 +2,8 @@
 // 가구: w × d 는 차지하는 바닥 칸 수(돌리지 않았을 때). solid 가 false 면 밟고 지나갈 수 있다(러그).
 // play 가 있으면 눌러서 놀 수 있는 가구다(놀이는 play.js). lie = 누울 수 있다(침대), snack = 간식을 꺼내 먹는다(냉장고), dress = 옷을 갈아입는다(옷장).
 export const FURNITURE = [
-  { id: 'sofa', name: '소파', icon: '🛋️', w: 4, d: 2, solid: true },
-  { id: 'chair', name: '안락의자', icon: '🪑', w: 2, d: 2, solid: true },
+  { id: 'sofa', name: '소파', icon: '🛋️', w: 4, d: 2, solid: true, sit: true, rise: 0.16, seatX: 0.36 }, // sit = 앉을 수 있다 (두 자리. seatX = 자리의 좌우 거리, rise = 앉는 판의 높이에서 0.34 를 뺀 값)
+  { id: 'chair', name: '안락의자', icon: '🪑', w: 2, d: 2, solid: true, sit: true, seats: 1, rise: 0.16 },
   { id: 'fire', name: '벽난로', icon: '🔥', w: 4, d: 2, solid: true, play: 'fire' },
   { id: 'table', name: '탁자', icon: '☕', w: 3, d: 2, solid: true, holds: 0.465 }, // holds = 케이크를 올려놓을 수 있는 윗면 높이
   { id: 'shelf', name: '책장', icon: '📚', w: 3, d: 1, solid: true },
@@ -86,6 +86,42 @@ FURNITURE.push(
   { id: 'cookst', name: '요리 대결 조리대', icon: '🥘', w: 2, d: 1, set: 'cook', solid: true, play: 'cook' },
   { id: 'pantry', name: '재료 진열대', icon: '🥕', w: 2, d: 1, set: 'cook', solid: true, play: 'pantry' },
   { id: 'judge', name: '심사석', icon: '🍽️', w: 3, d: 1, set: 'cook', solid: true, play: 'judge' },
+);
+// 테마 소품 (모양과 놀이는 spots.js, 노래방 기계는 karaoke.js). set = 테마 묶음(표시일 뿐이다): 가구 탭에서 누구나 어느 층에든 놓는다.
+// serve = 눌러서 꺼내 먹는 것들(food.js 의 FOODS), use = 눌러서 바로 하는 일(spots.js 의 USES), lie + lieY = 눕는 높이(침대는 0.4)
+FURNITURE.push(
+  // 카페
+  { id: 'espresso', name: '에스프레소 머신', icon: '☕', w: 2, d: 1, set: 'cafe', solid: true, play: 'coffee' },
+  { id: 'dessert', name: '디저트 진열장', icon: '🍰', w: 2, d: 1, set: 'cafe', solid: true, play: 'serve', serve: ['cake', 'macaron', 'croissant', 'cookie', 'pudding'] },
+  { id: 'cafetable', name: '카페 탁자', icon: '🪵', w: 2, d: 2, set: 'cafe', solid: true, holds: 0.725 },
+  { id: 'cafechair', name: '카페 의자', icon: '🪑', w: 1, d: 1, set: 'cafe', solid: true, sit: true, seats: 1, rise: 0.11, seatZ: -0.06 },
+  { id: 'menu', name: '메뉴판', icon: '📋', w: 1, d: 1, set: 'cafe', solid: true },
+  // 노래방
+  { id: 'karaoke', name: '노래방 기계', icon: '🎤', w: 2, d: 1, set: 'sing', solid: true, play: 'sing' },
+  { id: 'mirrorball', name: '미러볼', icon: '🪩', w: 1, d: 1, set: 'sing', solid: false },
+  { id: 'speaker', name: '스피커', icon: '🔊', w: 1, d: 1, set: 'sing', solid: true },
+  // 산장
+  { id: 'rocker', name: '흔들의자', icon: '🪑', w: 2, d: 2, set: 'lodge', solid: true, sit: true, seats: 1, rise: 0.12 },
+  { id: 'potbelly', name: '무쇠 난로', icon: '🫖', w: 1, d: 1, set: 'lodge', solid: true, play: 'serve', serve: ['cocoa'] },
+  { id: 'logpile', name: '장작 더미', icon: '🪵', w: 2, d: 1, set: 'lodge', solid: true },
+  // 파티룸
+  { id: 'balloons', name: '풍선 다발', icon: '🎈', w: 1, d: 1, set: 'party', solid: true },
+  { id: 'popper', name: '파티 폭죽', icon: '🎉', w: 1, d: 1, set: 'party', solid: true, use: 'pop' },
+  // 서재
+  { id: 'readdesk', name: '독서 책상', icon: '📖', w: 2, d: 1, set: 'lib', solid: true, play: 'read' },
+  { id: 'globe', name: '지구본', icon: '🌍', w: 1, d: 1, set: 'lib', solid: true, use: 'spin' },
+  // 찜질방
+  { id: 'kiln', name: '불가마', icon: '♨️', w: 3, d: 3, set: 'jjim', solid: true, use: 'kiln' },
+  { id: 'jjimmat', name: '찜질 매트', icon: '🧺', w: 2, d: 4, set: 'jjim', solid: true, lie: true, seats: 1, lieY: 0.09 },
+  { id: 'snackbar', name: '찜질방 매점', icon: '🥚', w: 2, d: 1, set: 'jjim', solid: true, play: 'serve', serve: ['egg', 'sikhye', 'icecream', 'water'] },
+  { id: 'massage', name: '안마의자', icon: '💺', w: 2, d: 2, set: 'jjim', solid: true, sit: true, seats: 1, rise: 0.14 },
+  // 젤리방
+  { id: 'jellybar', name: '젤리 기계', icon: '🍬', w: 2, d: 1, set: 'jelly', solid: true, play: 'serve', serve: ['gummy', 'worm', 'jheart', 'pudding'] },
+  { id: 'jellybear', name: '큰 곰젤리 (딸기)', icon: '🧸', w: 1, d: 1, set: 'jelly', solid: true },
+  { id: 'jellybear2', name: '큰 곰젤리 (멜론)', icon: '🧸', w: 1, d: 1, set: 'jelly', solid: true },
+  { id: 'jellybear3', name: '큰 곰젤리 (레몬)', icon: '🧸', w: 1, d: 1, set: 'jelly', solid: true },
+  { id: 'jellycube', name: '젤리 방석', icon: '🟪', w: 1, d: 1, set: 'jelly', solid: true, sit: true, seats: 1, rise: -0.02 },
+  { id: 'jellypad', name: '젤리 트램펄린', icon: '🟣', w: 2, d: 2, set: 'jelly', solid: false, use: 'bounce' },
 );
 // 4층 게임방의 배치 [종류, 집 기준 i, j, 돌린 횟수]. 사다리 구멍 (27, 13)·올라선 칸 (28, 13)·스위치 앞(27, 0)은 비워 둔다
 export const GAMEROOM = [
@@ -224,7 +260,7 @@ export const SNOWMEN = 8;      // 마당에서 같이 만들어 놓는 눈사람
 // 방명록: 글은 이만큼까지(넘치면 가장 오래된 것부터 빠진다), 이름·글의 글자 수, 한 사람이 다시 남기기까지 기다리는 시간
 export const NOTE = { max: 60, name: 10, text: 80, gap: 5000 };
 // 이 방 최고 기록을 남기는 놀이와 그 점수의 끝 (다트 = 화살 3개의 합, 마시멜로 = 구운 점수)
-export const BEST = { dart: { name: '다트', top: 180 }, fire: { name: '마시멜로 굽기', top: 100 }, arcade: { name: '오락기 별 받기', top: 999 }, pool: { name: '당구', top: 100 } };
+export const BEST = { dart: { name: '다트', top: 180 }, fire: { name: '마시멜로 굽기', top: 100 }, arcade: { name: '오락기 별 받기', top: 999 }, pool: { name: '당구', top: 100 }, sing: { name: '노래방', top: 100 } };
 // 이름별 순위(rank.js): 놀이마다 방에 남기는 사람 수, 순위 판에 보이는 등수
 export const RANK = { keep: 20, show: 10 };
 
@@ -265,34 +301,54 @@ export const PIZZA_TOPS = [
 //   사다리 둘레(a 17~26, j 3~9)와 스위치 앞(a 26~28, j 0~1)은 비워 둔다. 층마다 사다리 자리가 달라서다(path.js 의 LADDERS)
 export const THEMES = [
   { id: 'cafe', name: '아늑한 카페', short: '카페', icon: '☕', wall: 0xEAD7B7, panel: 0x7B4F33, ceil: 0xFFF3E0, floor: { kind: 'wood', tones: ['#D4A06A', '#C48E58', '#DDB07A', '#B98149'] },
-    items: [['counter', 0, 0, 0], ['counter', 2, 0, 0], ['fridge', 4, 0, 0], ['wine', 6, 0, 0], ['shelf', 8, 0, 0], ['plant', 11, 0, 0], ['art2', 13, 0, 0], ['lamp', 15, 0, 0],
-      ['table', 3, 6, 0], ['chair', 1, 6, 1], ['chair', 6, 6, 3], ['table', 11, 6, 0], ['chair', 9, 6, 1], ['chair', 14, 6, 3],
-      ['table', 3, 12, 0], ['chair', 1, 12, 1], ['chair', 6, 12, 3], ['table', 11, 12, 0], ['chair', 9, 12, 1], ['chair', 14, 12, 3],
-      ['plant', 0, 17, 0], ['plant', 16, 17, 0], ['sofa', 24, 16, 2], ['table', 25, 13, 0], ['music', 29, 11, 3], ['lamp', 29, 17, 0], ['plant', 22, 17, 0]] },
+    // 북쪽 벽의 바(에스프레소 머신·디저트 진열장), 앉아서 마시는 카페 탁자 넷, 창가 소파 자리
+    items: [['counter', 0, 0, 0], ['espresso', 2, 0, 0], ['dessert', 4, 0, 0], ['counter', 6, 0, 0], ['fridge', 8, 0, 0], ['wine', 10, 0, 0], ['shelf', 11, 0, 0], ['plant', 14, 0, 0], ['art2', 15, 0, 0],
+      ['menu', 1, 3, 0],
+      ['cafetable', 3, 6, 0], ['cafechair', 2, 6, 1], ['cafechair', 5, 6, 3], ['cafetable', 10, 6, 0], ['cafechair', 9, 6, 1], ['cafechair', 12, 6, 3],
+      ['cafetable', 3, 12, 0], ['cafechair', 2, 12, 1], ['cafechair', 5, 12, 3], ['cafetable', 10, 12, 0], ['cafechair', 9, 12, 1], ['cafechair', 12, 12, 3],
+      ['lamp', 0, 9, 0], ['plant', 0, 17, 0], ['plant', 16, 17, 0], ['lamp', 15, 9, 0],
+      ['sofa', 24, 16, 2], ['table', 25, 13, 0], ['music', 29, 11, 3], ['lamp', 29, 17, 0], ['plant', 22, 17, 0]] },
   { id: 'lodge', name: '겨울 산장', short: '산장', icon: '🏔️', wall: 0x8E5B38, panel: 0x5B3920, ceil: 0xD8B48A, floor: { kind: 'wood', tones: ['#6E4527', '#5E3A21', '#7B4F2D', '#52321C'] },
-    items: [['fire', 6, 0, 0], ['lamp', 5, 0, 0], ['lamp', 10, 0, 0], ['shelf', 0, 0, 0], ['shelf', 12, 0, 0], ['plant', 16, 0, 0],
-      ['rug', 6, 4, 0], ['sofa', 6, 7, 2], ['chair', 2, 3, 1], ['chair', 11, 3, 3],
+    // 벽난로 앞의 소파와 흔들의자, 코코아를 끓이는 무쇠 난로, 장작 더미
+    items: [['fire', 6, 0, 0], ['logpile', 4, 0, 0], ['lamp', 10, 0, 0], ['shelf', 0, 0, 0], ['potbelly', 11, 0, 0], ['shelf', 12, 0, 0], ['plant', 16, 0, 0],
+      ['rug', 6, 4, 0], ['sofa', 6, 7, 2], ['rocker', 2, 3, 1], ['rocker', 11, 3, 3],
       ['bed', 0, 13, 0], ['stand', 3, 13, 0], ['closet', 5, 17, 2], ['giftR', 14, 15, 0], ['giftG', 15, 15, 0], ['music', 16, 17, 0],
-      ['chair', 27, 11, 3], ['lamp', 29, 13, 0], ['rug', 23, 14, 0], ['plant', 29, 17, 0]] },
+      ['chair', 27, 11, 3], ['lamp', 29, 13, 0], ['rug', 23, 14, 0], ['plant', 29, 17, 0], ['logpile', 22, 17, 2]] },
   { id: 'party', name: '파티룸', short: '파티', icon: '🎉', wall: 0xF7B9D2, panel: 0x9B52B5, ceil: 0xFFEAF5, floor: { kind: 'tile', a: '#FFE1EF', b: '#D7C6FF', size: 1.2 },
+    // 풍선과 폭죽, 미러볼 아래 춤추는 자리, 노래방 기계까지
     items: [['tv', 5, 0, 0], ['music', 4, 0, 0], ['music', 8, 0, 0], ['dart', 11, 0, 0], ['dart', 13, 0, 0], ['arcade', 15, 0, 0], ['claw', 16, 0, 0], ['bigbunny', 0, 0, 0],
       ['rug', 5, 3, 0], ['table', 5, 7, 0], ['giftR', 4, 9, 0], ['giftG', 8, 9, 0], ['lamp', 12, 7, 0],
       ['beanbag', 1, 12, 0], ['beanbag', 4, 12, 0], ['beanbag', 7, 12, 0], ['beanbag', 10, 12, 0],
       ['bunny', 14, 16, 0], ['bunny2', 15, 16, 0], ['bunny3', 16, 16, 0], ['giftR', 0, 17, 0], ['giftG', 1, 17, 0],
-      ['pool', 21, 12, 0], ['sofa', 24, 16, 2], ['lamp', 29, 17, 0]] },
+      ['pool', 21, 12, 0], ['sofa', 24, 16, 2], ['lamp', 29, 17, 0],
+      ['balloons', 2, 0, 0], ['balloons', 9, 0, 0], ['balloons', 0, 10, 0], ['balloons', 16, 10, 0], ['popper', 3, 9, 0], ['popper', 9, 9, 0], ['mirrorball', 6, 5, 0], ['balloons', 29, 11, 0]] },
   { id: 'library', name: '서재', short: '서재', icon: '📚', wall: 0x2F5A49, panel: 0x5B3B23, ceil: 0xF1E5CC, floor: { kind: 'wood', tones: ['#5F3C23', '#6F462A', '#55341E', '#7B5131'] },
+    // 책장으로 둘러싼 방, 책을 펼쳐 읽는 독서 책상과 지구본
     items: [['shelf', 0, 0, 0], ['shelf', 3, 0, 0], ['shelf', 6, 0, 0], ['shelf', 9, 0, 0], ['shelf', 12, 0, 0], ['lamp', 15, 0, 0], ['plant', 16, 0, 0],
       ['shelf', 0, 3, 1], ['shelf', 0, 7, 1], ['shelf', 0, 11, 1],
-      ['table', 6, 7, 0], ['chair', 4, 7, 1], ['chair', 9, 7, 3], ['lamp', 8, 5, 0], ['table', 6, 13, 0], ['chair', 4, 13, 1], ['chair', 9, 13, 3],
-      ['rug', 13, 12, 0], ['chair', 14, 15, 2], ['lamp', 16, 15, 0], ['music', 16, 17, 0],
-      ['art1', 21, 0, 0], ['shelf', 29, 11, 3], ['shelf', 29, 14, 3], ['chair', 26, 12, 3]] },
+      ['readdesk', 6, 6, 0], ['cafechair', 6, 7, 2], ['globe', 9, 6, 0], ['lamp', 5, 6, 0], ['table', 6, 13, 0], ['chair', 4, 13, 1], ['chair', 9, 13, 3],
+      ['rug', 12, 9, 0], ['chair', 13, 12, 2], ['lamp', 16, 15, 0], ['music', 16, 17, 0], ['readdesk', 3, 17, 2], ['cafechair', 3, 16, 0],
+      ['art1', 21, 0, 0], ['shelf', 29, 11, 3], ['shelf', 29, 14, 3], ['chair', 26, 12, 3], ['globe', 29, 17, 0]] },
   { id: 'karaoke', name: '노래방', short: '노래방', icon: '🎤', wall: 0x2A2456, panel: 0x17133A, ceil: 0x151230, floor: { kind: 'carpet', base: '#1F1B3D', dots: ['#FF5FAE', '#55D6FF', '#FFD84F', '#9B7BFF'] },
-    items: [['tv', 6, 0, 0], ['music', 4, 0, 0], ['music', 10, 0, 0], ['lamp', 3, 0, 0], ['lamp', 11, 0, 0],
-      ['rug', 6, 2, 0], ['table', 6, 5, 0], ['sofa', 2, 8, 2], ['sofa', 8, 8, 2], ['beanbag', 13, 4, 0], ['beanbag', 13, 8, 0],
-      ['tv', 0, 13, 1], ['table', 2, 13, 1], ['sofa', 5, 13, 3], ['lamp', 0, 17, 0], ['art3', 13, 0, 0], ['art5', 15, 17, 2], ['lamp', 16, 0, 0],
+    // 큰 화면 옆의 노래방 기계와 스피커, 미러볼, ㄱ자로 둘러앉는 소파
+    items: [['tv', 6, 0, 0], ['karaoke', 4, 0, 0], ['speaker', 3, 0, 0], ['speaker', 9, 0, 0], ['music', 10, 0, 0], ['lamp', 11, 0, 0],
+      ['mirrorball', 7, 4, 0], ['table', 6, 6, 0], ['sofa', 2, 9, 2], ['sofa', 8, 9, 2], ['beanbag', 13, 4, 0], ['beanbag', 13, 8, 0],
+      ['karaoke', 0, 12, 1], ['speaker', 0, 11, 1], ['speaker', 0, 14, 1], ['sofa', 5, 12, 3], ['mirrorball', 3, 13, 0], ['lamp', 0, 17, 0], ['art3', 13, 0, 0], ['art5', 15, 17, 2], ['lamp', 16, 0, 0],
       ['arcade', 27, 13, 3], ['arcade', 27, 15, 3], ['beanbag', 23, 14, 0], ['music', 29, 17, 0]] },
   { id: 'cook', name: '요리 대결장', short: '요리', icon: '🍳', wall: 0xF3EFE6, panel: 0xC8443A, ceil: 0xFFFFFF, floor: { kind: 'tile', a: '#F6F1E7', b: '#3B3B3B', size: 1 },
     items: [['pantry', 0, 0, 0], ['pantry', 2, 0, 0], ['fridge', 4, 0, 0], ['counter', 6, 0, 0], ['stove', 8, 0, 0], ['counter', 10, 0, 0], ['stove', 12, 0, 0], ['fridge', 14, 0, 0], ['wine', 16, 0, 0],
-      ['cookst', 2, 6, 0], ['cookst', 7, 6, 0], ['cookst', 12, 6, 0], ['judge', 6, 15, 2], ['lamp', 5, 15, 0], ['lamp', 9, 15, 0], ['table', 11, 11, 0],
+      ['cookst', 2, 6, 0], ['cookst', 7, 6, 0], ['cookst', 12, 6, 0], ['judge', 6, 15, 2], ['lamp', 5, 15, 0], ['lamp', 9, 15, 0], ['cafetable', 11, 11, 0], ['cafechair', 10, 11, 1], ['cafechair', 13, 11, 3],
       ['plant', 0, 17, 0], ['plant', 16, 17, 0], ['counter', 24, 17, 2], ['pantry', 27, 17, 2], ['plant', 29, 12, 0]] },
+  { id: 'jjim', name: '찜질방', short: '찜질방', icon: '♨️', wall: 0xE6C79A, panel: 0x9A6238, ceil: 0xF6E7C8, floor: { kind: 'wood', tones: ['#E3C27E', '#DAB770', '#E9CB8B', '#D2AD66'] },
+    // 불가마, 나란히 눕는 찜질 매트, 구운 계란과 식혜를 파는 매점, 안마의자, TV 앞 쉬는 자리
+    items: [['kiln', 0, 0, 0], ['snackbar', 5, 0, 0], ['fridge', 7, 0, 0], ['tv', 10, 0, 0], ['plant', 14, 0, 0], ['massage', 15, 0, 0],
+      ['jjimmat', 1, 6, 0], ['jjimmat', 4, 6, 0], ['jjimmat', 7, 6, 0], ['jjimmat', 10, 6, 0], ['massage', 15, 3, 3],
+      ['rug', 3, 12, 0], ['table', 3, 14, 0], ['beanbag', 0, 13, 0], ['beanbag', 7, 13, 0], ['jjimmat', 11, 13, 0], ['jjimmat', 14, 13, 0], ['plant', 0, 17, 0],
+      ['closet', 22, 17, 2], ['massage', 28, 11, 3], ['jjimmat', 23, 12, 0], ['lamp', 29, 17, 0]] },
+  { id: 'jelly', name: '젤리방', short: '젤리', icon: '🍬', wall: 0xFFD9EC, panel: 0xB79CF2, ceil: 0xFFF6FB, floor: { kind: 'tile', a: '#FFF0F7', b: '#D9F3E6', size: 1 },
+    // 젤리 기계, 큰 곰젤리들, 말랑한 젤리 방석과 트램펄린
+    items: [['jellybar', 3, 0, 0], ['jellybear', 0, 0, 0], ['jellybear2', 1, 0, 0], ['jellybear3', 2, 0, 0], ['jellybar', 7, 0, 0], ['jellybear2', 6, 0, 0], ['balloons', 10, 0, 0], ['jellybear', 12, 0, 0], ['jellybear3', 13, 0, 0], ['art3', 15, 0, 0],
+      ['jellypad', 2, 5, 0], ['jellypad', 11, 5, 0], ['cafetable', 6, 6, 0], ['jellycube', 5, 6, 1], ['jellycube', 8, 6, 3], ['jellycube', 6, 5, 0], ['jellycube', 6, 8, 2],
+      ['rug', 5, 12, 0], ['beanbag', 1, 12, 0], ['beanbag', 9, 12, 0], ['jellycube', 4, 15, 0], ['jellycube', 8, 15, 0], ['jellybear', 0, 17, 0], ['jellybear2', 16, 17, 0], ['jellybear3', 16, 11, 0], ['balloons', 0, 10, 0],
+      ['jellypad', 23, 12, 0], ['jellybear3', 29, 11, 0], ['jellybear', 29, 17, 0], ['music', 22, 17, 0]] },
 ];

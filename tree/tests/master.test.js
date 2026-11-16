@@ -1,9 +1,9 @@
-// 마스터키 검사: 제목 일곱 번 → 암호 (바닥 열쇠는 없음) → 마스터 탭, 잠금 없이 쓰기(다른 사람 달력은 그대로), 불꽃놀이 단추, 하늘 낮·밤(친구에게도), 선물 미리 열기, 사람별 권한 주기(비행 슈트 🚀·썰매 🦌 포함). 실행: cd tree/tests && node master.test.js
+// 마스터키 검사: 제목 일곱 번 → 암호 (바닥 황금열쇠는 암호를 묻지 않음) → 마스터 탭, 잠금 없이 쓰기(다른 사람 달력은 그대로), 불꽃놀이 단추, 하늘 낮·밤(친구에게도), 선물 미리 열기, 사람별 권한 주기(비행 슈트 🚀·썰매 🦌 포함). 실행: cd tree/tests && node master.test.js
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), PORT = 8191, BASE = `http://localhost:${PORT}/tree/`;
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript' };
-const HASH = '784fab8e1ed8c33f4f76b49522a65591e94c9d7834cd8a4ad625fbc1a87bdb10'; // 암호 자체는 검사에 적지 않는다: 켠 상태는 저장값을 직접 넣어 만든다
+const HASH = '9262b0baa88add8fdc882f6772709ebfbd645aaa651e904e4e3d795898a71a7d'; // 암호 자체는 검사에 적지 않는다: 켠 상태는 저장값을 직접 넣어 만든다
 const results = [];
 const check = (name, ok, d) => { results.push(!!ok); console.log(`${ok ? '통과' : '실패'}  ${name}${!ok && d !== undefined ? '  → ' + JSON.stringify(d) : ''}`); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -30,12 +30,13 @@ const server = http.createServer((q, s) => { let f = path.join(ROOT, decodeURICo
     /* 암호 */
     const W = await open(ctx, `${BASE}?net=bc&door=0&ns=mw`, { pass: '틀린암호' });
     check('처음에는 마스터 탭이 없고 잠긴 것이 있음', !(await W.isVisible('#tabs button[data-m="master"]')) && (await locks(W)) > 0, await locks(W));
-    { // 예전 금빛 열쇠 자리(1층 북서 구석 바닥)를 눌러도 암호를 묻지 않는다: 열쇠는 없앴다
+    { // 1층 북서 구석 바닥의 황금열쇠를 눌러도 암호는 묻지 않는다: 퀘스트 판이 열린다 (자세한 것은 quest.test.js)
       let asked = false; const seen = () => { asked = true; }; W.on('dialog', seen);
       const kp = await T(W, () => { const s = window.__tree.screenOf(-3.67, -3.69, 0.03); return [s.x, s.y]; });
       await W.touchscreen.tap(kp[0], kp[1]); await sleep(500);
       W.off('dialog', seen);
-      check('바닥의 금빛 열쇠는 없음 (그 자리를 눌러도 암호를 묻지 않음)', !asked && !(await T(W, () => window.__master.on)) && !(await T(W, () => 'key' in window.__master)), kp);
+      check('바닥의 황금열쇠를 누르면 암호를 묻지 않고 퀘스트 판이 열림 (마스터는 안 켜짐)', !asked && !(await T(W, () => window.__master.on)) && (await T(W, () => window.__quest.shown)), kp);
+      await W.tap('#questClose');
     }
     let asked7 = 0; const seen7 = () => { asked7++; }; W.on('dialog', seen7);
     const bb = await W.locator('#top .brand').boundingBox(); // 5초 안에 일곱 번: 느린 검사 기기에서도 되게 자리를 바로 누른다
@@ -61,7 +62,7 @@ const server = http.createServer((q, s) => { let f = path.join(ROOT, decodeURICo
     check('친구가 같은 장식을 달려 하면 여전히 안 됨', !(await T(B, (k) => window.__tree.dispatch({ t: 'orn', id: 'mo2', k, x: 0.3, y: 1.0, z: 0.3 }), lockedOrn)));
     await A.tap('#tabs button[data-m="master"]'); await sleep(900);
     check('마스터 탭을 누르면 판이 열림: 하늘, 사람별 권한, 끄기', (await A.isVisible('#masterP')) && (await A.isVisible('#mkSky')) && (await A.isVisible('#masterOff')) && (await T(A, () => document.querySelectorAll('#mkPeople .who').length)) === 1);
-    const bad = await T(A, () => [...document.querySelectorAll('#masterP button, #tabs button')].filter((b) => { const r = b.getBoundingClientRect(); return r.width && (r.height < 43.5 || r.width < 43.5 || r.left < 0 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5); }).map((b) => b.textContent));
+    const bad = await T(A, () => [...document.querySelectorAll('#masterP button, #tabs button')].filter((b) => { const r = b.getBoundingClientRect(); return r.width && !b.closest('.scroll') && (r.height < 43.5 || r.width < 43.5 || r.left < 0 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5); }).map((b) => b.textContent));
     check('마스터 판과 탭의 단추는 44px 이상, 화면 안', bad.length === 0, bad);
     await A.screenshot({ path: path.join(__dirname, 'out', 'master-panel.png') });
     /* 하늘 */
@@ -108,7 +109,7 @@ const server = http.createServer((q, s) => { let f = path.join(ROOT, decodeURICo
     check('받은 권한은 다시 들어와도 그대로', (await locks(B)) === 0 && (await B.isVisible('#tabs button[data-m="master"]')));
     await until(async () => (await T(A, () => window.__duo.count)) === 2, 20000);
     await A.tap('#tabs button[data-m="master"]'); await sleep(200); if (!(await A.isVisible('#masterP'))) await A.tap('#tabs button[data-m="master"]');
-    check('마스터 판을 다시 열면 친구가 가진 권한이 켜진 채로 보임', await until(() => T(A, () => [...document.querySelectorAll('#mkPeople .who .chip')].length === 8 && [...document.querySelectorAll('#mkPeople .who .chip')].every((b) => (b.getAttribute('aria-pressed') === 'true') === (b.dataset.bit !== '64' && b.dataset.bit !== '128'))), 6000), await T(A, () => window.__master.given)); // 🎬(64)와 🏗️(128)는 이 검사에서 주지 않았다
+    check('마스터 판을 다시 열면 친구가 가진 권한이 켜진 채로 보임', await until(() => T(A, () => [...document.querySelectorAll('#mkPeople .who .chip[data-bit]')].length === 8 && [...document.querySelectorAll('#mkPeople .who .chip[data-bit]')].every((b) => (b.getAttribute('aria-pressed') === 'true') === (b.dataset.bit !== '64' && b.dataset.bit !== '128'))), 6000), await T(A, () => window.__master.given)); // 🎬(64)와 🏗️(128)는 이 검사에서 주지 않았다
     check('다시 들어와도 비행 슈트를 입은 채이고 날기 단추가 있음', await until(() => T(B, () => window.__tree.look.outfit === 'jet' && window.__fly.shown), 5000), await T(B, () => window.__tree.look.outfit));
     await A.tap('#mkPeople .who [data-bit="16"]');
     check('🚀 를 끄면 친구는 평상복으로 바뀌고 날기 단추와 옷 목록의 비행 슈트가 사라짐', await until(async () => (await T(B, () => window.__tree.look.outfit === 'basic' && !window.__fly.shown)) && !(await jetChip(B)), 5000), await T(B, () => window.__tree.look.outfit));

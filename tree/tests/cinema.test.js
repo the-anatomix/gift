@@ -13,7 +13,7 @@ const ready = (p) => until(() => p.evaluate(() => !!(window.__tree && window.__d
 async function open(ctx, url, bare = false) {
   const p = await ctx.newPage();
   if (bare) await p.addInitScript(() => { window.__bare = true; });
-  await p.addInitScript(() => { const n = new URLSearchParams(location.search).get('ns'); if (n === 'cn' || n === 'co') localStorage.setItem('tree.master.' + n, '784fab8e1ed8c33f4f76b49522a65591e94c9d7834cd8a4ad625fbc1a87bdb10'); }); // 이 두 방의 주인은 마스터키를 켠 사람
+  await p.addInitScript(() => { const n = new URLSearchParams(location.search).get('ns'); if (n === 'cn' || n === 'co') localStorage.setItem('tree.master.' + n, '9262b0baa88add8fdc882f6772709ebfbd645aaa651e904e4e3d795898a71a7d'); }); // 이 두 방의 주인은 마스터키를 켠 사람
   p.on('pageerror', (e) => { errors.push(e.message); console.log('   (페이지 오류)', e.message); });
   await p.goto(url); await ready(p);
   if (await p.isVisible('#lookDone')) await p.click('#lookDone');
@@ -50,7 +50,7 @@ const audit = (p) => p.evaluate(() => {
     check('새 방의 3층은 영화관이 아니라 다락방(가구 5개, 스크린 없음)이고 기본 가구는 모두 28개', first.length === 28 && first.filter((it) => Math.floor(it[2] / 32) === 2).length === 5 && !kinds(first, 2).screen && (await T(N, () => window.__cinema.theater)) === false, [first.length, kinds(first, 2)]);
     await N.tap('#tabs button[data-m="furn"]'); await sleep(300);
     const picks = await T(N, () => [...document.querySelectorAll('#furnList .pick')].map((b) => b.textContent));
-    check('가구 탭 목록에 영화관 소품(스크린·좌석 3단·유도등·팝콘 기계·그림 5점)이 있고 잠겨 있지 않음', ['영화관 스크린', '영화관 좌석', '영화관 좌석 2단', '영화관 좌석 3단', '바닥 유도등', '팝콘 기계', '그림: 겨울 언덕', '그림: 오로라'].every((n) => picks.some((t) => t.includes(n))) && picks.length === 54 && !(await T(N, () => [...document.querySelectorAll('#furnList .pick')].filter((b) => /영화관|그림|팝콘|유도등/.test(b.textContent)).some((b) => b.disabled || b.classList.contains('lock')))), picks.length);
+    check('가구 탭 목록에 영화관 소품(스크린·좌석 3단·유도등·팝콘 기계·그림 5점)이 있고 잠겨 있지 않음', ['영화관 스크린', '영화관 좌석', '영화관 좌석 2단', '영화관 좌석 3단', '바닥 유도등', '팝콘 기계', '그림: 겨울 언덕', '그림: 오로라'].every((n) => picks.some((t) => t.includes(n))) && picks.length === 79 && !(await T(N, () => [...document.querySelectorAll('#furnList .pick')].filter((b) => /영화관|그림|팝콘|유도등/.test(b.textContent)).some((b) => b.disabled || b.classList.contains('lock')))), picks.length);
     await N.tap('.more[data-list="furnList"]'); await sleep(300);
     check('"전체 보기"로 펼쳐도 목록이 폰 화면 안에 들어옴(44px 이상, 넘치는 줄은 목록 안에서 위아래로 넘김)', (await audit(N)).length === 0 && (await T(N, () => [...document.querySelectorAll('#furnList .pick')].every((b) => { const r = b.getBoundingClientRect(); return r.width >= 43.5 && r.height >= 43.5 && r.left >= 0 && r.right <= innerWidth + 0.5; }) && (() => { const r = document.getElementById('furnList').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight + 0.5; })())), await audit(N));
     await N.tap('.more[data-list="furnList"]');
